@@ -15,5 +15,14 @@
     },
     "optionalDependencies": {
         "@laravel/multiplex": "^0.4.1"
+    },
+    "dependencies": {
+        "@reduxjs/toolkit": "^2.13.0",
+        "@vitejs/plugin-react": "^6.1.2",
+        "chart.js": "^4.5.1",
+        "react": "^19.3.1",
+        "react-dom": "^19.3.1",
+        "react-redux": "^9.3.0",
+        "react-router-dom": "^7.18.4"
     }
 }

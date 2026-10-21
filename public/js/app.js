@@ -9,13 +9,20 @@ document.querySelectorAll('[data-menu]').forEach((button) => {
 document.querySelectorAll('[data-sidebar]').forEach((button) => {
   button.addEventListener('click', () => document.querySelector('.sidebar').classList.toggle('open'));
 });
+function applyTheme(theme) {
+  const dark = theme === 'dark';
+  document.documentElement.classList.toggle('dark', dark);
+  document.body.classList.toggle('dark', dark);
+}
+applyTheme(localStorage.getItem('bornopos-theme') || 'light');
 document.querySelectorAll('[data-theme]').forEach((button) => {
   button.addEventListener('click', () => {
-    document.body.classList.toggle('dark');
-    localStorage.setItem('bornopos-theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+    const next = document.body.classList.contains('dark') ? 'light' : 'dark';
+    applyTheme(next);
+    localStorage.setItem('bornopos-theme', next);
+    button.textContent = next === 'dark' ? '☀' : '☾';
   });
 });
-if (localStorage.getItem('bornopos-theme') === 'dark') document.body.classList.add('dark');
 document.querySelectorAll('[data-demo]').forEach((button) => {
   button.addEventListener('click', () => {
     const form = button.closest('form') ? null : document.querySelector('#login-form');

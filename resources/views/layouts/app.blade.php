@@ -4,6 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title ?? 'BornoPos' }}</title>
+    <script>
+        try {
+            if (localStorage.getItem('bornopos-theme') === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        } catch (e) {}
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">
@@ -41,7 +48,7 @@
                 </div>
             </div>
             <div class="menu">
-                <button class="lang" type="button" data-menu><span class="flag">🇬🇧</span> {{ ['en' => 'English', 'bn' => 'Bangla', 'ar' => 'Arabic'][app()->getLocale()] ?? 'English' }}</button>
+                <button class="lang" type="button" data-menu><span class="flag">{{ ['en' => '🇬🇧', 'bn' => '🇧🇩', 'ar' => '🇸🇦'][app()->getLocale()] ?? '🇬🇧' }}</span> {{ ['en' => 'English', 'bn' => 'বাংলা', 'ar' => 'العربية'][app()->getLocale()] ?? 'English' }}</button>
                 <div class="menu-pop">
                     <a href="{{ route('locale', ['ln' => 'en']) }}">English</a>
                     <a href="{{ route('locale', ['ln' => 'bn']) }}">Bangla</a>

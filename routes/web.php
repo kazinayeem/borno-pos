@@ -15,6 +15,9 @@ use App\Http\Controllers\ShopController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => view('landing'))->name('home');
+Route::get('/api/store-dashboard', [DashboardController::class, 'shop'])->middleware(['auth', 'shop'])->name('store.dashboard.api');
+Route::get('/api/dashboard', [DashboardController::class, 'platform'])->middleware(['auth', 'role:super_admin'])->name('dashboard.api');
+Route::get('/api/products', [ProductController::class, 'index'])->middleware(['auth', 'shop', 'ability:products.view,products.manage'])->name('products.api');
 Route::get('/signin', [AuthController::class, 'signin'])->name('signin');
 Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::get('/signup', [AuthController::class, 'signupForm'])->name('signup');

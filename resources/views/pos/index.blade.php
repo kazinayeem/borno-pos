@@ -92,10 +92,12 @@
             <div class="btn primary" style="width:100%;margin:8px 0">Grand Total <span x-text="money(grand())" style="margin-left:auto"></span></div>
             <div class="filters">
                 <button type="button" class="btn" :class="method==='Cash'?'primary':''" @click="method='Cash'">Cash</button>
-                <button type="button" class="btn" @click="method='Card record'">Card</button>
-                <button type="button" class="btn" @click="method='Manual'">Manual</button>
+                <button type="button" class="btn" :class="method==='paystack'?'primary':''" @click="method='paystack'">paystack</button>
+                <button type="button" class="btn" :class="method==='Razorpay'?'primary':''" @click="method='Razorpay'">Razorpay</button>
+                <button type="button" class="btn" :class="method==='PayPal'?'primary':''" @click="method='PayPal'">PayPal</button>
+                <button type="button" class="btn" :class="method==='stripe'?'primary':''" @click="method='stripe'">stripe</button>
             </div>
-            <p class="muted">Card and manual methods record the tender in BornoPos. They do not charge Paystack, Razorpay, PayPal, or Stripe.</p>
+            <p class="muted">These names match the checkout row. BornoPos only records the tender. It does not charge Paystack, Razorpay, PayPal, or Stripe.</p>
             <div class="field" x-show="method==='Cash'"><label>Cash received</label><input x-model="tendered" inputmode="decimal" placeholder="0.00"></div>
             <div x-show="method==='Cash'">Change <strong x-text="money(Math.max(0, change()))"></strong></div>
             <div class="filters" style="margin-top:10px">

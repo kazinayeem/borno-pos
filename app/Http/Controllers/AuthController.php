@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
@@ -20,9 +21,7 @@ class AuthController extends Controller
             return redirect()->route(Auth::user()->homeRoute());
         }
 
-        return view('auth.signin', [
-            'demos' => $this->demos(),
-        ]);
+        return view('spa');
     }
 
     public function login(Request $request)
@@ -38,10 +37,23 @@ class AuthController extends Controller
             ->first();
 
         if (! $user || ! Auth::attempt(['email' => $user->email, 'password' => $data['password']], $request->boolean('remember'))) {
+            if ($request->expectsJson()) {
+                throw ValidationException::withMessages([
+                    'login' => 'These credentials do not match our records.',
+                ]);
+            }
+
             return back()->withErrors(['login' => 'These credentials do not match our records.'])->onlyInput('login');
         }
 
         $request->session()->regenerate();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'redirect' => route($user->homeRoute()),
+                'user' => $user->only(['id', 'name', 'email', 'role', 'store_id']),
+            ]);
+        }
 
         return redirect()->route($user->homeRoute());
     }
@@ -106,6 +118,10 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
         return redirect()->route('signin')->with('status', 'You logged out successfully.');
     }
 
@@ -120,7 +136,11 @@ class AuthController extends Controller
             $request->user()->update(['locale' => $locale]);
         }
 
-        return back();
+        if ($request->expectsJson()) {
+            return response()->json(['locale' => $locale]);
+        }
+
+        return redirect()->to($request->headers->get('referer') ?: url('/signin'));
     }
 
     private function demos(): array

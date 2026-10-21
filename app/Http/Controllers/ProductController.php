@@ -35,14 +35,38 @@ class ProductController extends Controller
             ->when($request->string('status') == 'active', fn ($q) => $q->where('is_active', true))
             ->when($request->string('status') == 'inactive', fn ($q) => $q->where('is_active', false))
             ->latest()
-            ->paginate(10)
+            ->paginate(max(1, min(100, $request->integer('per_page', 10))))
             ->withQueryString();
 
-        return view('products.index', [
-            'products' => $products,
-            'categories' => Category::orderBy('name')->get(),
-            'brands' => Brand::orderBy('name')->get(),
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'data' => $products->getCollection()->map(fn (Product $product) => [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'code' => $product->code,
+                    'type' => $product->type,
+                    'cost_cents' => $product->cost_cents,
+                    'price_cents' => $product->price_cents,
+                    'stock_qty' => $product->stock_qty,
+                    'image' => $product->image ? Storage::disk('public')->url($product->image) : null,
+                    'brand' => $product->brand?->name,
+                    'category' => $product->category?->name,
+                    'unit' => $product->unit?->name,
+                ])->values(),
+                'meta' => [
+                    'current_page' => $products->currentPage(),
+                    'last_page' => $products->lastPage(),
+                    'from' => $products->firstItem(),
+                    'to' => $products->lastItem(),
+                    'total' => $products->total(),
+                    'per_page' => $products->perPage(),
+                ],
+                'categories' => Category::orderBy('name')->get(['id', 'name']),
+                'brands' => Brand::orderBy('name')->get(['id', 'name']),
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function create()
