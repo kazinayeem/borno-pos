@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Logo } from '../icons';
 import { languages, useT } from '../i18n';
 import { clearStatus, login } from '../slices/sessionSlice';
@@ -49,10 +49,10 @@ export default function SignIn() {
     return (
         <div className="guest">
             <div className="auth-top" onClick={(event) => event.stopPropagation()}>
-                <a className="brand-lock" href="/">
+                <Link className="brand-lock" to="/">
                     <Logo />
                     <div>BornoPos<small>{t('Powering Your Business')}</small></div>
-                </a>
+                </Link>
                 <div className="auth-tools">
                     <span>{t('Version')} {window.BornoPos?.version}</span>
                     <button className="icon-btn round" type="button" title={ui.theme === 'dark' ? t('Light') : t('Dark')} onClick={() => dispatch(toggleTheme())}>{ui.theme === 'dark' ? '☀' : '☾'}</button>

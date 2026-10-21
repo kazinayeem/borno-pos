@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import Pos from './pages/Pos';
 import ProductForm from './pages/ProductForm';
 import Products from './pages/Products';
+import Landing from './pages/Landing';
 import SignIn from './pages/SignIn';
 
 const catalogs = [
@@ -59,6 +60,7 @@ export default function App() {
         <>
             <DocumentSync />
             <Routes>
+                <Route path="/" element={<Landing />} />
                 <Route path="/signin" element={<SignIn />} />
                 <Route path="/store-dashboard" element={<Guard><Dashboard /></Guard>} />
                 <Route path="/dashboard" element={<Guard><Dashboard platform /></Guard>} />
