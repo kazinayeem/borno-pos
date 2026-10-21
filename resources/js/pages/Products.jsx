@@ -1,20 +1,22 @@
-import { useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { money } from '../api';
 import { useT } from '../i18n';
-import { loadProducts, setFilters } from '../slices/productsSlice';
+import { useDeleteProductMutation, useGetProductsQuery } from '../services/bornoposApi';
 
 export default function Products() {
-    const dispatch = useDispatch();
-    const { data, meta, categories, brands, filters, loading } = useSelector((state) => state.products);
     const t = useT();
-
-    useEffect(() => {
-        dispatch(loadProducts(filters));
-    }, [dispatch, filters]);
+    const navigate = useNavigate();
+    const [filters, setFilters] = useState({ q: '', category_id: '', brand_id: '', status: '', page: 1, per_page: 10 });
+    const { data: payload, isFetching, isError } = useGetProductsQuery(filters);
+    const [remove, removeState] = useDeleteProductMutation();
+    const data = payload?.data || [];
+    const meta = payload?.meta || { current_page: 1, last_page: 1, from: 0, to: 0, total: 0 };
+    const categories = payload?.categories || [];
+    const brands = payload?.brands || [];
 
     function update(next) {
-        dispatch(setFilters({ ...next, page: next.page ?? 1 }));
+        setFilters((current) => ({ ...current, ...next, page: next.page ?? 1 }));
     }
 
     function exportCsv() {
@@ -30,6 +32,12 @@ export default function Products() {
         URL.revokeObjectURL(url);
     }
 
+    async function destroy(row) {
+        if (!window.confirm(`Delete ${row.name}?`)) return;
+        const result = await remove(row.id);
+        if (result.error) window.alert(result.error.data?.message || 'The product could not be deleted.');
+    }
+
     const pages = Array.from({ length: meta.last_page }, (_, index) => index + 1).slice(Math.max(0, meta.current_page - 3), meta.current_page + 2);
 
     return (
@@ -41,7 +49,7 @@ export default function Products() {
                 </div>
                 <div className="actions">
                     <button className="btn" type="button" onClick={exportCsv}>{t('Export')}</button>
-                    <a className="btn primary" href="/products/create">{t('+ Add Product')}</a>
+                    <button className="btn primary" type="button" onClick={() => navigate('/products/create')}>{t('+ Add Product')}</button>
                 </div>
             </div>
             <section className="card table-card">
@@ -62,6 +70,7 @@ export default function Products() {
                     </select>
                     <button className="btn" type="button" onClick={() => update({ q: '', category_id: '', brand_id: '', status: '' })}>{t('Reset')}</button>
                 </div>
+                {isError && <p className="error">The product list could not be loaded.</p>}
                 <table className="grid">
                     <thead>
                         <tr>
@@ -81,9 +90,13 @@ export default function Products() {
                                 <td>{money(row.cost_cents)}</td>
                                 <td>{money(row.price_cents)}</td>
                                 <td><span className={`stock ${Number(row.stock_qty) > 0 ? 'in' : 'out'}`}>{row.stock_qty}</span> {row.unit}</td>
-                                <td><a className="btn" href={`/products/${row.id}`}>{t('View')}</a></td>
+                                <td className="row-actions">
+                                    <Link className="btn" to={`/products/${row.id}`}>{t('View')}</Link>
+                                    <Link className="btn" to={`/products/${row.id}/edit`}>{t('Edit')}</Link>
+                                    <button className="btn" type="button" disabled={removeState.isLoading} onClick={() => destroy(row)}>{t('Delete')}</button>
+                                </td>
                             </tr>
-                        )) : <tr><td className="empty" colSpan="11">{loading ? t('Loading') : t('No data found')}</td></tr>}
+                        )) : <tr><td className="empty" colSpan="11">{isFetching ? t('Loading') : t('No data found')}</td></tr>}
                     </tbody>
                 </table>
                 <div className="pager">

@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { useSearchParams } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Chart } from 'chart.js/auto';
 import { money } from '../api';
 import { useT } from '../i18n';
-import { loadDashboard } from '../slices/dashboardSlice';
+import { useGetDashboardQuery } from '../services/bornoposApi';
 
 const cards = [
     ['total_sales', 'Total Sales', '#e8f1ff', '#2f80ed', '🛒'],
@@ -28,20 +28,19 @@ function useChart(ref, build) {
 }
 
 export default function Dashboard({ platform = false }) {
-    const dispatch = useDispatch();
     const user = useSelector((state) => state.session.user);
-    const { data, loading } = useSelector((state) => state.dashboard);
     const t = useT();
     const [params, setParams] = useSearchParams();
     const type = params.get('type') || 'monthly';
-    const query = params.toString();
+    const { data, isFetching: loading } = useGetDashboardQuery({
+        platform,
+        type,
+        from: params.get('from') || '',
+        to: params.get('to') || '',
+    });
     const flowRef = useRef(null);
     const cashRef = useRef(null);
     const donutRef = useRef(null);
-
-    useEffect(() => {
-        dispatch(loadDashboard({ platform, params: { type, from: params.get('from') || '', to: params.get('to') || '' } }));
-    }, [dispatch, platform, query]);
 
     useChart(flowRef, data?.chart && ((canvas) => new Chart(canvas, {
         type: 'line',
@@ -119,12 +118,12 @@ export default function Dashboard({ platform = false }) {
                     <canvas ref={flowRef} height="120" />
                 </section>
                 <section className="card">
-                    <div className="card-head"><h2>{t('Sales in {month}', { month: data?.month || '' })}</h2><a href="/sales">{t('View all →')}</a></div>
+                    <div className="card-head"><h2>{t('Sales in {month}', { month: data?.month || '' })}</h2><Link to="/sales">{t('View all →')}</Link></div>
                     <table>
                         <thead><tr><th>#</th><th>{t('Product Details')}</th><th>{t('QTY')}</th><th>{t('Total')}</th></tr></thead>
                         <tbody>
                             {data?.sales?.length ? data.sales.map((sale, index) => (
-                                <tr key={sale.id}><td>{index + 1}</td><td><a href={`/sales/${sale.id}`}>{sale.invoice_no}</a><div className="muted">{sale.sold_at}</div></td><td>{sale.items}</td><td>{money(sale.grand_cents)}</td></tr>
+                                <tr key={sale.id}><td>{index + 1}</td><td><Link to={`/sales/${sale.id}`}>{sale.invoice_no}</Link><div className="muted">{sale.sold_at}</div></td><td>{sale.items}</td><td>{money(sale.grand_cents)}</td></tr>
                             )) : <tr><td className="empty" colSpan="4">{t('No data found')}</td></tr>}
                         </tbody>
                     </table>
@@ -132,7 +131,7 @@ export default function Dashboard({ platform = false }) {
             </div>
             <div className="grid-3">
                 <section className="card">
-                    <div className="card-head"><h2>{t('Top Selling Products')}</h2><a href="/products">{t('View all →')}</a></div>
+                    <div className="card-head"><h2>{t('Top Selling Products')}</h2><Link to="/products">{t('View all →')}</Link></div>
                     <table>
                         <thead><tr><th>#</th><th>{t('Product')}</th><th>{t('QTY')}</th><th>{t('Total')}</th></tr></thead>
                         <tbody>
@@ -150,12 +149,12 @@ export default function Dashboard({ platform = false }) {
                     </div>
                 </section>
                 <section className="card">
-                    <div className="card-head"><h2>{t('Purchase in {month}', { month: data?.month || '' })}</h2><a href="/purchase/list">{t('View all →')}</a></div>
+                    <div className="card-head"><h2>{t('Purchase in {month}', { month: data?.month || '' })}</h2><Link to="/purchase/list">{t('View all →')}</Link></div>
                     <table>
                         <thead><tr><th>#</th><th>Product Details</th><th>Total</th></tr></thead>
                         <tbody>
                             {data?.purchases?.length ? data.purchases.map((row, index) => (
-                                <tr key={row.id}><td>{index + 1}</td><td><a href={`/purchase/${row.id}`}>{row.reference}</a></td><td>{money(row.grand_cents)}</td></tr>
+                                <tr key={row.id}><td>{index + 1}</td><td><Link to={`/purchase/${row.id}`}>{row.reference}</Link></td><td>{money(row.grand_cents)}</td></tr>
                             )) : <tr><td className="empty" colSpan="3">{t('No data found')}</td></tr>}
                         </tbody>
                     </table>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { Logo } from '../icons';
 import { languages, useT } from '../i18n';
 import { clearStatus, login } from '../slices/sessionSlice';
@@ -16,6 +17,7 @@ const demos = [
 
 export default function SignIn() {
     const dispatch = useDispatch();
+    const navigate = useNavigate();
     const t = useT();
     const { error, pending, status } = useSelector((state) => state.session);
     const ui = useSelector((state) => state.ui);
@@ -29,7 +31,9 @@ export default function SignIn() {
         event.preventDefault();
         const result = await dispatch(login({ login: loginValue, password, remember }));
         if (login.fulfilled.match(result)) {
-            window.location.href = result.payload.redirect;
+            const target = result.payload.redirect || '/store-dashboard';
+            const path = target.startsWith('http') ? new URL(target).pathname : target;
+            navigate(path);
         }
     }
 

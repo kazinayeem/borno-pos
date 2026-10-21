@@ -13,25 +13,52 @@ class SaleController extends Controller
 {
     public function index(Request $request)
     {
-        return view('sales.index', [
-            'title' => 'Sales',
-            'sales' => $this->query($request, 'completed')->paginate(10)->withQueryString(),
-        ]);
+        return $this->listing($request, 'completed', 'Sales');
     }
 
     public function drafts(Request $request)
     {
-        return view('sales.index', [
-            'title' => 'Drafts',
-            'sales' => $this->query($request, 'draft')->paginate(10)->withQueryString(),
-        ]);
+        return $this->listing($request, 'draft', 'Drafts');
     }
 
-    public function show(Sale $sale)
+    public function show(Request $request, Sale $sale)
     {
         $sale->load(['items.product', 'customer', 'user', 'payments', 'returns.items']);
 
-        return view('sales.show', compact('sale'));
+        if ($request->expectsJson()) {
+            return response()->json(['sale' => $sale]);
+        }
+
+        return view('spa');
+    }
+
+    private function listing(Request $request, string $status, string $title)
+    {
+        $sales = $this->query($request, $status)->paginate(15)->withQueryString();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'title' => $title,
+                'data' => $sales->getCollection()->map(fn (Sale $sale) => [
+                    'id' => $sale->id,
+                    'invoice_no' => $sale->invoice_no,
+                    'customer' => $sale->customer?->name ?? 'Walk-in',
+                    'status' => $sale->status,
+                    'grand_cents' => $sale->grand_cents,
+                    'paid_cents' => $sale->paid_cents,
+                    'sold_at' => optional($sale->sold_at)->toDateTimeString(),
+                ])->values(),
+                'meta' => [
+                    'current_page' => $sales->currentPage(),
+                    'last_page' => $sales->lastPage(),
+                    'from' => $sales->firstItem(),
+                    'to' => $sales->lastItem(),
+                    'total' => $sales->total(),
+                ],
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function print(Sale $sale)
@@ -72,6 +99,10 @@ class SaleController extends Controller
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
         $returns->refund($sale, $request->user(), $data['items'], $data['note'] ?? null);
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Return saved, stock restored, and the refund recorded.']);
+        }
 
         return redirect()->route('sales.show', $sale)->with('status', 'Return saved, stock restored, and the refund recorded.');
     }

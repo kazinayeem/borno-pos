@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Icon, Logo } from '../icons';
 import { adminNav, shopNav } from '../nav';
@@ -39,6 +39,7 @@ function Item({ item, path }) {
 
 export default function Shell({ children }) {
     const dispatch = useDispatch();
+    const navigate = useNavigate();
     const location = useLocation();
     const user = useSelector((state) => state.session.user);
     const ui = useSelector((state) => state.ui);
@@ -50,10 +51,10 @@ export default function Shell({ children }) {
     return (
         <div className={`app ${ui.theme}`} onClick={() => dispatch(closeMenus())}>
             <aside className={`sidebar ${ui.sidebar ? 'open' : ''}`}>
-                <a className="brand" href={user?.role === 'super_admin' ? '/dashboard' : '/store-dashboard'}>
+                <Link className="brand" to={user?.role === 'super_admin' ? '/dashboard' : '/store-dashboard'}>
                     <Logo />
                     <div><strong>BornoPos</strong><span>{t('Powering Your Business')}</span></div>
-                </a>
+                </Link>
                 <nav className="nav">
                     {items.map((item) => <Item key={item.label} item={item} path={location.pathname} />)}
                     <a href="/tour"><Icon name="chart" /><span>{t('Take a Tour')}</span></a>
@@ -69,7 +70,7 @@ export default function Shell({ children }) {
                     <a href="/tour" title="Tour">⌘</a>
                     <a href={user?.role === 'super_admin' ? '/user/profile' : '/settings/general-settings'} title="Settings">⚙</a>
                     <a href="/user/profile" title="Profile">☺</a>
-                    <button type="button" title="Logout" onClick={(event) => { event.stopPropagation(); dispatch(logout()).then(() => { window.location.href = '/signin'; }); }}>↪</button>
+                    <button type="button" title="Logout" onClick={(event) => { event.stopPropagation(); dispatch(logout()).then(() => navigate('/signin')); }}>↪</button>
                 </div>
             </aside>
             <div className="main">
@@ -80,7 +81,7 @@ export default function Shell({ children }) {
                         <input name="q" placeholder={t('Search product, invoice, customer...')} />
                         <kbd>⌘K</kbd>
                     </form>
-                    {user?.role !== 'super_admin' && <a className="pos-btn" href="/pos"><Icon name="cart" /> {t('POS')}</a>}
+                    {user?.role !== 'super_admin' && <Link className="pos-btn" to="/pos"><Icon name="cart" /> {t('POS')}</Link>}
                     <button className="icon-btn round" type="button" title={ui.theme === 'dark' ? t('Light') : t('Dark')} onClick={(event) => { event.stopPropagation(); dispatch(toggleTheme()); }}>{ui.theme === 'dark' ? '☀' : '☾'}</button>
                     <div className={`menu ${ui.noticeOpen ? 'open' : ''}`}>
                         <button className="icon-btn round" type="button" aria-label="Notifications" onClick={(event) => { event.stopPropagation(); dispatch(toggleMenu('notice')); }}>🔔</button>
@@ -101,7 +102,7 @@ export default function Shell({ children }) {
                         </button>
                         <div className="menu-pop">
                             <a href="/user/profile">{t('Profile')}</a>
-                            <button type="button" onClick={() => dispatch(logout()).then(() => { window.location.href = '/signin'; })}>{t('Logout')}</button>
+                            <button type="button" onClick={() => dispatch(logout()).then(() => navigate('/signin'))}>{t('Logout')}</button>
                         </div>
                     </div>
                 </header>

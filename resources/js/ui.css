@@ -209,3 +209,18 @@ html[dir="rtl"] .sub { margin-left: 0; margin-right: 18px; border-left: 0; borde
   html[dir="rtl"] .sidebar.open { transform: none; }
   html[dir="rtl"] .main { margin-right: 0; }
 }
+.row-actions { display: flex; gap: 6px; }
+.form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding: 18px; }
+.form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #64748b; }
+.form-grid input, .form-grid select, .form-grid textarea { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; background: #fff; color: #0f172a; }
+.form-grid .wide { grid-column: 1 / -1; }
+.form-grid .check { flex-direction: row; align-items: center; }
+.product-photo { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; }
+.pos { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.product-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.tile { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; background: #fff; }
+.cart .line, .form-grid .line { display: grid; grid-template-columns: 1fr 72px 90px 32px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.status { color: #15803d; }
+.error { color: #dc2626; }
+html.dark .form-grid input, html.dark .form-grid select, html.dark .form-grid textarea, html.dark .tile { background: #162033; color: #e5e7eb; border-color: #2a3548; }
+@media (max-width: 980px) { .pos, .form-grid { grid-template-columns: 1fr; } }

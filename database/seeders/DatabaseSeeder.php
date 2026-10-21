@@ -27,6 +27,12 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        if (User::query()->where('email', 'superadmin@bornopos.test')->exists()) {
+            $this->fillExistingShops();
+
+            return;
+        }
+
         Currency::query()->insert([
             ['name' => 'US Dollar', 'code' => 'USD', 'symbol' => '$', 'rate_bps' => 10000, 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Bangladeshi Taka', 'code' => 'BDT', 'symbol' => '৳', 'rate_bps' => 1100000, 'created_at' => now(), 'updated_at' => now()],
@@ -47,34 +53,32 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $shops = [
-            'all_in_one' => ['All in One Mart', 'allinone@bornopos.test', [
-                ['Rice 5kg', 'RICE5', 40000, 65000, 'Grocery'],
-                ['Notebook', 'NOTE01', 8000, 15000, 'Stationery'],
-            ]],
-            'grocery' => ['Super Shop', 'grocery@bornopos.test', [
-                ['Milk 1L', 'MILK1', 8000, 12000, 'Dairy'],
-                ['Eggs 12', 'EGG12', 14000, 18000, 'Dairy'],
-            ]],
-            'pharmacy' => ['City Pharmacy', 'pharmacy@bornopos.test', [
-                ['Paracetamol', 'PARA500', 200, 500, 'Medicine'],
-                ['Vitamin C', 'VITC', 1500, 2500, 'Medicine'],
-            ]],
-            'electronics' => ['Mobile House', 'electronics@bornopos.test', [
-                ['USB Cable', 'USB01', 15000, 25000, 'Accessories'],
-                ['Earphones', 'EAR01', 40000, 70000, 'Audio'],
-            ]],
-            'restaurant' => ['Borno Kitchen', 'restaurant@bornopos.test', [
-                ['Chicken Biryani', 'BIR01', 18000, 32000, 'Meals'],
-                ['Lime Soda', 'SODA', 2000, 6000, 'Drinks'],
-            ]],
+            'all_in_one' => ['All in One Mart', 'allinone@bornopos.test'],
+            'grocery' => ['Super Shop', 'grocery@bornopos.test'],
+            'pharmacy' => ['City Pharmacy', 'pharmacy@bornopos.test'],
+            'electronics' => ['Mobile House', 'electronics@bornopos.test'],
+            'restaurant' => ['Borno Kitchen', 'restaurant@bornopos.test'],
         ];
 
-        foreach ($shops as $type => [$name, $email, $catalog]) {
-            $this->shop($type, $name, $email, $catalog);
+        foreach ($shops as $type => [$name, $email]) {
+            $this->shop($type, $name, $email);
         }
     }
 
-    private function shop(string $type, string $name, string $email, array $catalog): void
+    private function fillExistingShops(): void
+    {
+        foreach (Store::query()->get() as $store) {
+            $owner = User::query()->where('store_id', $store->id)->where('role', 'owner')->first();
+            if (! $owner) {
+                continue;
+            }
+            Auth::login($owner);
+            $this->addCatalog($store, $owner);
+            Auth::logout();
+        }
+    }
+
+    private function shop(string $type, string $name, string $email): void
     {
         $store = Store::create([
             'name' => $name,
@@ -106,51 +110,26 @@ class DatabaseSeeder extends Seeder
         }
         $warehouse = Warehouse::create(['store_id' => $store->id, 'name' => 'Main Warehouse']);
         Account::create(['store_id' => $store->id, 'name' => 'Cash', 'number' => 'CASH-001', 'type' => 'cash', 'is_default' => true, 'opening_cents' => 500000]);
-        $unit = Unit::create(['store_id' => $store->id, 'name' => 'Piece', 'short_name' => 'pc']);
-        $brand = Brand::create(['store_id' => $store->id, 'name' => 'House']);
-        $supplier = Supplier::create(['store_id' => $store->id, 'name' => $name.' Supplier', 'phone' => '01700000000']);
-        Customer::create(['store_id' => $store->id, 'name' => 'Walk-in Regular', 'phone' => '01800000000']);
-        UserNotice::create(['user_id' => $owner->id, 'title' => 'Welcome to '.$name, 'body' => 'Demo data is ready for POS, purchases, and reports.']);
+        foreach (['Piece' => 'pc', 'Kg' => 'kg', 'Litre' => 'L', 'Pack' => 'pk', 'Box' => 'bx'] as $unitName => $short) {
+            Unit::firstOrCreate(['store_id' => $store->id, 'name' => $unitName], ['short_name' => $short]);
+        }
+        foreach (['House', 'Local', 'Premium', 'Fresh', 'Select', 'Daily'] as $brandName) {
+            Brand::firstOrCreate(['store_id' => $store->id, 'name' => $brandName]);
+        }
+        $supplier = Supplier::firstOrCreate(
+            ['store_id' => $store->id, 'name' => $name.' Supplier'],
+            ['phone' => '01700000000'],
+        );
+        Customer::firstOrCreate(['store_id' => $store->id, 'name' => 'Walk-in Regular'], ['phone' => '01800000000']);
+        UserNotice::firstOrCreate(
+            ['user_id' => $owner->id, 'title' => 'Welcome to '.$name],
+            ['body' => 'Demo data is ready for POS, purchases, and reports.'],
+        );
 
         Auth::login($owner);
-        $lines = [];
-        foreach ($catalog as [$productName, $code, $cost, $price, $categoryName]) {
-            $category = Category::firstOrCreate(['store_id' => $store->id, 'name' => $categoryName]);
-            $product = Product::create([
-                'store_id' => $store->id,
-                'name' => $productName,
-                'code' => $code,
-                'category_id' => $category->id,
-                'brand_id' => $brand->id,
-                'unit_id' => $unit->id,
-                'warehouse_id' => $warehouse->id,
-                'cost_cents' => $cost,
-                'price_cents' => $price,
-                'alert_qty' => 3,
-                'featured_in_pos' => true,
-                'has_batch' => $type === 'pharmacy',
-            ]);
-            $lines[] = [
-                'product_id' => $product->id,
-                'qty' => 20,
-                'cost' => number_format($cost / 100, 2, '.', ''),
-                'batch_no' => $type === 'pharmacy' ? 'B-'.$code : null,
-                'expiry_date' => $type === 'pharmacy' ? now()->addYear()->toDateString() : null,
-            ];
-        }
+        $this->addCatalog($store, $owner);
 
-        app(PurchaseService::class)->receive($owner, [
-            'warehouse_id' => $warehouse->id,
-            'supplier_id' => $supplier->id,
-            'purchased_on' => now()->toDateString(),
-            'payment_method' => 'Cash',
-            'amount_paid' => '50.00',
-            'tax' => '0',
-            'discount' => '0',
-            'shipping' => '0',
-        ], $lines);
-
-        $first = Product::first();
+        $first = Product::query()->where('stock_qty', '>', 0)->first();
         app(CheckoutService::class)->checkout($owner, [
             'status' => 'completed',
             'payment_method' => 'Cash',
@@ -201,5 +180,175 @@ class DatabaseSeeder extends Seeder
             );
         }
         Auth::logout();
+    }
+
+    private function addCatalog(Store $store, User $owner): void
+    {
+        $target = 220;
+        if (Product::query()->count() >= $target) {
+            return;
+        }
+
+        $warehouse = Warehouse::query()->first()
+            ?? Warehouse::create(['store_id' => $store->id, 'name' => 'Main Warehouse']);
+        $supplier = Supplier::query()->first();
+        foreach (['Piece' => 'pc', 'Kg' => 'kg', 'Litre' => 'L', 'Pack' => 'pk', 'Box' => 'bx'] as $unitName => $short) {
+            Unit::firstOrCreate(['store_id' => $store->id, 'name' => $unitName], ['short_name' => $short]);
+        }
+        foreach (['House', 'Local', 'Premium', 'Fresh', 'Select', 'Daily'] as $brandName) {
+            Brand::firstOrCreate(['store_id' => $store->id, 'name' => $brandName]);
+        }
+        foreach (['Rahim', 'Karim', 'Ayesha', 'Nusrat', 'Jamal', 'Rina', 'Hasan', 'Mitu'] as $index => $person) {
+            Customer::firstOrCreate(
+                ['store_id' => $store->id, 'name' => $person],
+                ['phone' => '018100000'.$index],
+            );
+        }
+
+        $units = Unit::query()->get()->values();
+        $brands = Brand::query()->get()->values();
+        $prefix = strtoupper(substr($store->business_type, 0, 3));
+        $lines = [];
+        $index = Product::query()->count();
+
+        foreach ($this->catalogRows($store->business_type) as [$productName, $categoryName]) {
+            if (Product::query()->count() >= $target) {
+                break;
+            }
+            $index++;
+            $code = $prefix.str_pad((string) $index, 4, '0', STR_PAD_LEFT);
+            if (Product::query()->where('code', $code)->exists()) {
+                continue;
+            }
+            $category = Category::firstOrCreate(['store_id' => $store->id, 'name' => $categoryName]);
+            $cost = 80 + (($index * 137) % 9000);
+            $price = $cost + 60 + (($index * 53) % 2500);
+            $product = Product::create([
+                'store_id' => $store->id,
+                'name' => $productName,
+                'code' => $code,
+                'category_id' => $category->id,
+                'brand_id' => $brands[$index % $brands->count()]->id,
+                'unit_id' => $units[$index % $units->count()]->id,
+                'warehouse_id' => $warehouse->id,
+                'cost_cents' => $cost,
+                'price_cents' => $price,
+                'alert_qty' => 5,
+                'featured_in_pos' => true,
+                'has_batch' => $store->business_type === 'pharmacy',
+            ]);
+            $qty = $index % 8 === 0 ? 0 : (6 + ($index % 40));
+            if ($qty < 1) {
+                continue;
+            }
+            $lines[] = [
+                'product_id' => $product->id,
+                'qty' => $qty,
+                'cost' => number_format($cost / 100, 2, '.', ''),
+                'batch_no' => $store->business_type === 'pharmacy' ? 'B-'.$code : null,
+                'expiry_date' => $store->business_type === 'pharmacy' ? now()->addMonths(14)->toDateString() : null,
+            ];
+        }
+
+        foreach (array_chunk($lines, 40) as $chunk => $chunkLines) {
+            app(PurchaseService::class)->receive($owner, [
+                'warehouse_id' => $warehouse->id,
+                'supplier_id' => $supplier?->id,
+                'purchased_on' => now()->toDateString(),
+                'reference' => 'PO-'.$store->id.'-C'.$chunk.'-'.now()->format('YmdHis'),
+                'payment_method' => 'Cash',
+                'amount_paid' => '0',
+                'tax' => '0',
+                'discount' => '0',
+                'shipping' => '0',
+            ], $chunkLines);
+        }
+    }
+
+    /**
+     * @return array<int, array{0: string, 1: string}>
+     */
+    private function catalogRows(string $type): array
+    {
+        $books = [
+            'grocery' => [
+                'Rice & Grains' => ['Miniket Rice', 'Basmati Rice', 'Polao Rice', 'Wheat Flour', 'Semolina', 'Oats', 'Lentil', 'Chickpeas', 'Mung Beans', 'Flattened Rice'],
+                'Dairy' => ['Milk', 'Yogurt', 'Butter', 'Cheese', 'Cream', 'Ghee', 'Paneer', 'Curd', 'Milk Powder', 'Lassi'],
+                'Beverages' => ['Orange Juice', 'Mango Juice', 'Mineral Water', 'Black Tea', 'Green Tea', 'Coffee', 'Soft Drink', 'Coconut Water', 'Energy Drink', 'Lemon Drink'],
+                'Snacks' => ['Potato Chips', 'Chanachur', 'Biscuits', 'Noodles', 'Popcorn', 'Peanuts', 'Chocolate', 'Cake', 'Crackers', 'Nuts Mix'],
+                'Produce' => ['Potato', 'Onion', 'Tomato', 'Garlic', 'Ginger', 'Green Chili', 'Carrot', 'Cucumber', 'Banana', 'Apple'],
+                'Frozen' => ['Chicken Nuggets', 'French Fries', 'Fish Fillet', 'Paratha', 'Samosa', 'Vegetables Mix', 'Ice Cream', 'Peas', 'Corn', 'Kebab'],
+                'Household' => ['Dish Wash', 'Laundry Powder', 'Floor Cleaner', 'Tissue', 'Trash Bags', 'Soap', 'Shampoo', 'Toothpaste', 'Detergent Bar', 'Air Freshener'],
+                'Spices' => ['Turmeric', 'Chili Powder', 'Cumin', 'Coriander', 'Salt', 'Sugar', 'Mustard Oil', 'Soybean Oil', 'Garam Masala', 'Bay Leaf'],
+                'Breakfast' => ['Corn Flakes', 'Honey', 'Jam', 'Bread', 'Eggs', 'Peanut Butter', 'Oat Cookies', 'Mayonnaise', 'Sauce', 'Pickle'],
+                'Baby' => ['Baby Lotion', 'Diapers', 'Baby Wipes', 'Baby Oil', 'Cerelac', 'Feeding Bottle', 'Baby Soap', 'Baby Shampoo', 'Baby Powder', 'Rusk'],
+                'Personal Care' => ['Face Wash', 'Hand Wash', 'Body Lotion', 'Hair Oil', 'Razor', 'Sanitary Pad', 'Deodorant', 'Sunscreen', 'Mouthwash', 'Cotton'],
+                'Canned' => ['Baked Beans', 'Tomato Paste', 'Tuna', 'Sweet Corn', 'Mushroom', 'Coconut Milk', 'Condensed Milk', 'Fruit Cocktail', 'Olives', 'Soup'],
+            ],
+            'pharmacy' => [
+                'Pain Relief' => ['Paracetamol', 'Ibuprofen', 'Aspirin', 'Diclofenac Gel', 'Muscle Rub', 'Hot Patch', 'Cold Patch', 'Pain Balm', 'Oral Gel', 'Spray'],
+                'Cold & Flu' => ['Cough Syrup', 'Antihistamine', 'Nasal Spray', 'Throat Lozenges', 'Vapor Rub', 'Steam Capsule', 'Saline Drop', 'Vitamin Drink', 'Mask Pack', 'Thermometer'],
+                'Vitamins' => ['Vitamin C', 'Vitamin D', 'Vitamin B Complex', 'Calcium', 'Zinc', 'Iron', 'Omega 3', 'Multivitamin', 'Folic Acid', 'Magnesium'],
+                'First Aid' => ['Bandage', 'Cotton Roll', 'Antiseptic', 'Gauze', 'Medical Tape', 'Gloves', 'Scissors', 'Burn Cream', 'Alcohol Pad', 'Ice Bag'],
+                'Skin' => ['Antiseptic Cream', 'Calamine', 'Moisturizer', 'Antifungal Cream', 'Lip Balm', 'Hand Cream', 'Aloe Gel', 'Powder', 'Soap Bar', 'Face Cream'],
+                'Diabetes Care' => ['Glucose Strips', 'Lancets', 'Meter Battery', 'Sugar Free Sweetener', 'Diabetic Socks', 'Ketone Strips', 'Sharps Box', 'Alcohol Swab', 'Log Book', 'Carry Case'],
+                'Baby Care' => ['Gripe Water', 'Baby Drops', 'ORS', 'Teether', 'Nasal Aspirator', 'Baby Thermometer', 'Barrier Cream', 'Cotton Buds', 'Nail Clipper', 'Medicine Spoon'],
+                'Devices' => ['BP Monitor', 'Pulse Oximeter', 'Nebulizer Mask', 'Heating Pad', 'Weighing Scale', 'Pill Box', 'Walker Tip', 'Support Belt', 'Knee Brace', 'Wrist Brace'],
+                'Eye & Ear' => ['Eye Drop', 'Ear Drop', 'Lens Solution', 'Eye Wash', 'Cotton Eye Pad', 'Reading Glass Case', 'Ear Plugs', 'Lens Cloth', 'Dropper', 'Eye Mask'],
+                'Digestive' => ['Antacid', 'ORS Saline', 'Probiotic', 'Enzyme Tablet', 'Lactose Drops', 'Fiber Sachet', 'Hydration Sachet', 'Mint Tablet', 'Ginger Capsule', 'Isabgol'],
+                'Oral Care' => ['Toothbrush', 'Sensitive Paste', 'Dental Floss', 'Mouth Gel', 'Tongue Cleaner', 'Kids Paste', 'Whitening Paste', 'Interdental Brush', 'Mouth Rinse', 'Denture Box'],
+                'Wellness' => ['Hand Sanitizer', 'Digital Thermometer', 'Hot Water Bag', 'Vaporizer', 'Compression Sock', 'Posture Belt', 'Massage Oil', 'Sleep Mask', 'Humidifier Tablet', 'Herbal Tea'],
+            ],
+            'electronics' => [
+                'Cables' => ['USB Cable', 'Type-C Cable', 'Lightning Cable', 'HDMI Cable', 'AUX Cable', 'Ethernet Cable', 'Power Cord', 'OTG Cable', 'Extension Cord', 'Charger Cable'],
+                'Audio' => ['Earphones', 'Neckband', 'Speaker', 'Soundbar', 'Microphone', 'Headset', 'Earbuds Case', 'Audio Splitter', 'FM Transmitter', 'Karaoke Mic'],
+                'Chargers' => ['Wall Charger', 'Car Charger', 'Wireless Pad', 'Power Bank', 'Laptop Adapter', 'Multi Plug', 'GaN Charger', 'Watch Charger', 'Camera Charger', 'Battery Pack'],
+                'Mobile' => ['Phone Case', 'Screen Guard', 'SIM Tool', 'Pop Socket', 'Ring Holder', 'Selfie Stick', 'Phone Stand', 'Camera Lens Clip', 'Stylus', 'Lanyard'],
+                'Storage' => ['Pendrive', 'Memory Card', 'Card Reader', 'SSD Enclosure', 'Hard Disk Case', 'OTG Pendrive', 'SD Adapter', 'Backup Drive Case', 'USB Hub', 'Dock'],
+                'Computer' => ['Mouse', 'Keyboard', 'Mouse Pad', 'Webcam', 'Laptop Stand', 'Cooling Pad', 'HDMI Adapter', 'USB Adapter', 'Monitor Arm', 'Cable Tie'],
+                'Home' => ['LED Bulb', 'Extension Board', 'Night Lamp', 'Smart Plug', 'Torch', 'Fan Regulator', 'Door Bell', 'Remote', 'Battery Cell', 'Adapter'],
+                'Wearables' => ['Smart Band', 'Watch Strap', 'Earbud Hooks', 'Fitness Clip', 'Arm Band', 'Chest Strap', 'Screen Film', 'Charging Puck', 'Travel Case', 'Lens Kit'],
+                'Camera' => ['Tripod', 'Memory Wallet', 'Lens Cap', 'Cleaning Kit', 'Mini Tripod', 'Phone Gimbal Grip', 'Light Panel', 'Reflector', 'Camera Bag', 'Strap'],
+                'Networking' => ['Wi-Fi Adapter', 'Range Extender', 'LAN Tester', 'RJ45 Jacks', 'Router Stand', 'Antenna', 'PoE Injector', 'Switch 5 Port', 'Cable Clips', 'Keystone'],
+                'Office' => ['Label Printer Roll', 'Barcode Scanner Stand', 'Receipt Roll', 'Cash Drawer Cable', 'POS Stand', 'Customer Display Cable', 'Keyboard Cover', 'Wrist Rest', 'Document Camera', 'Presenter'],
+                'Accessories' => ['Screen Cleaner', 'Cable Organizer', 'Laptop Sleeve', 'Backpack', 'Phone Grip', 'Car Mount', 'Desk Mat', 'Monitor Light', 'USB Light', 'Privacy Filter'],
+            ],
+            'restaurant' => [
+                'Meals' => ['Chicken Biryani', 'Beef Tehari', 'Mutton Kacchi', 'Fried Rice', 'Chicken Curry', 'Fish Curry', 'Vegetable Curry', 'Khichuri', 'Egg Curry', 'Dal'],
+                'Grill' => ['Chicken Grill', 'Beef Seekh', 'Chicken Tikka', 'Fish Fry', 'Kebab Roll', 'Shawarma', 'Paneer Tikka', 'Wings', 'Steak Bites', 'Mixed Grill'],
+                'Rice' => ['Plain Rice', 'Polao', 'Jeera Rice', 'Egg Fried Rice', 'Chicken Fried Rice', 'Vegetable Rice', 'Biryani Rice', 'Khichuri Bowl', 'Rice Bowl', 'Sticky Rice'],
+                'Bread' => ['Naan', 'Roti', 'Paratha', 'Garlic Naan', 'Butter Naan', 'Rumali', 'Kulcha', 'Bun', 'Garlic Bread', 'Cheese Naan'],
+                'Drinks' => ['Lime Soda', 'Lassi', 'Mango Shake', 'Lemonade', 'Iced Tea', 'Coffee', 'Mineral Water', 'Borhani', 'Orange Juice', 'Soft Drink'],
+                'Desserts' => ['Firni', 'Roshogolla', 'Brownie', 'Ice Cream', 'Custard', 'Gulab Jamun', 'Pudding', 'Fruit Salad', 'Kheer', 'Cheesecake'],
+                'Sides' => ['French Fries', 'Salad', 'Raita', 'Papad', 'Pickle', 'Soup', 'Coleslaw', 'Onion Rings', 'Mashed Potato', 'Corn'],
+                'Breakfast' => ['Paratha Set', 'Omelette', 'Bhuna Khichuri', 'Poha', 'Pancake', 'Sandwich', 'Halwa', 'Bread Omelette', 'Suji', 'Chola'],
+                'Soups' => ['Chicken Soup', 'Thai Soup', 'Corn Soup', 'Tomato Soup', 'Lentil Soup', 'Hot and Sour', 'Mushroom Soup', 'Veg Clear Soup', 'Noodle Soup', 'Pumpkin Soup'],
+                'Salads' => ['Green Salad', 'Chicken Salad', 'Fruit Salad Bowl', 'Cucumber Salad', 'Pasta Salad', 'Egg Salad', 'Bean Salad', 'Coleslaw Bowl', 'Sprout Salad', 'Garden Salad'],
+                'Snacks' => ['Samosa', 'Singara', 'Spring Roll', 'Chicken Cutlet', 'French Toast', 'Nachos', 'Popcorn Chicken', 'Cheese Balls', 'Fish Finger', 'Veg Pakora'],
+                'Combo' => ['Lunch Combo', 'Family Platter', 'Kids Meal', 'Iftar Box', 'Office Lunch', 'Couple Set', 'Grill Combo', 'Rice Combo', 'Burger Combo', 'Breakfast Combo'],
+            ],
+        ];
+        $books['all_in_one'] = $books['grocery'] + [
+            'Stationery' => ['Notebook', 'Pen', 'Pencil', 'Eraser', 'Sharpener', 'Marker', 'Stapler', 'File', 'Glue', 'Scale'],
+            'General' => ['Match Box', 'Candle', 'Battery', 'Mosquito Coil', 'Insect Spray', 'Umbrella', 'Slippers', 'Bucket', 'Mug', 'Lock'],
+        ];
+
+        $rows = [];
+        foreach ($books[$type] ?? $books['grocery'] as $category => $names) {
+            foreach ($names as $name) {
+                $rows[] = [$name, $category];
+            }
+        }
+        $extra = [];
+        foreach (['250g', '500g', '1kg', '2kg', 'Family pack'] as $size) {
+            foreach ($rows as [$name, $category]) {
+                $extra[] = [$name.' '.$size, $category];
+                if (count($rows) + count($extra) >= 260) {
+                    break 2;
+                }
+            }
+        }
+
+        return array_merge($rows, $extra);
     }
 }

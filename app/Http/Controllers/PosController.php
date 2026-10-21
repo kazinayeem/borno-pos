@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 
 class PosController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $products = Product::with('tax')
             ->where('is_active', true)
@@ -21,14 +21,28 @@ class PosController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('pos.index', [
-            'products' => $products,
-            'categories' => Category::withCount(['products' => fn ($q) => $q->where('is_active', true)])->orderBy('name')->get(),
-            'brands' => Brand::withCount(['products' => fn ($q) => $q->where('is_active', true)])->orderBy('name')->get(),
-            'customers' => Customer::orderBy('name')->get(),
-            'coupons' => Coupon::where('is_active', true)->get(),
-            'idempotency' => (string) Str::uuid(),
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'products' => $products->map(fn (Product $product) => [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'code' => $product->code,
+                    'price_cents' => $product->sellingPriceCents(),
+                    'stock_qty' => $product->stock_qty,
+                    'category_id' => $product->category_id,
+                    'brand_id' => $product->brand_id,
+                    'tax_bps' => (int) ($product->tax?->rate_bps ?? 0),
+                    'tax_method' => $product->tax_method,
+                ])->values(),
+                'categories' => Category::orderBy('name')->get(['id', 'name']),
+                'brands' => Brand::orderBy('name')->get(['id', 'name']),
+                'customers' => Customer::orderBy('name')->get(['id', 'name']),
+                'coupons' => Coupon::where('is_active', true)->get(['id', 'code', 'type', 'value']),
+                'idempotency' => (string) Str::uuid(),
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function store(Request $request, CheckoutService $checkout)
@@ -49,6 +63,19 @@ class PosController extends Controller
 
         $sale = $checkout->checkout($request->user(), $data, $data['items']);
         $message = $sale->status === 'draft' ? 'Draft saved.' : 'Sale completed.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'sale' => [
+                    'id' => $sale->id,
+                    'invoice_no' => $sale->invoice_no,
+                    'status' => $sale->status,
+                    'grand_cents' => $sale->grand_cents,
+                    'paid_cents' => $sale->paid_cents,
+                ],
+            ]);
+        }
 
         return redirect()->route('sales.show', $sale)->with('status', $message);
     }

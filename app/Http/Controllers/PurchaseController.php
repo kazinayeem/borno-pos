@@ -27,16 +27,41 @@ class PurchaseController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        return view('purchases.index', compact('purchases'));
+        if ($request->expectsJson()) {
+            return response()->json([
+                'data' => $purchases->getCollection()->map(fn (Purchase $purchase) => [
+                    'id' => $purchase->id,
+                    'reference' => $purchase->reference,
+                    'supplier' => $purchase->supplier?->name,
+                    'status' => $purchase->status,
+                    'grand_cents' => $purchase->grand_cents,
+                    'paid_cents' => $purchase->paid_cents,
+                    'purchased_on' => optional($purchase->purchased_on)->toDateString(),
+                ])->values(),
+                'meta' => [
+                    'current_page' => $purchases->currentPage(),
+                    'last_page' => $purchases->lastPage(),
+                    'from' => $purchases->firstItem(),
+                    'to' => $purchases->lastItem(),
+                    'total' => $purchases->total(),
+                ],
+            ]);
+        }
+
+        return view('spa');
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        return view('purchases.form', [
-            'warehouses' => Warehouse::orderBy('name')->get(),
-            'suppliers' => Supplier::orderBy('name')->get(),
-            'products' => Product::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code', 'cost_cents']),
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'warehouses' => Warehouse::orderBy('name')->get(['id', 'name']),
+                'suppliers' => Supplier::orderBy('name')->get(['id', 'name']),
+                'products' => Product::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code', 'cost_cents']),
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function store(Request $request, PurchaseService $purchases)
@@ -67,13 +92,24 @@ class PurchaseController extends Controller
 
         $purchase = $purchases->receive($request->user(), $data, $data['items']);
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Purchase saved and stock updated.',
+                'purchase' => ['id' => $purchase->id, 'reference' => $purchase->reference, 'grand_cents' => $purchase->grand_cents],
+            ]);
+        }
+
         return redirect()->route('purchases.show', $purchase)->with('status', 'Purchase saved and stock updated.');
     }
 
-    public function show(Purchase $purchase)
+    public function show(Request $request, Purchase $purchase)
     {
         $purchase->load(['items.product', 'supplier', 'warehouse', 'user', 'payments']);
 
-        return view('purchases.show', compact('purchase'));
+        if ($request->expectsJson()) {
+            return response()->json(['purchase' => $purchase]);
+        }
+
+        return view('spa');
     }
 }

@@ -41,25 +41,32 @@ class CatalogController extends Controller
             $query->with($def['with']);
         }
 
-        return view('catalog.index', [
-            'def' => $def,
-            'rows' => $query->paginate(10)->withQueryString(),
-        ]);
+        $rows = $query->paginate(15)->withQueryString();
+
+        if ($request->expectsJson()) {
+            return response()->json($this->payload($def, $rows));
+        }
+
+        return view('spa');
     }
 
     public function create(Request $request)
     {
-        return view('catalog.form', [
-            'def' => $this->definition($request),
-            'row' => null,
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json($this->payload($this->definition($request)));
+        }
+
+        return view('spa');
     }
 
     public function store(Request $request)
     {
         $def = $this->definition($request);
-        $data = $this->validatePayload($request, $def);
-        $def['model']::create($data);
+        $row = $def['model']::create($this->validatePayload($request, $def));
+
+        if ($request->expectsJson()) {
+            return response()->json(['row' => $row, 'message' => $def['singular'].' saved.']);
+        }
 
         return redirect()->route($def['route'].'.index')->with('status', $def['singular'].' saved.');
     }
@@ -67,11 +74,13 @@ class CatalogController extends Controller
     public function edit(Request $request, int $id)
     {
         $def = $this->definition($request);
+        $row = $def['model']::query()->findOrFail($id);
 
-        return view('catalog.form', [
-            'def' => $def,
-            'row' => $def['model']::query()->findOrFail($id),
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json($this->payload($def, null, $row));
+        }
+
+        return view('spa');
     }
 
     public function update(Request $request, int $id)
@@ -79,6 +88,10 @@ class CatalogController extends Controller
         $def = $this->definition($request);
         $row = $def['model']::query()->findOrFail($id);
         $row->update($this->validatePayload($request, $def, $row));
+
+        if ($request->expectsJson()) {
+            return response()->json(['row' => $row->fresh(), 'message' => $def['singular'].' updated.']);
+        }
 
         return redirect()->route($def['route'].'.index')->with('status', $def['singular'].' updated.');
     }
@@ -88,7 +101,34 @@ class CatalogController extends Controller
         $def = $this->definition($request);
         $def['model']::query()->findOrFail($id)->delete();
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $def['singular'].' deleted.']);
+        }
+
         return redirect()->route($def['route'].'.index')->with('status', $def['singular'].' deleted.');
+    }
+
+    private function payload(array $def, $rows = null, $row = null): array
+    {
+        $body = [
+            'title' => $def['title'],
+            'singular' => $def['singular'],
+            'fields' => collect($def['fields'])->map(fn ($field) => collect($field)->except('rules'))->values(),
+            'options' => $def['options'],
+            'row' => $row,
+        ];
+        if ($rows) {
+            $body['data'] = $rows->items();
+            $body['meta'] = [
+                'current_page' => $rows->currentPage(),
+                'last_page' => $rows->lastPage(),
+                'from' => $rows->firstItem(),
+                'to' => $rows->lastItem(),
+                'total' => $rows->total(),
+            ];
+        }
+
+        return $body;
     }
 
     private function validatePayload(Request $request, array $def, ?Model $row = null): array

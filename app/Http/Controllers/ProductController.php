@@ -69,49 +69,87 @@ class ProductController extends Controller
         return view('spa');
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        return view('products.form', ['product' => new Product(['featured_in_pos' => true, 'is_active' => true, 'type' => 'standard']), 'variants' => collect()] + $this->lookups());
+        if ($request->expectsJson()) {
+            return response()->json([
+                'product' => [
+                    'type' => 'standard',
+                    'is_active' => true,
+                    'featured_in_pos' => true,
+                    'tax_method' => 'exclusive',
+                    'variants' => [],
+                ],
+                'lookups' => $this->lookupPayload(),
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function store(Request $request)
     {
         $product = $this->persist($request, new Product);
 
+        if ($request->expectsJson()) {
+            return response()->json(['product' => $this->present($product), 'message' => 'Product saved.']);
+        }
+
         return redirect()->route('products.show', $product)->with('status', 'Product saved.');
     }
 
-    public function show(Product $product)
+    public function show(Request $request, Product $product)
     {
         $product->load(['category', 'brand', 'unit', 'tax', 'warehouse', 'variants', 'movements' => fn ($q) => $q->latest()->limit(20)]);
 
-        return view('products.show', compact('product'));
+        if ($request->expectsJson()) {
+            return response()->json(['product' => $this->present($product), 'lookups' => $this->lookupPayload()]);
+        }
+
+        return view('spa');
     }
 
-    public function edit(Product $product)
+    public function edit(Request $request, Product $product)
     {
-        return view('products.form', ['product' => $product, 'variants' => $product->variants] + $this->lookups());
+        $product->load('variants');
+
+        if ($request->expectsJson()) {
+            return response()->json(['product' => $this->present($product), 'lookups' => $this->lookupPayload()]);
+        }
+
+        return view('spa');
     }
 
     public function update(Request $request, Product $product)
     {
         $this->persist($request, $product);
 
+        if ($request->expectsJson()) {
+            return response()->json(['product' => $this->present($product->fresh()), 'message' => 'Product updated.']);
+        }
+
         return redirect()->route('products.show', $product)->with('status', 'Product updated.');
     }
 
-    public function destroy(Product $product)
+    public function destroy(Request $request, Product $product)
     {
         $used = SaleItem::where('product_id', $product->id)->exists() || PurchaseItem::where('product_id', $product->id)->exists();
         if ($used) {
             $product->update(['is_active' => false]);
+            $message = 'This product is used on transactions, so it was deactivated instead of deleted.';
 
-            return back()->with('status', 'This product is used on transactions, so it was deactivated instead of deleted.');
+            return $request->expectsJson()
+                ? response()->json(['message' => $message, 'deactivated' => true])
+                : back()->with('status', $message);
         }
         if ($product->image) {
             Storage::disk('public')->delete($product->image);
         }
         $product->delete();
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Product deleted.']);
+        }
 
         return redirect()->route('products.index')->with('status', 'Product deleted.');
     }
@@ -227,6 +265,57 @@ class ProductController extends Controller
             'units' => Unit::orderBy('name')->get(),
             'warehouses' => Warehouse::orderBy('name')->get(),
             'taxes' => Tax::orderBy('name')->get(),
+        ];
+    }
+
+    private function lookupPayload(): array
+    {
+        return [
+            'categories' => Category::orderBy('name')->get(['id', 'name']),
+            'brands' => Brand::orderBy('name')->get(['id', 'name']),
+            'units' => Unit::orderBy('name')->get(['id', 'name', 'short_name']),
+            'warehouses' => Warehouse::orderBy('name')->get(['id', 'name']),
+            'taxes' => Tax::orderBy('name')->get(['id', 'name', 'rate_bps']),
+        ];
+    }
+
+    private function present(Product $product): array
+    {
+        $product->loadMissing(['category', 'brand', 'unit', 'tax', 'warehouse', 'variants']);
+
+        return [
+            'id' => $product->id,
+            'name' => $product->name,
+            'type' => $product->type,
+            'code' => $product->code,
+            'brand_id' => $product->brand_id,
+            'category_id' => $product->category_id,
+            'unit_id' => $product->unit_id,
+            'warehouse_id' => $product->warehouse_id,
+            'tax_id' => $product->tax_id,
+            'tax_method' => $product->tax_method,
+            'cost' => number_format($product->cost_cents / 100, 2, '.', ''),
+            'price' => number_format($product->price_cents / 100, 2, '.', ''),
+            'cost_cents' => $product->cost_cents,
+            'price_cents' => $product->price_cents,
+            'alert_qty' => $product->alert_qty,
+            'stock_qty' => $product->stock_qty,
+            'description' => $product->description,
+            'is_active' => (bool) $product->is_active,
+            'featured_in_pos' => (bool) $product->featured_in_pos,
+            'has_variant' => (bool) $product->has_variant,
+            'image' => $product->image ? Storage::disk('public')->url($product->image) : null,
+            'brand' => $product->brand?->name,
+            'category' => $product->category?->name,
+            'unit' => $product->unit?->name,
+            'warehouse' => $product->warehouse?->name,
+            'variants' => $product->variants->map(fn ($variant) => [
+                'id' => $variant->id,
+                'name' => $variant->name,
+                'sku' => $variant->sku,
+                'price' => number_format($variant->price_cents / 100, 2, '.', ''),
+                'stock_qty' => $variant->stock_qty,
+            ])->values(),
         ];
     }
 
