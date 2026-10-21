@@ -13,6 +13,7 @@ const uiSlice = createSlice({
         theme: localStorage.getItem('bornopos-theme') || 'light',
         locale: window.BornoPos?.locale || 'en',
         sidebar: false,
+        narrow: false,
         langOpen: false,
         noticeOpen: false,
         userOpen: false,
@@ -25,6 +26,9 @@ const uiSlice = createSlice({
         toggleSidebar(state) {
             state.sidebar = !state.sidebar;
         },
+        toggleNarrow(state) {
+            state.narrow = !state.narrow;
+        },
         toggleMenu(state, action) {
             const key = action.payload;
             state.langOpen = key === 'lang' ? !state.langOpen : false;
@@ -35,6 +39,7 @@ const uiSlice = createSlice({
             state.langOpen = false;
             state.noticeOpen = false;
             state.userOpen = false;
+            state.sidebar = false;
         },
     },
     extraReducers(builder) {
@@ -45,5 +50,5 @@ const uiSlice = createSlice({
     },
 });
 
-export const { toggleTheme, toggleSidebar, toggleMenu, closeMenus } = uiSlice.actions;
+export const { toggleTheme, toggleSidebar, toggleNarrow, toggleMenu, closeMenus } = uiSlice.actions;
 export default uiSlice.reducer;

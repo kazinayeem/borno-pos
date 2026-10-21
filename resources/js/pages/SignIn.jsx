@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { Logo } from '../icons';
@@ -26,6 +26,15 @@ export default function SignIn() {
     const [password, setPassword] = useState('');
     const [show, setShow] = useState(false);
     const [remember, setRemember] = useState(true);
+
+    useEffect(() => {
+        function onKey(event) {
+            if (event.key === 'Escape') dispatch(closeMenus());
+        }
+        window.addEventListener('keydown', onKey);
+
+        return () => window.removeEventListener('keydown', onKey);
+    }, [dispatch]);
 
     async function submit(event) {
         event.preventDefault();
@@ -58,7 +67,7 @@ export default function SignIn() {
                 </div>
             </div>
             <div className="login-wrap">
-                <section className="login-copy">
+                <section className="login-copy enter">
                     <h1>{t('Smart POS')}<br />{t('for a Smarter Business')}</h1>
                     <p className="muted">{t('Manage sales, inventory, customers and more — all in one place.')}</p>
                     <div className="features">
@@ -84,15 +93,15 @@ export default function SignIn() {
                         <rect x="598" y="62" width="26" height="86" rx="8" fill="#1f2937" />
                     </svg>
                 </section>
-                <section className="login-card">
+                <section className="login-card enter">
                     <div className="center">
                         <Logo />
                         <div className="wordmark">BornoPos</div>
                         <h1>{t('Welcome Back')}</h1>
                         <p className="muted">{t('Sign in to your account to continue')}</p>
                     </div>
-                    {status && <div className="flash">{status} <button type="button" onClick={() => dispatch(clearStatus())} aria-label="Dismiss">×</button></div>}
-                    {error && <div className="errors">{error}</div>}
+                    {status && <div className="flash note">{status} <button type="button" onClick={() => dispatch(clearStatus())} aria-label="Dismiss">×</button></div>}
+                    {error && <div className="errors note">{error}</div>}
                     <form onSubmit={submit}>
                         <label className="field">{t('Email or Username')}
                             <span className="input-ico"><i>👤</i><input value={loginValue} onChange={(event) => setLoginValue(event.target.value)} placeholder={t('Enter your email or username')} required autoFocus /></span>
@@ -104,7 +113,7 @@ export default function SignIn() {
                             </span>
                         </label>
                         <label className="remember"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> {t('Remember me')}</label>
-                        <button className="signin-btn" type="submit" disabled={pending}>{pending ? t('Signing in…') : t('Sign In')}</button>
+                        <button className={`signin-btn ${pending ? 'busy' : ''}`} type="submit" disabled={pending} aria-busy={pending}>{pending ? t('Signing in…') : t('Sign In')}</button>
                     </form>
                     <div className="or"><span>{t('or')}</span></div>
                     <div className="demo">

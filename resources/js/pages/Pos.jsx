@@ -81,8 +81,9 @@ export default function Pos() {
                     </select>
                 </div>
                 <div className="product-tiles">
-                    {products.map((product) => (
-                        <button type="button" key={product.id} className="tile" onClick={() => add(product)}>
+                    {isFetching && !data && <div className="skeleton-grid" aria-hidden="true">{Array.from({ length: 8 }, (_, index) => <span key={index} className="skeleton block" />)}</div>}
+                    {products.map((product, index) => (
+                        <button type="button" key={product.id} className="tile" onClick={() => add(product)} style={index < 12 ? { animationDelay: `${index * 25}ms` } : undefined}>
                             {product.image && <img src={product.image} alt="" />}
                             <strong>{product.name}</strong>
                             <span>{product.code}</span>
@@ -95,12 +96,12 @@ export default function Pos() {
             </section>
             <aside className="card cart">
                 <h2>Cart</h2>
-                {message && <p className="error">{message}</p>}
+                {message && <p className="error note">{message}</p>}
                 {cart.map((line) => (
                     <div className="line" key={line.id}>
                         <span>{line.name}</span>
                         <input type="number" min="1" value={line.qty} onChange={(event) => setCart((rows) => rows.map((row) => row.id === line.id ? { ...row, qty: Math.max(1, Number(event.target.value) || 1) } : row))} />
-                        <b>{money(line.price_cents * line.qty)}</b>
+                        <b key={line.qty} className="pop">{money(line.price_cents * line.qty)}</b>
                         <button type="button" onClick={() => setCart((rows) => rows.filter((row) => row.id !== line.id))}>×</button>
                     </div>
                 ))}
@@ -119,10 +120,10 @@ export default function Pos() {
                 <label>Amount paid<input value={paid} placeholder={(grand / 100).toFixed(2)} onChange={(event) => setPaid(event.target.value)} /></label>
                 <p>Subtotal {money(subtotal)}</p>
                 <p>Tax {money(tax)}</p>
-                <h2>Total {money(grand)}</h2>
+                <h2 key={grand} className="pop">Total {money(grand)}</h2>
                 <div className="actions">
-                    <button className="btn" type="button" disabled={!cart.length || checkoutState.isLoading} onClick={() => submit('draft')}>Save draft</button>
-                    <button className="btn primary" type="button" disabled={!cart.length || checkoutState.isLoading} onClick={() => submit('completed')}>Pay</button>
+                    <button className={`btn ${checkoutState.isLoading ? 'busy' : ''}`} type="button" disabled={!cart.length || checkoutState.isLoading} aria-busy={checkoutState.isLoading} onClick={() => submit('draft')}>Save draft</button>
+                    <button className={`btn primary ${checkoutState.isLoading ? 'busy' : ''}`} type="button" disabled={!cart.length || checkoutState.isLoading} aria-busy={checkoutState.isLoading} onClick={() => submit('completed')}>Pay</button>
                 </div>
             </aside>
         </div>

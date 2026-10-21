@@ -70,7 +70,13 @@ export default function Products() {
                     </select>
                     <button className="btn" type="button" onClick={() => update({ q: '', category_id: '', brand_id: '', status: '' })}>{t('Reset')}</button>
                 </div>
-                {isError && <p className="error">The product list could not be loaded.</p>}
+                {isFetching && <div className="loading-bar" />}
+                {isError && <p className="error note">The product list could not be loaded.</p>}
+                {!payload && isFetching && (
+                    <div className="skeleton-rows" aria-hidden="true">
+                        {Array.from({ length: 6 }, (_, index) => <span key={index} className="skeleton block" />)}
+                    </div>
+                )}
                 <table className="grid">
                     <thead>
                         <tr>

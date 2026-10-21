@@ -19,12 +19,8 @@ const cards = [
 
 const ranges = [['daily', 'Today'], ['weekly', 'This Week'], ['monthly', 'This Month'], ['yearly', 'This Year']];
 
-function useChart(ref, build) {
-    useEffect(() => {
-        if (!ref.current || !build) return undefined;
-        const chart = build(ref.current);
-        return () => chart.destroy();
-    }, [ref, build]);
+function chartMotion() {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : { duration: 420 };
 }
 
 export default function Dashboard({ platform = false }) {
@@ -41,33 +37,51 @@ export default function Dashboard({ platform = false }) {
     const flowRef = useRef(null);
     const cashRef = useRef(null);
     const donutRef = useRef(null);
+    const flowKey = data?.chart ? JSON.stringify(data.chart) : '';
+    const cashKey = data?.cashflow ? JSON.stringify(data.cashflow) : '';
+    const donutKey = data?.categories ? JSON.stringify(data.categories) : '';
 
-    useChart(flowRef, data?.chart && ((canvas) => new Chart(canvas, {
-        type: 'line',
-        data: { labels: data.chart.labels, datasets: [
-            { label: 'Sales', data: data.chart.sales, borderColor: '#22c55e', tension: 0.35, pointRadius: 0 },
-            { label: 'Purchase', data: data.chart.purchases, borderColor: '#3b82f6', tension: 0.35, pointRadius: 0 },
-        ] },
-        options: { plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } },
-    })));
+    useEffect(() => {
+        if (!flowRef.current || !data?.chart) return undefined;
+        const chart = new Chart(flowRef.current, {
+            type: 'line',
+            data: { labels: data.chart.labels, datasets: [
+                { label: 'Sales', data: data.chart.sales, borderColor: '#22c55e', tension: 0.35, pointRadius: 0 },
+                { label: 'Purchase', data: data.chart.purchases, borderColor: '#3b82f6', tension: 0.35, pointRadius: 0 },
+            ] },
+            options: { animation: chartMotion(), plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } },
+        });
 
-    useChart(cashRef, data?.cashflow && ((canvas) => new Chart(canvas, {
-        type: 'line',
-        data: { labels: data.cashflow.labels, datasets: [
-            { label: 'Debit', data: data.cashflow.debits, borderColor: '#ef4444', tension: 0.35, pointRadius: 0 },
-            { label: 'Credit', data: data.cashflow.credits, borderColor: '#6366f1', tension: 0.35, pointRadius: 0 },
-        ] },
-        options: { plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } },
-    })));
+        return () => chart.destroy();
+    }, [flowKey]);
 
-    useChart(donutRef, data?.categories && ((canvas) => new Chart(canvas, {
-        type: 'doughnut',
-        data: {
-            labels: data.categories.map((row) => row.name),
-            datasets: [{ data: data.categories.map((row) => row.percent), backgroundColor: ['#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#ef4444'], borderWidth: 0 }],
-        },
-        options: { cutout: '72%', plugins: { legend: { position: 'right' } } },
-    })));
+    useEffect(() => {
+        if (!cashRef.current || !data?.cashflow) return undefined;
+        const chart = new Chart(cashRef.current, {
+            type: 'line',
+            data: { labels: data.cashflow.labels, datasets: [
+                { label: 'Debit', data: data.cashflow.debits, borderColor: '#ef4444', tension: 0.35, pointRadius: 0 },
+                { label: 'Credit', data: data.cashflow.credits, borderColor: '#6366f1', tension: 0.35, pointRadius: 0 },
+            ] },
+            options: { animation: chartMotion(), plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } },
+        });
+
+        return () => chart.destroy();
+    }, [cashKey]);
+
+    useEffect(() => {
+        if (!donutRef.current || !data?.categories) return undefined;
+        const chart = new Chart(donutRef.current, {
+            type: 'doughnut',
+            data: {
+                labels: data.categories.map((row) => row.name),
+                datasets: [{ data: data.categories.map((row) => row.percent), backgroundColor: ['#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#ef4444'], borderWidth: 0 }],
+            },
+            options: { animation: chartMotion(), cutout: '72%', plugins: { legend: { position: 'right' } } },
+        });
+
+        return () => chart.destroy();
+    }, [donutKey]);
 
     if (platform) {
         const kpis = data?.kpis || {};
@@ -75,8 +89,8 @@ export default function Dashboard({ platform = false }) {
             <>
                 <div className="page-title"><div><h1>{t('Welcome back, {name}', { name: user?.name })}</h1><div className="muted">{t('Platform overview.')}</div></div></div>
                 <div className="kpis">
-                    {[['Total Subscription Sale', kpis.subscription_sale, true], ['Total Subscriber', kpis.subscribers], ['Total Main Shop', kpis.shops], ['Total Store', kpis.stores]].map(([label, value, cash]) => (
-                        <article className="kpi" key={label}><div className="label">{t(label)}</div><strong>{cash ? money(value || 0) : (value || 0)}</strong><em>{data?.label}</em></article>
+                    {[['Total Subscription Sale', kpis.subscription_sale, true], ['Total Subscriber', kpis.subscribers], ['Total Main Shop', kpis.shops], ['Total Store', kpis.stores]].map(([label, value, cash], index) => (
+                        <article className="kpi rise" style={{ animationDelay: `${index * 35}ms` }} key={label}><div className="label">{t(label)}</div><strong>{cash ? money(value || 0) : (value || 0)}</strong><em>{data?.label}</em></article>
                     ))}
                 </div>
             </>
@@ -102,12 +116,12 @@ export default function Dashboard({ platform = false }) {
                     </span>
                 </form>
             </div>
-            <div className="kpis">
-                {cards.map(([key, label, bg, color, icon]) => (
-                    <article className="kpi" key={key}>
+            <div className={`kpis ${!data && loading ? 'is-loading' : ''}`}>
+                {cards.map(([key, label, bg, color, icon], index) => (
+                    <article className="kpi rise" style={{ animationDelay: `${index * 35}ms` }} key={key}>
                         <div className="label"><span className="mark" style={{ background: bg, color }}>{icon}</span> {t(label)}</div>
-                        <strong>{money(data?.kpis?.[key] || 0)}</strong>
-                        <em>{data?.label || (loading ? 'Loading' : '')}</em>
+                        {!data && loading ? <span className="skeleton" /> : <strong>{money(data?.kpis?.[key] || 0)}</strong>}
+                        <em>{data?.label || (loading ? t('Loading') : '')}</em>
                         <svg className="wave" viewBox="0 0 300 40" preserveAspectRatio="none"><path d="M0 28 C 50 8, 90 36, 140 22 S 230 6, 300 24 V40 H0Z" fill={bg} /></svg>
                     </article>
                 ))}
