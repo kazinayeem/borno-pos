@@ -6,12 +6,16 @@ use App\Models\Account;
 use App\Models\Batch;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Models\ProductSerial;
+use App\Models\ProductSerialEvent;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Support\Imei;
 use App\Support\Money;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -75,6 +79,8 @@ class PurchaseService
                 if (! $product) {
                     throw ValidationException::withMessages(['items' => 'A selected product is not available.']);
                 }
+                $serials = $product->has_serial ? $this->serialList($line, $qty, $product) : [];
+                $batchNo = $this->preparedBatch($product, $line);
                 $cost = array_key_exists('cost', $line) && $line['cost'] !== '' && $line['cost'] !== null
                     ? Money::parse($line['cost'])
                     : (int) $product->cost_cents;
@@ -87,9 +93,9 @@ class PurchaseService
                     'qty' => $qty,
                     'cost_cents' => $cost,
                     'subtotal_cents' => $row,
-                    'batch_no' => $line['batch_no'] ?? null,
+                    'batch_no' => $batchNo,
                     'expiry_date' => ($line['expiry_date'] ?? null) ?: null,
-                    'serial' => $line['serial'] ?? null,
+                    'serial' => $serials !== [] ? implode(',', $serials) : (($line['serial'] ?? null) ?: null),
                 ]);
 
                 $product->cost_cents = $cost;
@@ -97,14 +103,24 @@ class PurchaseService
                 $product->save();
                 $this->inventory->move($product, $qty, 'purchase', $purchase, $user);
 
-                if (! empty($line['batch_no'] ?? null)) {
-                    Batch::create([
+                if ($batchNo && $product->has_batch) {
+                    $this->storeBatch($storeId, $product, $item->id, $batchNo, $line, $qty, $cost);
+                }
+                foreach ($serials as $identifier) {
+                    $kind = ($line['identifier_kind'] ?? 'serial') === 'imei' ? 'imei' : 'serial';
+                    $serial = ProductSerial::create([
                         'store_id' => $storeId,
                         'product_id' => $product->id,
                         'purchase_item_id' => $item->id,
-                        'batch_no' => $line['batch_no'],
-                        'expiry_date' => $line['expiry_date'] ?: null,
-                        'qty' => $qty,
+                        'identifier' => $identifier,
+                        'kind' => $kind,
+                        'status' => 'in_stock',
+                    ]);
+                    ProductSerialEvent::create([
+                        'store_id' => $storeId,
+                        'product_serial_id' => $serial->id,
+                        'kind' => 'received',
+                        'happened_on' => $purchase->purchased_on,
                     ]);
                 }
             }
@@ -149,5 +165,95 @@ class PurchaseService
 
             return $purchase->fresh('items');
         });
+    }
+
+    /**
+     * @param  array<string, mixed>  $line
+     * @return array<int, string>
+     */
+    private function serialList(array $line, int $qty, Product $product): array
+    {
+        $serials = $line['serials'] ?? null;
+        if (! is_array($serials)) {
+            $one = trim((string) ($line['serial'] ?? ''));
+            $serials = $one === '' ? [] : array_map('trim', explode(',', $one));
+        }
+        $serials = array_values(array_filter(array_map(fn ($value) => trim((string) $value), $serials), fn ($value) => $value !== ''));
+        if (count($serials) !== $qty) {
+            throw ValidationException::withMessages(['items' => "{$product->name} needs one serial number for each unit."]);
+        }
+        $kind = ($line['identifier_kind'] ?? 'serial') === 'imei' ? 'imei' : 'serial';
+        foreach ($serials as $identifier) {
+            if ($kind === 'imei' && ! Imei::valid($identifier)) {
+                throw ValidationException::withMessages(['items' => "{$identifier} is not a valid IMEI."]);
+            }
+            if ($kind === 'serial' && ! preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/', $identifier)) {
+                throw ValidationException::withMessages(['items' => "{$identifier} is not a valid serial number."]);
+            }
+            $taken = ProductSerial::where('store_id', $product->store_id)->where('identifier', $identifier)->exists();
+            if ($taken || count(array_unique($serials)) !== count($serials)) {
+                throw ValidationException::withMessages(['items' => "{$identifier} is already used in this shop."]);
+            }
+        }
+
+        return $serials;
+    }
+
+    /**
+     * @param  array<string, mixed>  $line
+     */
+    private function preparedBatch(Product $product, array $line): ?string
+    {
+        $batchNo = trim((string) ($line['batch_no'] ?? ''));
+        if ($product->has_batch && ($batchNo === '' || empty($line['expiry_date']))) {
+            throw ValidationException::withMessages(['items' => "{$product->name} needs a batch number and an expiry date."]);
+        }
+        if ($batchNo === '') {
+            return null;
+        }
+        if (empty($line['expiry_date'])) {
+            throw ValidationException::withMessages(['items' => "Batch {$batchNo} needs an expiry date."]);
+        }
+        if (Carbon::parse($line['expiry_date'])->startOfDay()->lt(now()->startOfDay())) {
+            throw ValidationException::withMessages(['items' => "Batch {$batchNo} for {$product->name} is already expired."]);
+        }
+        if (! empty($line['manufactured_on']) && Carbon::parse($line['manufactured_on'])->startOfDay()->gt(Carbon::parse($line['expiry_date'])->startOfDay())) {
+            throw ValidationException::withMessages(['items' => "Batch {$batchNo} expires before its manufacturing date."]);
+        }
+
+        return $batchNo;
+    }
+
+    /**
+     * @param  array<string, mixed>  $line
+     */
+    private function storeBatch(int $storeId, Product $product, int $purchaseItemId, string $batchNo, array $line, int $qty, int $cost): void
+    {
+        $existing = Batch::where('product_id', $product->id)->where('batch_no', $batchNo)->lockForUpdate()->first();
+        $expiry = Carbon::parse($line['expiry_date'])->toDateString();
+        if ($existing) {
+            $current = optional($existing->expiry_date)->toDateString();
+            if ($current && $current !== $expiry) {
+                throw ValidationException::withMessages(['items' => "Batch {$batchNo} is already recorded with a different expiry date."]);
+            }
+            $existing->increment('qty', $qty);
+            $existing->update([
+                'expiry_date' => $expiry,
+                'cost_cents' => $cost,
+                'manufactured_on' => ($line['manufactured_on'] ?? null) ?: $existing->manufactured_on,
+            ]);
+
+            return;
+        }
+        Batch::create([
+            'store_id' => $storeId,
+            'product_id' => $product->id,
+            'purchase_item_id' => $purchaseItemId,
+            'batch_no' => $batchNo,
+            'manufactured_on' => ($line['manufactured_on'] ?? null) ?: null,
+            'expiry_date' => $expiry,
+            'qty' => $qty,
+            'cost_cents' => $cost,
+        ]);
     }
 }

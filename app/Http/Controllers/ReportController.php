@@ -64,11 +64,55 @@ class ReportController extends Controller
         return view('reports.expenses', compact('rows', 'from', 'to', 'label'));
     }
 
-    public function batches()
+    public function batches(Request $request)
     {
-        return view('reports.batches', [
-            'rows' => Batch::with('product')->latest()->paginate(15),
-        ]);
+        $today = now()->toDateString();
+        $rows = Batch::with('product')
+            ->when($request->string('status')->toString() === 'expired', fn ($query) => $query->whereDate('expiry_date', '<', $today))
+            ->when($request->string('status')->toString() === 'soon', function ($query) use ($today) {
+                $query->whereNotNull('expiry_date')
+                    ->whereDate('expiry_date', '>=', $today)
+                    ->whereRaw("expiry_date <= date(?, '+' || coalesce((select near_expiry_days from products where products.id = batches.product_id), 30) || ' days')", [$today]);
+            })
+            ->latest()
+            ->paginate(15)
+            ->withQueryString();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'data' => $rows->getCollection()->map(function (Batch $batch) {
+                    $days = (int) ($batch->product->near_expiry_days ?? 30);
+                    $status = 'ok';
+                    if ($batch->expiry_date) {
+                        if ($batch->expiry_date->lt(now()->startOfDay())) {
+                            $status = 'expired';
+                        } elseif ($batch->expiry_date->lte(now()->addDays($days)->endOfDay())) {
+                            $status = 'soon';
+                        }
+                    }
+
+                    return [
+                        'id' => $batch->id,
+                        'product' => $batch->product?->name,
+                        'product_id' => $batch->product_id,
+                        'batch_no' => $batch->batch_no,
+                        'qty' => $batch->qty,
+                        'expiry_date' => optional($batch->expiry_date)->toDateString(),
+                        'manufactured_on' => optional($batch->manufactured_on)->toDateString(),
+                        'cost_cents' => $batch->cost_cents,
+                        'status' => $batch->qty < 1 ? 'empty' : $status,
+                        'threshold_days' => $days,
+                    ];
+                })->values(),
+                'meta' => [
+                    'current_page' => $rows->currentPage(),
+                    'last_page' => $rows->lastPage(),
+                    'total' => $rows->total(),
+                ],
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function stockCount()

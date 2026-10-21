@@ -83,6 +83,7 @@ class DatabaseSeeder extends Seeder
             SalesSeeder::class,
             AccountingSeeder::class,
             SettingsSeeder::class,
+            TrackingExampleSeeder::class,
         ]);
     }
 

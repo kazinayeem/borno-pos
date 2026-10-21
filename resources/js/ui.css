@@ -214,6 +214,8 @@ html[dir="rtl"] .sub { margin-left: 0; margin-right: 18px; border-left: 0; borde
 .form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #64748b; }
 .form-grid input, .form-grid select, .form-grid textarea { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; background: #fff; color: #0f172a; }
 .form-grid .wide { grid-column: 1 / -1; }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; grid-column: 1 / -1; }
+.form-grid .variant-line { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .form-grid .check { flex-direction: row; align-items: center; }
 .product-photo { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; }
 .pos, .pos-shell { display: grid; grid-template-columns: 220px minmax(0, 1fr) 340px; gap: 12px; align-items: start; }

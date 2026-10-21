@@ -9,11 +9,14 @@ class Batch extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'product_id', 'purchase_item_id', 'batch_no', 'expiry_date', 'qty'];
+    protected $fillable = ['store_id', 'product_id', 'purchase_item_id', 'batch_no', 'manufactured_on', 'expiry_date', 'qty', 'cost_cents'];
 
     protected function casts(): array
     {
-        return ['expiry_date' => 'date'];
+        return [
+            'manufactured_on' => 'date',
+            'expiry_date' => 'date',
+        ];
     }
 
     public function product()

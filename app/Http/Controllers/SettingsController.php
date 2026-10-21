@@ -158,6 +158,8 @@ class SettingsController extends Controller
             'product' => true, 'purchase' => true, 'accounting' => true, 'sales' => true,
             'expense' => true, 'hrm' => true, 'people' => true, 'reports' => true,
             'subscriptions' => true, 'store' => true,
+            'batch' => true, 'serial' => true, 'variants' => true, 'recipe' => true,
+            'warranty' => true, 'emi' => true,
         ];
     }
 

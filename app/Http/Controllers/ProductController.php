@@ -5,13 +5,16 @@ namespace App\Http\Controllers;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
-use App\Models\ProductVariant;
+use App\Models\ProductIngredient;
 use App\Models\PurchaseItem;
 use App\Models\SaleItem;
+use App\Models\Supplier;
 use App\Models\Tax;
 use App\Models\Unit;
 use App\Models\Warehouse;
+use App\Services\InventoryService;
 use App\Support\Money;
+use App\Support\ProductRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -27,7 +30,8 @@ class ProductController extends Controller
                 $term = $request->string('q');
                 $query->where(function ($inner) use ($term) {
                     $inner->where('name', 'like', "%{$term}%")
-                        ->orWhere('code', 'like', "%{$term}%");
+                        ->orWhere('code', 'like', "%{$term}%")
+                            ->orWhere('barcode', 'like', "%{$term}%");
                 });
             })
             ->when($request->filled('category_id'), fn ($q) => $q->where('category_id', $request->integer('category_id')))
@@ -78,7 +82,13 @@ class ProductController extends Controller
                     'is_active' => true,
                     'featured_in_pos' => true,
                     'tax_method' => 'exclusive',
+                    'near_expiry_days' => 30,
+                    'has_batch' => false,
+                    'has_serial' => false,
+                    'has_variant' => false,
+                    'details' => [],
                     'variants' => [],
+                    'ingredients' => [],
                 ],
                 'lookups' => $this->lookupPayload(),
             ]);
@@ -173,56 +183,122 @@ class ProductController extends Controller
     private function persist(Request $request, Product $product): Product
     {
         $storeId = $request->user()->store_id;
+        $request->merge([
+            'barcode' => $request->filled('barcode') ? $request->input('barcode') : null,
+            'supplier_id' => $request->filled('supplier_id') ? $request->input('supplier_id') : null,
+            'slug' => $request->filled('slug') ? $request->input('slug') : null,
+        ]);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:180'],
-            'type' => ['required', Rule::in(['standard', 'combo', 'digital', 'service'])],
+            'slug' => ['nullable', 'string', 'max:180'],
+            'type' => ['required', Rule::in(['standard', 'combo', 'digital', 'service', 'ingredient'])],
             'code' => ['required', 'string', 'max:60', Rule::unique('products', 'code')->where('store_id', $storeId)->ignore($product->id)],
+            'barcode' => ['nullable', 'string', 'max:60', Rule::unique('products', 'barcode')->where('store_id', $storeId)->ignore($product->id)],
             'brand_id' => ['required', Rule::exists('brands', 'id')->where('store_id', $storeId)],
             'category_id' => ['required', Rule::exists('categories', 'id')->where('store_id', $storeId)],
             'unit_id' => ['required', Rule::exists('units', 'id')->where('store_id', $storeId)],
             'sale_unit_id' => ['nullable', Rule::exists('units', 'id')->where('store_id', $storeId)],
             'purchase_unit_id' => ['nullable', Rule::exists('units', 'id')->where('store_id', $storeId)],
             'warehouse_id' => ['nullable', Rule::exists('warehouses', 'id')->where('store_id', $storeId)],
+            'supplier_id' => ['nullable', Rule::exists('suppliers', 'id')->where('store_id', $storeId)],
             'cost' => ['required'],
             'price' => ['required'],
             'promo_price' => ['nullable'],
             'alert_qty' => ['nullable', 'integer', 'min:0'],
+            'near_expiry_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'opening_stock' => ['nullable', 'integer', 'min:0'],
             'description' => ['nullable', 'string', 'max:5000'],
             'tax_id' => ['nullable', Rule::exists('taxes', 'id')->where('store_id', $storeId)],
             'tax_method' => ['nullable', Rule::in(['exclusive', 'inclusive'])],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'remove_image' => ['nullable', 'boolean'],
+            'details' => ['nullable', 'array'],
+            'details.generic_name' => ['nullable', 'string', 'max:180'],
+            'details.strength' => ['nullable', 'string', 'max:80'],
+            'details.dosage_form' => ['nullable', 'string', 'max:80'],
+            'details.manufacturer' => ['nullable', 'string', 'max:180'],
+            'details.model' => ['nullable', 'string', 'max:120'],
+            'details.color' => ['nullable', 'string', 'max:60'],
+            'details.storage' => ['nullable', 'string', 'max:60'],
+            'details.ram' => ['nullable', 'string', 'max:60'],
+            'details.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
+            'details.pack_size' => ['nullable', 'string', 'max:60'],
+            'details.weight' => ['nullable', 'string', 'max:60'],
+            'details.wholesale' => ['nullable', 'string', 'max:20'],
+            'details.style' => ['nullable', 'string', 'max:80'],
             'variants' => ['nullable', 'array'],
+            'variants.*.id' => ['nullable', 'integer'],
             'variants.*.name' => ['nullable', 'string', 'max:120'],
             'variants.*.sku' => ['nullable', 'string', 'max:60'],
+            'variants.*.barcode' => ['nullable', 'string', 'max:60'],
             'variants.*.price' => ['nullable'],
             'variants.*.stock_qty' => ['nullable', 'integer', 'min:0'],
+            'variants.*.size' => ['nullable', 'string', 'max:40'],
+            'variants.*.color' => ['nullable', 'string', 'max:40'],
+            'variants.*.style' => ['nullable', 'string', 'max:40'],
+            'ingredients' => ['nullable', 'array'],
+            'ingredients.*.ingredient_id' => ['required', 'integer'],
+            'ingredients.*.qty' => ['required', 'integer', 'min:1'],
         ]);
+        $batch = $request->boolean('has_batch');
+        $serial = $request->boolean('has_serial');
+        $variant = $request->boolean('has_variant');
+        ProductRules::assert($data['type'], $batch, $serial, $variant);
+        $opening = (int) ($data['opening_stock'] ?? 0);
+        if (! $product->exists && $opening > 0 && ($batch || $serial)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'opening_stock' => 'Receive batch and serial stock through a purchase so each unit stays traceable.',
+            ]);
+        }
+        if (! $product->exists && $opening > 0 && in_array($data['type'], ['service', 'digital', 'combo'], true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'opening_stock' => 'Opening stock applies to stocked products. Bundles use their ingredients.',
+            ]);
+        }
+        $variantQtyPreview = 0;
+        if ($variant) {
+            foreach ($data['variants'] ?? [] as $input) {
+                if (! blank($input['name'] ?? null)) {
+                    $variantQtyPreview += (int) ($input['stock_qty'] ?? 0);
+                }
+            }
+        }
+        if (! $product->exists && $opening > 0 && $variantQtyPreview > 0) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'opening_stock' => 'Use either an opening quantity or variant quantities, so stock is only recorded once.',
+            ]);
+        }
 
-        return DB::transaction(function () use ($request, $product, $data, $storeId) {
+        return DB::transaction(function () use ($request, $product, $data, $storeId, $opening, $batch, $serial, $variant) {
+            $details = $this->detailsFrom($request, $data['details'] ?? []);
             $payload = [
                 'store_id' => $storeId,
                 'name' => $data['name'],
+                'slug' => $this->uniqueSlug($storeId, $data['slug'] ?? $data['name'], $product->id),
                 'type' => $data['type'],
                 'code' => $data['code'],
+                'barcode' => $data['barcode'] ?? null,
                 'brand_id' => $data['brand_id'],
                 'category_id' => $data['category_id'],
                 'unit_id' => $data['unit_id'],
                 'sale_unit_id' => $data['sale_unit_id'] ?? null ?: null,
                 'purchase_unit_id' => $data['purchase_unit_id'] ?? null ?: null,
                 'warehouse_id' => ($data['warehouse_id'] ?? null) ?: $product->warehouse_id,
+                'supplier_id' => $data['supplier_id'] ?? null,
                 'tax_id' => ($data['tax_id'] ?? null) ?: null,
                 'tax_method' => $data['tax_method'] ?? 'exclusive',
                 'cost_cents' => Money::parse($data['cost']),
                 'price_cents' => Money::parse($data['price']),
                 'promo_price_cents' => $request->boolean('has_promo') ? Money::parse($data['promo_price'] ?? 0) : null,
                 'alert_qty' => (int) ($data['alert_qty'] ?? 0),
+                'near_expiry_days' => (int) ($data['near_expiry_days'] ?? 30),
                 'description' => $data['description'] ?? null,
+                'details' => $details,
                 'is_active' => $request->boolean('is_active', true),
                 'featured_in_pos' => $request->boolean('featured_in_pos'),
-                'has_serial' => $request->boolean('has_serial'),
-                'has_batch' => $request->boolean('has_batch'),
-                'has_variant' => $request->boolean('has_variant'),
+                'has_serial' => $serial,
+                'has_batch' => $batch,
+                'has_variant' => $variant,
             ];
 
             if ($request->boolean('remove_image') && $product->image) {
@@ -238,28 +314,89 @@ class ProductController extends Controller
 
             $product->exists ? $product->update($payload) : $product->fill($payload)->save();
 
+            $variantQty = 0;
             if ($product->has_variant) {
                 $keep = [];
-                foreach ($data['variants'] ?? [] as $variant) {
-                    if (blank($variant['name'] ?? null)) {
+                foreach ($data['variants'] ?? [] as $input) {
+                    if (blank($input['name'] ?? null)) {
                         continue;
                     }
                     $values = [
                         'store_id' => $storeId,
-                        'name' => $variant['name'],
-                        'sku' => $variant['sku'] ?? null,
-                        'price_cents' => Money::parse($variant['price'] ?? 0),
-                        'stock_qty' => (int) ($variant['stock_qty'] ?? 0),
+                        'name' => $input['name'],
+                        'sku' => $input['sku'] ?? null,
+                        'barcode' => ($input['barcode'] ?? null) ?: null,
+                        'price_cents' => Money::parse($input['price'] ?? 0),
+                        'stock_qty' => (int) ($input['stock_qty'] ?? 0),
+                        'attributes' => array_filter([
+                            'size' => $input['size'] ?? null,
+                            'color' => $input['color'] ?? null,
+                            'style' => $input['style'] ?? null,
+                        ]),
                     ];
-                    $existing = ! empty($variant['id']) ? $product->variants()->find($variant['id']) : null;
+                    $variantQty += $values['stock_qty'];
+                    $existing = ! empty($input['id']) ? $product->variants()->find($input['id']) : null;
                     $row = $existing ? tap($existing)->update($values) : $product->variants()->create($values);
                     $keep[] = $row->id;
                 }
                 $product->variants()->whereNotIn('id', $keep ?: [0])->delete();
             }
 
+            if ($request->boolean('ingredients_present')) {
+                $keepIngredients = [];
+                foreach ($data['ingredients'] ?? [] as $input) {
+                    $ingredient = Product::where('store_id', $storeId)->whereKey($input['ingredient_id'])->first();
+                    if (! $ingredient || (int) $ingredient->id === (int) $product->id || $ingredient->type === 'combo') {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'ingredients' => 'Choose an ingredient from this shop.',
+                        ]);
+                    }
+                    $link = ProductIngredient::updateOrCreate(
+                        ['product_id' => $product->id, 'ingredient_id' => $ingredient->id],
+                        ['qty' => (int) $input['qty']],
+                    );
+                    $keepIngredients[] = $link->id;
+                }
+                $product->ingredients()->whereNotIn('id', $keepIngredients ?: [0])->delete();
+            }
+
+            $wasNew = $product->wasRecentlyCreated;
+            if ($wasNew && $opening > 0) {
+                app(InventoryService::class)->move($product, $opening, 'opening', $product, $request->user());
+            } elseif ($wasNew && $product->has_variant && $variantQty > 0 && (int) $product->stock_qty === 0) {
+                app(InventoryService::class)->move($product, $variantQty, 'opening', $product, $request->user());
+            }
+
             return $product;
         });
+    }
+
+    private function uniqueSlug(int $storeId, string $source, ?int $ignoreId): string
+    {
+        $base = Str::slug($source) ?: 'product';
+        $slug = $base;
+        $n = 2;
+        while (Product::where('store_id', $storeId)->where('slug', $slug)->when($ignoreId, fn ($query) => $query->where('id', '!=', $ignoreId))->exists()) {
+            $slug = $base.'-'.$n;
+            $n++;
+        }
+
+        return $slug;
+    }
+
+    private function detailsFrom(Request $request, array $details): array
+    {
+        $details['prescription_required'] = $request->boolean('details.prescription_required');
+        if (($details['wholesale'] ?? '') !== '') {
+            $details['wholesale_cents'] = Money::parse($details['wholesale']);
+        } else {
+            unset($details['wholesale_cents']);
+        }
+        if (isset($details['warranty_months']) && $details['warranty_months'] !== '') {
+            $details['warranty_months'] = (int) $details['warranty_months'];
+        }
+
+        return $details;
     }
 
     private function lookups(): array
@@ -275,51 +412,80 @@ class ProductController extends Controller
 
     private function lookupPayload(): array
     {
+        $storeId = auth()->user()?->store_id;
+
         return [
             'categories' => Category::orderBy('name')->get(['id', 'name']),
             'brands' => Brand::orderBy('name')->get(['id', 'name']),
             'units' => Unit::orderBy('name')->get(['id', 'name', 'short_name']),
             'warehouses' => Warehouse::orderBy('name')->get(['id', 'name']),
             'taxes' => Tax::orderBy('name')->get(['id', 'name', 'rate_bps']),
+            'suppliers' => Supplier::orderBy('name')->get(['id', 'name']),
+            'products' => Product::orderBy('name')->get(['id', 'name', 'type']),
+            'business_type' => auth()->user()?->store?->business_type ?? 'all_in_one',
+            'modules' => SettingsController::modulesFor($storeId),
         ];
     }
 
     private function present(Product $product): array
     {
-        $product->loadMissing(['category', 'brand', 'unit', 'tax', 'warehouse', 'variants']);
+        $product->loadMissing(['category', 'brand', 'unit', 'tax', 'warehouse', 'supplier', 'variants', 'ingredients.ingredient']);
+        $details = $product->details ?? [];
+        if (isset($details['wholesale_cents'])) {
+            $details['wholesale'] = number_format(((int) $details['wholesale_cents']) / 100, 2, '.', '');
+        }
 
         return [
             'id' => $product->id,
             'name' => $product->name,
+            'slug' => $product->slug,
             'type' => $product->type,
             'code' => $product->code,
+            'barcode' => $product->barcode,
             'brand_id' => $product->brand_id,
             'category_id' => $product->category_id,
             'unit_id' => $product->unit_id,
             'warehouse_id' => $product->warehouse_id,
+            'supplier_id' => $product->supplier_id,
             'tax_id' => $product->tax_id,
             'tax_method' => $product->tax_method,
             'cost' => number_format($product->cost_cents / 100, 2, '.', ''),
             'price' => number_format($product->price_cents / 100, 2, '.', ''),
+            'promo_price' => $product->promo_price_cents !== null ? number_format($product->promo_price_cents / 100, 2, '.', '') : '',
+            'has_promo' => $product->promo_price_cents !== null,
             'cost_cents' => $product->cost_cents,
             'price_cents' => $product->price_cents,
             'alert_qty' => $product->alert_qty,
+            'near_expiry_days' => $product->near_expiry_days,
             'stock_qty' => $product->stock_qty,
             'description' => $product->description,
+            'details' => $details,
             'is_active' => (bool) $product->is_active,
             'featured_in_pos' => (bool) $product->featured_in_pos,
             'has_variant' => (bool) $product->has_variant,
+            'has_batch' => (bool) $product->has_batch,
+            'has_serial' => (bool) $product->has_serial,
             'image' => $product->image ? '/storage/'.$product->image : null,
             'brand' => $product->brand?->name,
             'category' => $product->category?->name,
             'unit' => $product->unit?->name,
             'warehouse' => $product->warehouse?->name,
-            'variants' => $product->variants->map(fn ($variant) => [
-                'id' => $variant->id,
-                'name' => $variant->name,
-                'sku' => $variant->sku,
-                'price' => number_format($variant->price_cents / 100, 2, '.', ''),
-                'stock_qty' => $variant->stock_qty,
+            'supplier' => $product->supplier?->name,
+            'variants' => $product->variants->map(fn ($row) => [
+                'id' => $row->id,
+                'name' => $row->name,
+                'sku' => $row->sku,
+                'barcode' => $row->barcode,
+                'price' => number_format($row->price_cents / 100, 2, '.', ''),
+                'stock_qty' => $row->stock_qty,
+                'size' => $row->attributes['size'] ?? '',
+                'color' => $row->attributes['color'] ?? '',
+                'style' => $row->attributes['style'] ?? '',
+            ])->values(),
+            'ingredients' => $product->ingredients->map(fn ($row) => [
+                'ingredient_id' => $row->ingredient_id,
+                'qty' => $row->qty,
+                'name' => $row->ingredient?->name,
             ])->values(),
         ];
     }

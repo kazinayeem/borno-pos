@@ -22,6 +22,7 @@ export default function Pos() {
     const [category, setCategory] = useState('');
     const [brand, setBrand] = useState('');
     const [cart, setCart] = useState([]);
+    const [picker, setPicker] = useState(null);
     const [customerId, setCustomerId] = useState('');
     const [discount, setDiscount] = useState('0');
     const [coupon, setCoupon] = useState('');
@@ -67,35 +68,66 @@ export default function Pos() {
     const change = method === 'Cash' ? Math.max(0, tendered - grand) : 0;
     const units = cart.reduce((sum, line) => sum + line.qty, 0);
 
-    function add(product) {
-        if (product.stock_qty < 1) {
+    function add(product, variant = null) {
+        const allocated = (product.variants || []).reduce((sum, row) => sum + Number(row.stock_qty || 0), 0);
+        if (product.has_variant && allocated > 0 && !variant) {
+            setPicker(product);
+            return;
+        }
+        const stock = variant ? Number(variant.stock_qty) : Number(product.stock_qty);
+        const unstocked = product.type === 'service' || product.type === 'digital';
+        if (!unstocked && stock < 1) {
             setMessage(`${product.name} is out of stock.`);
             return;
         }
         setMessage('');
+        setPicker(null);
+        const key = product.has_serial ? `${product.id}:serial:${Date.now()}` : `${product.id}:${variant?.id || ''}`;
+        const batches = (product.batches || []).filter((batch) => !batch.expired && batch.qty > 0);
         setCart((rows) => {
-            const found = rows.find((row) => row.id === product.id);
-            if (found) {
-                return rows.map((row) => row.id === product.id ? { ...row, qty: Math.min(row.stock_qty, row.qty + 1) } : row);
+            const found = rows.find((row) => row.key === key);
+            if (found && !product.has_serial) {
+                return rows.map((row) => row.key === key ? { ...row, qty: Math.min(row.stock_qty, row.qty + 1) } : row);
             }
 
-            return rows.concat({ ...product, qty: 1 });
+            return rows.concat({
+                ...product,
+                key,
+                name: variant ? `${product.name} · ${variant.name}` : product.name,
+                price_cents: variant?.price_cents > 0 ? variant.price_cents : product.price_cents,
+                stock_qty: unstocked ? 9999 : stock,
+                variant_id: variant?.id || null,
+                batch_id: batches[0]?.id || '',
+                batches,
+                serial: '',
+                qty: 1,
+            });
         });
     }
 
-    function setQty(id, value) {
+    function setQty(key, value) {
         setCart((rows) => rows.map((row) => {
-            if (row.id !== id) return row;
-            const qty = Math.max(1, Math.min(row.stock_qty, Number(value) || 1));
+            if (row.key !== key) return row;
+            const qty = Math.max(1, Math.min(row.has_serial ? 1 : row.stock_qty, Number(value) || 1));
 
             return { ...row, qty };
         }));
     }
 
+    function patchLine(key, values) {
+        setCart((rows) => rows.map((row) => row.key === key ? { ...row, ...values } : row));
+    }
+
     async function submit(status) {
         setMessage('');
         const result = await checkout({
-            items: cart.map((line) => ({ product_id: line.id, qty: line.qty })),
+            items: cart.map((line) => ({
+                product_id: line.id,
+                qty: line.qty,
+                serial: line.serial || null,
+                batch_id: line.batch_id || null,
+                product_variant_id: line.variant_id || null,
+            })),
             customer_id: customerId || null,
             discount,
             coupon_code: coupon.trim() || null,
@@ -154,6 +186,17 @@ export default function Pos() {
                             <b>{money(product.price_cents)}</b>
                         </button>
                     ))}
+                    {picker && (
+                        <div className="card wide">
+                            <strong>{picker.name}</strong>
+                            <div className="tabs">
+                                {picker.variants.map((variant) => (
+                                    <button type="button" className="chip" key={variant.id} onClick={() => add(picker, variant)}>{variant.name} · {variant.stock_qty}</button>
+                                ))}
+                                <button type="button" className="btn" onClick={() => setPicker(null)}>Close</button>
+                            </div>
+                        </div>
+                    )}
                     {!products.length && <p className="empty">{isFetching ? t('Loading') : t('No data found')}</p>}
                 </div>
             </section>
@@ -167,11 +210,19 @@ export default function Pos() {
                     </select>
                 </label>
                 {cart.map((line) => (
-                    <div className="line" key={line.id}>
-                        <span>{line.name}</span>
-                        <input type="number" min="1" max={line.stock_qty} value={line.qty} onChange={(event) => setQty(line.id, event.target.value)} />
-                        <b key={line.qty} className="pop">{money(line.price_cents * line.qty)}</b>
-                        <button type="button" aria-label={t('Remove')} onClick={() => setCart((rows) => rows.filter((row) => row.id !== line.id))}>×</button>
+                    <div key={line.key}>
+                        <div className="line">
+                            <span>{line.name}</span>
+                            <input type="number" min="1" max={line.has_serial ? 1 : line.stock_qty} value={line.qty} onChange={(event) => setQty(line.key, event.target.value)} />
+                            <b key={line.qty} className="pop">{money(line.price_cents * line.qty)}</b>
+                            <button type="button" aria-label={t('Remove')} onClick={() => setCart((rows) => rows.filter((row) => row.key !== line.key))}>×</button>
+                        </div>
+                        {line.has_serial && <input placeholder="Serial or IMEI" value={line.serial} onChange={(event) => patchLine(line.key, { serial: event.target.value })} />}
+                        {line.has_batch && line.batches?.length > 0 && (
+                            <select value={line.batch_id} onChange={(event) => patchLine(line.key, { batch_id: event.target.value })}>
+                                {line.batches.map((batch) => <option key={batch.id} value={batch.id}>{batch.batch_no} · exp {batch.expiry_date || 'none'} · {batch.qty}</option>)}
+                            </select>
+                        )}
                     </div>
                 ))}
                 {!cart.length && <p className="empty">{t('No products added yet')}</p>}

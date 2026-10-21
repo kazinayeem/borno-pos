@@ -2,7 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\Batch;
+use App\Models\Product;
+use App\Models\ProductSerial;
+use App\Models\ProductSerialEvent;
 use App\Models\Sale;
+use App\Models\SaleItemBatch;
 use App\Models\SaleReturn;
 use App\Models\SaleReturnItem;
 use App\Models\User;
@@ -79,7 +84,25 @@ class ReturnService
                     'subtotal_cents' => $lineSub,
                 ]);
                 $product = $item->product()->lockForUpdate()->first();
-                $this->inventory->move($product, $qty, 'sale_return', $return, $user);
+                if ($product && $product->type === 'combo' && $product->ingredients()->exists()) {
+                    foreach ($product->ingredients as $row) {
+                        $ingredient = Product::where('store_id', $product->store_id)->lockForUpdate()->find($row->ingredient_id);
+                        if (! $ingredient) {
+                            continue;
+                        }
+                        $this->inventory->move($ingredient, (int) $row->qty * $qty, 'sale_return', $return, $user);
+                        if ($ingredient->has_batch) {
+                            $this->restoreLooseBatch($ingredient, (int) $row->qty * $qty);
+                        }
+                    }
+                } elseif ($product) {
+                    $this->inventory->move($product, $qty, 'sale_return', $return, $user);
+                    if ($item->product_variant_id) {
+                        \App\Models\ProductVariant::where('product_id', $product->id)->whereKey($item->product_variant_id)->lockForUpdate()->increment('stock_qty', $qty);
+                    }
+                    $this->restoreBatches($item, $product, $qty);
+                    $this->restoreSerial($item, $product);
+                }
             }
 
             $refund = min((int) $return->grand_cents, (int) $sale->paid_cents);
@@ -101,5 +124,73 @@ class ReturnService
 
             return $return->fresh('items');
         });
+    }
+
+    private function restoreBatches($item, Product $product, int $qty): void
+    {
+        $allocations = SaleItemBatch::where('sale_item_id', $item->id)->orderBy('id')->lockForUpdate()->get();
+        if ($allocations->isEmpty()) {
+            if ($product->has_batch) {
+                $this->restoreLooseBatch($product, $qty);
+            }
+
+            return;
+        }
+        foreach ($allocations as $allocation) {
+            if ($qty < 1) {
+                break;
+            }
+            $room = (int) $allocation->qty - (int) $allocation->returned_qty;
+            $take = min($qty, $room);
+            if ($take < 1) {
+                continue;
+            }
+            $allocation->increment('returned_qty', $take);
+            Batch::whereKey($allocation->batch_id)->lockForUpdate()->increment('qty', $take);
+            $qty -= $take;
+        }
+    }
+
+    private function restoreLooseBatch(Product $product, int $qty): void
+    {
+        $batch = Batch::where('product_id', $product->id)
+            ->where(function ($query) {
+                $query->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', now()->toDateString());
+            })
+            ->orderByRaw('case when expiry_date is null then 1 else 0 end')
+            ->orderBy('expiry_date')
+            ->lockForUpdate()
+            ->first();
+        if (! $batch) {
+            $batch = Batch::where('product_id', $product->id)->orderByDesc('id')->lockForUpdate()->first();
+        }
+        if ($batch) {
+            $batch->increment('qty', $qty);
+        }
+    }
+
+    private function restoreSerial($item, Product $product): void
+    {
+        if (! $product->has_serial || ! $item->serial) {
+            return;
+        }
+        $serial = ProductSerial::where('store_id', $product->store_id)
+            ->where('product_id', $product->id)
+            ->where('identifier', $item->serial)
+            ->lockForUpdate()
+            ->first();
+        if (! $serial) {
+            return;
+        }
+        $serial->update([
+            'status' => 'in_stock',
+            'sale_item_id' => null,
+        ]);
+        ProductSerialEvent::create([
+            'store_id' => $product->store_id,
+            'product_serial_id' => $serial->id,
+            'kind' => 'returned',
+            'happened_on' => now()->toDateString(),
+        ]);
     }
 }

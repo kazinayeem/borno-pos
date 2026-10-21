@@ -63,6 +63,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/purchase/list', [PurchaseController::class, 'index'])->name('purchases.index');
         Route::get('/purchase/create', [PurchaseController::class, 'create'])->name('purchases.create');
+        Route::get('/purchase/batch', [ReportController::class, 'batches'])->name('batches');
         Route::post('/purchase', [PurchaseController::class, 'store'])->name('purchases.store');
         Route::get('/purchase/{purchase}', [PurchaseController::class, 'show'])->name('purchases.show');
 
@@ -72,6 +73,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/sales/{sale}/print', [SaleController::class, 'print'])->middleware('ability:sales.view')->name('sales.print');
         Route::post('/sales/{sale}/complete', [SaleController::class, 'complete'])->name('sales.complete');
         Route::post('/sales/{sale}/return', [SaleController::class, 'returnStore'])->name('sales.return');
+        Route::post('/sales/{sale}/installments', [\App\Http\Controllers\InstallmentController::class, 'store'])->middleware('ability:sales.view')->name('sales.installments.store');
+        Route::get('/report/installments', [\App\Http\Controllers\InstallmentController::class, 'index'])->middleware('ability:sales.view')->name('installments.index');
+        Route::post('/installments/{installment}/pay', [\App\Http\Controllers\InstallmentController::class, 'pay'])->middleware('ability:sales.view')->name('installments.pay');
+        Route::post('/product-serials/{serial}/service', [\App\Http\Controllers\SerialController::class, 'service'])->middleware('ability:products.manage,sales.view')->name('serials.service');
         Route::get('/sale-returns', [SaleController::class, 'returns'])->name('sales.returns');
 
         Route::get('/accounts', [AccountingController::class, 'accounts'])->name('accounts.index');
@@ -90,7 +95,6 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/stock/count', [ReportController::class, 'stockCount'])->name('stock.index');
         Route::post('/stock/count', [ReportController::class, 'storeStockCount'])->name('stock.store');
-        Route::get('/purchase/batch', [ReportController::class, 'batches'])->name('batches');
         Route::get('/report/summary', [ReportController::class, 'summary'])->name('reports.summary');
         Route::get('/report/profit-loss', [ReportController::class, 'profit'])->name('reports.profit');
         Route::get('/report/purchases', [ReportController::class, 'purchases'])->name('reports.purchases');

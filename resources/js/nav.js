@@ -12,7 +12,7 @@ export const shopNav = [
         ['Purchases', '/purchase/list', true],
         ['Add Purchase', '/purchase/create', true],
         ['Stock Count', '/stock/count'],
-        ['Batches', '/purchase/batch'],
+        ['Batches', '/purchase/batch', true],
     ] },
     { label: 'Accounting', icon: 'wallet', match: ['/accounts', '/money-transfers', '/account'], children: [
         ['Accounts', '/accounts'],
@@ -20,10 +20,11 @@ export const shopNav = [
         ['Balance Sheet', '/account/balancesheet'],
         ['Transactions', '/account/transactions'],
     ] },
-    { label: 'Sales', icon: 'tag', match: ['/sales', '/sale-returns'], children: [
+    { label: 'Sales', icon: 'tag', match: ['/sales', '/sale-returns', '/report/installments'], children: [
         ['Sales', '/sales', true],
         ['Drafts', '/sales/draft', true],
         ['Sale Returns', '/sale-returns'],
+        ['Installments', '/report/installments', true],
     ] },
     { label: 'Expense', icon: 'receipt', match: ['/expense'], children: [
         ['Expense Category', '/expense-categories', true],

@@ -15,7 +15,11 @@ class PosController extends Controller
 {
     public function index(Request $request)
     {
-        $products = Product::with('tax')
+        $products = Product::with([
+            'tax',
+            'variants',
+            'batches' => fn ($query) => $query->where('qty', '>', 0)->orderByRaw('case when expiry_date is null then 1 else 0 end')->orderBy('expiry_date'),
+        ])
             ->where('is_active', true)
             ->where('featured_in_pos', true)
             ->orderBy('name')
@@ -34,6 +38,23 @@ class PosController extends Controller
                     'tax_bps' => (int) ($product->tax?->rate_bps ?? 0),
                     'tax_method' => $product->tax_method,
                     'image' => $product->image ? '/storage/'.$product->image : null,
+                    'type' => $product->type,
+                    'has_batch' => (bool) $product->has_batch,
+                    'has_serial' => (bool) $product->has_serial,
+                    'has_variant' => (bool) $product->has_variant,
+                    'variants' => $product->variants->map(fn ($row) => [
+                        'id' => $row->id,
+                        'name' => $row->name,
+                        'price_cents' => (int) $row->price_cents,
+                        'stock_qty' => (int) $row->stock_qty,
+                    ])->values(),
+                    'batches' => $product->has_batch ? $product->batches->map(fn ($row) => [
+                        'id' => $row->id,
+                        'batch_no' => $row->batch_no,
+                        'qty' => (int) $row->qty,
+                        'expiry_date' => optional($row->expiry_date)->toDateString(),
+                        'expired' => $row->expiry_date ? $row->expiry_date->lt(now()->startOfDay()) : false,
+                    ])->values() : [],
                 ])->values(),
                 'categories' => Category::orderBy('name')->get(['id', 'name']),
                 'brands' => Brand::orderBy('name')->get(['id', 'name']),
@@ -52,6 +73,9 @@ class PosController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
+            'items.*.serial' => ['nullable', 'string', 'max:80'],
+            'items.*.batch_id' => ['nullable', 'integer'],
+            'items.*.product_variant_id' => ['nullable', 'integer'],
             'customer_id' => ['nullable', 'integer'],
             'discount' => ['nullable'],
             'coupon_code' => ['nullable', 'string', 'max:40'],

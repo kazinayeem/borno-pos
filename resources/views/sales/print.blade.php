@@ -22,6 +22,18 @@
     <p>Discount @money($sale->discount_cents) · Tax @money($sale->tax_cents)</p>
     <h3>Total @money($sale->grand_cents)</h3>
     <p>Paid @money($sale->paid_cents) by {{ $sale->payment_method }} · Due @money($sale->dueCents())</p>
+    @if($sale->installmentPlan)
+        <h3>Payment schedule</h3>
+        <p>Down payment @money($sale->installmentPlan->down_payment_cents). Financed balance @money($sale->installmentPlan->financed_cents)@if($sale->installmentPlan->fee_cents > 0), including a fee of @money($sale->installmentPlan->fee_cents)@endif. This schedule is not a loan or credit approval.</p>
+        <table>
+            <thead><tr><th>#</th><th>Due</th><th>Amount</th><th>Paid</th><th>Status</th></tr></thead>
+            <tbody>
+            @foreach($sale->installmentPlan->installments as $row)
+                <tr><td>{{ $row->sequence }}</td><td>{{ optional($row->due_on)->format('d M Y') }}</td><td>@money($row->amount_cents)</td><td>@money($row->paid_cents)</td><td>{{ $row->status }}</td></tr>
+            @endforeach
+            </tbody>
+        </table>
+    @endif
     <p>{{ \App\Models\Setting::withoutGlobalScopes()->where('store_id', $sale->store_id)->where('key','invoice_footer')->value('value') }}</p>
     <button class="btn no-print" onclick="window.print()">Print</button>
 </body>

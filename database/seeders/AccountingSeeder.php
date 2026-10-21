@@ -156,11 +156,21 @@ class AccountingSeeder extends Seeder
                     'tax' => '0',
                     'discount' => '0',
                     'shipping' => '0',
-                ], $lines->map(fn (Product $product) => [
-                    'product_id' => $product->id,
-                    'qty' => 2,
-                    'cost' => number_format($product->cost_cents / 100, 2, '.', ''),
-                ])->all());
+                ], $lines->map(function (Product $product) {
+                    $line = [
+                        'product_id' => $product->id,
+                        'qty' => 2,
+                        'cost' => number_format($product->cost_cents / 100, 2, '.', ''),
+                        'batch_no' => $product->has_batch ? 'DEMO-'.$product->code : null,
+                        'expiry_date' => $product->has_batch ? '2027-08-12' : null,
+                    ];
+                    if ($product->has_serial) {
+                        $line['identifier_kind'] = 'serial';
+                        $line['serial'] = 'DEMO-SN-'.$product->id.'-1,DEMO-SN-'.$product->id.'-2';
+                    }
+
+                    return $line;
+                })->all());
             }
 
             if (! StockCount::query()->where('note', 'demo-count')->exists() && $warehouse) {

@@ -6,6 +6,8 @@ import CatalogPage from './pages/CatalogPage';
 import { PurchaseDetail, PurchaseForm, Records, SaleDetail } from './pages/Commerce';
 import Dashboard from './pages/Dashboard';
 import BarcodePrint from './pages/BarcodePrint';
+import Batches from './pages/Batches';
+import Installments from './pages/Installments';
 import Pos from './pages/Pos';
 import ProductForm from './pages/ProductForm';
 import Products from './pages/Products';
@@ -76,7 +78,9 @@ export default function App() {
                 <Route path="/sales/:id" element={<Guard><SaleDetail /></Guard>} />
                 <Route path="/purchase/list" element={<Guard><Records kind="purchases" /></Guard>} />
                 <Route path="/purchase/create" element={<Guard><PurchaseForm /></Guard>} />
+                <Route path="/purchase/batch" element={<Guard><Batches /></Guard>} />
                 <Route path="/purchase/:id" element={<Guard><PurchaseDetail /></Guard>} />
+                <Route path="/report/installments" element={<Guard><Installments /></Guard>} />
                 {catalogs.map((path) => (
                     <Route key={path} path={path} element={<Guard><CatalogPage endpoint={path} /></Guard>} />
                 ))}

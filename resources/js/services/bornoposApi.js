@@ -26,7 +26,7 @@ export const bornoposApi = createApi({
             return headers;
         },
     }),
-    tagTypes: ['Products', 'Catalog', 'Pos', 'Sales', 'Purchases', 'Dashboard'],
+    tagTypes: ['Products', 'Catalog', 'Pos', 'Sales', 'Purchases', 'Dashboard', 'Batches', 'Installments'],
     endpoints: (builder) => ({
         getDashboard: builder.query({
             query: ({ platform, ...params }) => `${platform ? '/api/dashboard' : '/api/store-dashboard'}${queryString(params)}`,
@@ -50,7 +50,12 @@ export const bornoposApi = createApi({
 
                 return { url: id ? `/products/${id}` : '/products', method: 'POST', body };
             },
-            invalidatesTags: [{ type: 'Products', id: 'LIST' }, 'Pos', 'Dashboard'],
+            invalidatesTags: (result, error, { id }) => [
+                { type: 'Products', id: 'LIST' },
+                { type: 'Products', id: id || result?.product?.id },
+                'Pos',
+                'Dashboard',
+            ],
         }),
         deleteProduct: builder.mutation({
             query: (id) => ({ url: `/products/${id}`, method: 'DELETE' }),
@@ -105,11 +110,31 @@ export const bornoposApi = createApi({
         }),
         savePurchase: builder.mutation({
             query: (body) => ({ url: '/purchase', method: 'POST', body }),
-            invalidatesTags: ['Purchases', 'Products', 'Pos', 'Dashboard'],
+            invalidatesTags: ['Purchases', 'Products', 'Pos', 'Dashboard', 'Batches'],
         }),
         getPurchase: builder.query({
             query: (id) => `/purchase/${id}`,
             providesTags: (result, error, id) => [{ type: 'Purchases', id }],
+        }),
+        getBatches: builder.query({
+            query: ({ status = '', page = 1 } = {}) => `/purchase/batch${queryString({ status, page })}`,
+            providesTags: ['Batches'],
+        }),
+        getInstallments: builder.query({
+            query: () => '/report/installments',
+            providesTags: ['Installments'],
+        }),
+        createInstallment: builder.mutation({
+            query: ({ id, body }) => ({ url: `/sales/${id}/installments`, method: 'POST', body }),
+            invalidatesTags: ['Sales', 'Installments', 'Dashboard'],
+        }),
+        payInstallment: builder.mutation({
+            query: ({ id, body }) => ({ url: `/installments/${id}/pay`, method: 'POST', body }),
+            invalidatesTags: ['Sales', 'Installments', 'Dashboard'],
+        }),
+        recordService: builder.mutation({
+            query: ({ id, body }) => ({ url: `/product-serials/${id}/service`, method: 'POST', body }),
+            invalidatesTags: ['Sales'],
         }),
     }),
 });
@@ -133,4 +158,9 @@ export const {
     useGetPurchaseFormQuery,
     useSavePurchaseMutation,
     useGetPurchaseQuery,
+    useGetBatchesQuery,
+    useGetInstallmentsQuery,
+    useCreateInstallmentMutation,
+    usePayInstallmentMutation,
+    useRecordServiceMutation,
 } = bornoposApi;

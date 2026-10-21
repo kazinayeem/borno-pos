@@ -57,7 +57,7 @@ class PurchaseController extends Controller
             return response()->json([
                 'warehouses' => Warehouse::orderBy('name')->get(['id', 'name']),
                 'suppliers' => Supplier::orderBy('name')->get(['id', 'name']),
-                'products' => Product::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code', 'cost_cents']),
+                'products' => Product::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code', 'cost_cents', 'has_batch', 'has_serial']),
             ]);
         }
 
@@ -83,7 +83,11 @@ class PurchaseController extends Controller
             'items.*.cost' => ['nullable'],
             'items.*.batch_no' => ['nullable', 'string', 'max:60'],
             'items.*.expiry_date' => ['nullable', 'date'],
-            'items.*.serial' => ['nullable', 'string', 'max:80'],
+            'items.*.manufactured_on' => ['nullable', 'date'],
+            'items.*.serial' => ['nullable', 'string', 'max:500'],
+            'items.*.serials' => ['nullable', 'array'],
+            'items.*.serials.*' => ['nullable', 'string', 'max:80'],
+            'items.*.identifier_kind' => ['nullable', 'in:serial,imei'],
         ]);
 
         if ($request->hasFile('document')) {

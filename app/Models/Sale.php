@@ -38,6 +38,11 @@ class Sale extends Model
         return $this->hasMany(SaleItem::class);
     }
 
+    public function installmentPlan(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(InstallmentPlan::class);
+    }
+
     public function payments(): MorphMany
     {
         return $this->morphMany(Payment::class, 'payable');

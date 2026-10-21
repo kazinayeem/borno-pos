@@ -23,13 +23,24 @@ class SaleController extends Controller
 
     public function show(Request $request, Sale $sale)
     {
-        $sale->load(['items.product', 'customer', 'user', 'payments', 'returns.items']);
+        $sale->load(['items.product', 'customer', 'user', 'payments', 'returns.items', 'installmentPlan.installments', 'installmentPlan.customer']);
 
         if ($request->expectsJson()) {
             $sale->items->each(function ($item) {
                 if ($item->product?->image) {
                     $item->product->image = '/storage/'.$item->product->image;
                 }
+                $serial = $item->serial
+                    ? \App\Models\ProductSerial::where('product_id', $item->product_id)->where('identifier', $item->serial)->first()
+                    : null;
+                $item->setAttribute('serial_unit', $serial ? [
+                    'id' => $serial->id,
+                    'kind' => $serial->kind,
+                    'status' => $serial->status,
+                    'warranty_starts_on' => optional($serial->warranty_starts_on)->toDateString(),
+                    'warranty_ends_on' => optional($serial->warranty_ends_on)->toDateString(),
+                    'events' => $serial->events()->latest('id')->limit(5)->get(['id', 'kind', 'note', 'happened_on']),
+                ] : null);
             });
 
             return response()->json(['sale' => $sale]);
@@ -69,7 +80,7 @@ class SaleController extends Controller
 
     public function print(Sale $sale)
     {
-        $sale->load(['items.product', 'customer', 'user', 'store']);
+        $sale->load(['items.product', 'customer', 'user', 'store', 'installmentPlan.installments']);
 
         return view('sales.print', compact('sale'));
     }
