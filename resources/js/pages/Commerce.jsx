@@ -98,7 +98,7 @@ export function SaleDetail() {
                     <tbody>
                         {sale.items.map((item) => (
                             <tr key={item.id}>
-                                <td>{item.product?.name}</td>
+                                <td>{item.product?.image && <img className="thumb-sm" src={item.product.image} alt="" />} {item.product?.name}</td>
                                 <td>{item.qty}</td>
                                 <td>{money(item.price_cents)}</td>
                                 <td>{money(item.subtotal_cents)}</td>

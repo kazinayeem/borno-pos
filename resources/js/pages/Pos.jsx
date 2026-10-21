@@ -83,6 +83,7 @@ export default function Pos() {
                 <div className="product-tiles">
                     {products.map((product) => (
                         <button type="button" key={product.id} className="tile" onClick={() => add(product)}>
+                            {product.image && <img src={product.image} alt="" />}
                             <strong>{product.name}</strong>
                             <span>{product.code}</span>
                             <b>{money(product.price_cents)}</b>

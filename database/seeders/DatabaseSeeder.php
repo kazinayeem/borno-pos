@@ -27,8 +27,15 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        if (app()->environment('production')) {
+            $this->command?->warn('Demo seeding is disabled when APP_ENV is production.');
+
+            return;
+        }
+
         if (User::query()->where('email', 'superadmin@bornopos.test')->exists()) {
             $this->fillExistingShops();
+            $this->enrich();
 
             return;
         }
@@ -63,6 +70,20 @@ class DatabaseSeeder extends Seeder
         foreach ($shops as $type => [$name, $email]) {
             $this->shop($type, $name, $email);
         }
+
+        $this->enrich();
+    }
+
+    private function enrich(): void
+    {
+        $this->call([
+            UserSeeder::class,
+            PeopleSeeder::class,
+            ProductImageSeeder::class,
+            SalesSeeder::class,
+            AccountingSeeder::class,
+            SettingsSeeder::class,
+        ]);
     }
 
     private function fillExistingShops(): void

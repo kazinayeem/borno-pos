@@ -8,6 +8,7 @@ use App\Services\ReturnService;
 use App\Support\DateRange;
 use App\Support\Money;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class SaleController extends Controller
 {
@@ -26,6 +27,12 @@ class SaleController extends Controller
         $sale->load(['items.product', 'customer', 'user', 'payments', 'returns.items']);
 
         if ($request->expectsJson()) {
+            $sale->items->each(function ($item) {
+                if ($item->product?->image) {
+                    $item->product->image = Storage::disk('public')->url($item->product->image);
+                }
+            });
+
             return response()->json(['sale' => $sale]);
         }
 

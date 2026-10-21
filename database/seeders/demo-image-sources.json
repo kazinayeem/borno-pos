@@ -1,0 +1,24 @@
+{
+  "license": "Unsplash License. Photos are downloaded once into storage/app/public/products/demo and are not hotlinked. https://unsplash.com/license",
+  "photos": [
+    {"file": "rice.jpg", "unsplash": "1586201375761-83865001e31c", "depicts": "Uncooked rice grains", "categories": ["Rice & Grains", "Rice"]},
+    {"file": "milk.jpg", "unsplash": "1563636619-e9143da7973b", "depicts": "Milk carton and glass", "categories": ["Dairy"]},
+    {"file": "juice.jpg", "unsplash": "1600271886742-f049cd451bba", "depicts": "Orange juice", "categories": ["Beverages", "Drinks"]},
+    {"file": "coffee.jpg", "unsplash": "1495474472287-4d71bcdd2085", "depicts": "Coffee cups", "categories": ["Breakfast"]},
+    {"file": "bread.jpg", "unsplash": "1509440159596-0249088772ff", "depicts": "Loaves of bread", "categories": ["Bread"]},
+    {"file": "vegetables.jpg", "unsplash": "1540420773420-3366772f4999", "depicts": "Fresh vegetables and salad", "categories": ["Produce", "Salads"]},
+    {"file": "snacks.jpg", "unsplash": "1566478989037-eec170784d0b", "depicts": "Packaged snacks", "categories": ["Snacks"]},
+    {"file": "spices.jpg", "unsplash": "1596040033229-a9821ebd058d", "depicts": "Spices and herbs", "categories": ["Spices"]},
+    {"file": "meal.jpg", "unsplash": "1504674900247-0877df9cc836", "depicts": "Plated meals", "categories": ["Meals", "Grill", "Combo"]},
+    {"file": "fries.jpg", "unsplash": "1573080496219-bb080dd4f877", "depicts": "French fries", "categories": ["Sides"]},
+    {"file": "cake.jpg", "unsplash": "1578985545062-69928b1d9587", "depicts": "Chocolate cake", "categories": ["Desserts"]},
+    {"file": "soup.jpg", "unsplash": "1547592166-23ac45744acd", "depicts": "Bowl of soup", "categories": ["Soups"]},
+    {"file": "pills.jpg", "unsplash": "1584308666744-24d5c474f2ae", "depicts": "Retail blister packs of tablets", "categories": ["Pain Relief", "Cold & Flu", "Vitamins", "Digestive", "Diabetes Care", "Eye & Ear", "Oral Care", "Wellness"]},
+    {"file": "first-aid.jpg", "unsplash": "1603398938378-e54eab446dde", "depicts": "First-aid supplies", "categories": ["First Aid", "Devices"]},
+    {"file": "soap.jpg", "unsplash": "1600857544200-b2f666a9a2ec", "depicts": "Bars of soap", "categories": ["Household", "Personal Care", "Skin", "Baby", "Baby Care"]},
+    {"file": "notebook.jpg", "unsplash": "1517842645767-c639042777db", "depicts": "Notebook and pen", "categories": ["Stationery", "General"]},
+    {"file": "phone.jpg", "unsplash": "1511707171634-5f897ff02aa9", "depicts": "Mobile phone beside a laptop", "categories": ["Mobile", "Computer", "Storage", "Camera", "Networking", "Office", "Accessories"]},
+    {"file": "headphones.jpg", "unsplash": "1505740420928-5e560c06d30e", "depicts": "Headphones", "categories": ["Audio", "Wearables"]},
+    {"file": "charger.jpg", "unsplash": "1583863788434-e58a36330cf0", "depicts": "Charger and cable", "categories": ["Cables", "Chargers", "Home"]}
+  ]
+}
