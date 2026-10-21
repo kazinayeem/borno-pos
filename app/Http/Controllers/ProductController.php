@@ -156,13 +156,18 @@ class ProductController extends Controller
 
     public function barcode(Request $request)
     {
-        $products = Product::query()->orderBy('name')->get();
-        $selected = $request->input('ids', []);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'products' => Product::query()->orderBy('name')->get()->map(fn (Product $product) => [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'code' => $product->code,
+                    'price_cents' => $product->sellingPriceCents(),
+                ])->values(),
+            ]);
+        }
 
-        return view('products.barcode', [
-            'products' => $products,
-            'selected' => Product::whereIn('id', $selected)->get(),
-        ]);
+        return view('spa');
     }
 
     private function persist(Request $request, Product $product): Product

@@ -216,15 +216,45 @@ html[dir="rtl"] .sub { margin-left: 0; margin-right: 18px; border-left: 0; borde
 .form-grid .wide { grid-column: 1 / -1; }
 .form-grid .check { flex-direction: row; align-items: center; }
 .product-photo { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; }
-.pos { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
-.product-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
-.tile { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; background: #fff; }
-.tile img { width: 100%; height: 84px; object-fit: cover; border-radius: 8px; }
-.cart .line, .form-grid .line { display: grid; grid-template-columns: 1fr 72px 90px 32px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.pos, .pos-shell { display: grid; grid-template-columns: 220px minmax(0, 1fr) 340px; gap: 12px; align-items: start; }
+.pos-side, .pos-catalog, .cart { max-height: calc(100vh - 120px); overflow: auto; }
+.pos-side h2 { margin: 16px 0 8px; font-size: 13px; color: #64748b; }
+.pos-filter { width: 100%; display: flex; justify-content: space-between; gap: 8px; align-items: center; border: 0; background: transparent; border-radius: 10px; padding: 8px 10px; cursor: pointer; color: #334155; font-weight: 600; text-align: left; }
+.pos-filter.on { background: #e8f1ff; color: var(--blue); }
+.pos-filter b { font-size: 12px; color: #94a3b8; }
+.pos-filter.on b { color: var(--blue); }
+.product-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.tile { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; border: 1px solid #e2e8f0; border-radius: 14px; padding: 10px; background: #fff; cursor: pointer; }
+.tile img, .thumb-fallback { width: 100%; height: 84px; object-fit: cover; border-radius: 8px; background: #f1f5f9; }
+.tile em { font-style: normal; font-size: 12px; }
+.tile em.in { color: #15803d; }
+.tile em.out { color: #e11d48; }
+.cart label { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: 13px; color: #64748b; }
+.cart input, .cart select, .toolbar input, .toolbar select { border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; background: #fff; }
+.cart .line, .form-grid .line { display: grid; grid-template-columns: 1fr 64px 78px 28px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.pos-total, .pos-grand { display: flex; justify-content: space-between; gap: 8px; margin: 6px 0; }
+.pos-grand { background: var(--blue); color: #fff; border-radius: 12px; padding: 10px 12px; }
+.pos-methods { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.barcode-matches { display: grid; gap: 6px; margin-top: 10px; }
+.barcode-matches button, .barcode-picked label { display: flex; justify-content: space-between; gap: 12px; align-items: center; width: 100%; border: 1px solid #e2e8f0; background: #fff; border-radius: 12px; padding: 8px 12px; text-align: left; cursor: pointer; }
+.barcode-picked { display: grid; gap: 8px; margin-top: 12px; }
+.barcode-picked small { display: block; color: #94a3b8; }
+.barcode-picked input { width: 72px; }
+.barcode-sheet { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.barcode-label { width: 220px; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 10px; text-align: center; background: #fff; break-inside: avoid; }
+.barcode-label strong, .barcode-label b, .barcode-label span { display: block; }
+.barcode { width: 100%; height: 56px; margin: 8px 0; }
 .status { color: #15803d; }
 .error { color: #dc2626; }
-html.dark .form-grid input, html.dark .form-grid select, html.dark .form-grid textarea, html.dark .tile { background: #162033; color: #e5e7eb; border-color: #2a3548; }
-@media (max-width: 980px) { .pos, .form-grid { grid-template-columns: 1fr; } }
+html.dark .form-grid input, html.dark .form-grid select, html.dark .form-grid textarea, html.dark .tile, html.dark .pos-filter, html.dark .cart input, html.dark .cart select, html.dark .barcode-label, html.dark .barcode-matches button, html.dark .barcode-picked label { background: #162033; color: #e5e7eb; border-color: #2a3548; }
+@media (max-width: 1100px) { .pos, .pos-shell { grid-template-columns: 1fr; } .pos-side, .pos-catalog, .cart { max-height: none; } }
+@media (max-width: 980px) { .form-grid { grid-template-columns: 1fr; } }
+@media print {
+  .sidebar, .topbar, .app-foot, .backdrop, .no-print { display: none !important; }
+  .main { margin: 0 !important; }
+  .content { padding: 0 !important; }
+  .barcode-label { border-color: #111; }
+}
 
 .sidebar, .main { transition: width .2s ease, margin .2s ease, transform .2s ease; }
 .nav a, .nav summary, .sub a, .chip, .btn, .signin-btn, .pos-btn, .icon-btn, .demo button, .pages button, .tile, .input-ico input, .form-grid input, .form-grid select, .form-grid textarea, .toolbar input, .toolbar select, .eye {

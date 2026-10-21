@@ -5,6 +5,7 @@ import Shell from './layout/Shell';
 import CatalogPage from './pages/CatalogPage';
 import { PurchaseDetail, PurchaseForm, Records, SaleDetail } from './pages/Commerce';
 import Dashboard from './pages/Dashboard';
+import BarcodePrint from './pages/BarcodePrint';
 import Pos from './pages/Pos';
 import ProductForm from './pages/ProductForm';
 import Products from './pages/Products';
@@ -68,6 +69,7 @@ export default function App() {
                 <Route path="/products/create" element={<Guard><ProductForm /></Guard>} />
                 <Route path="/products/:id/edit" element={<Guard><ProductForm /></Guard>} />
                 <Route path="/products/:id" element={<Guard><ProductForm readOnly /></Guard>} />
+                <Route path="/barcode-print" element={<Guard><BarcodePrint /></Guard>} />
                 <Route path="/pos" element={<Guard><Pos /></Guard>} />
                 <Route path="/sales" element={<Guard><Records kind="sales" /></Guard>} />
                 <Route path="/sales/draft" element={<Guard><Records kind="drafts" /></Guard>} />

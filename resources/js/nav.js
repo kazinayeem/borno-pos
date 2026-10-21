@@ -3,7 +3,7 @@ export const shopNav = [
     { label: 'Product', icon: 'box', match: ['/products', '/categories', '/barcode-print', '/unit', '/brand', '/warehouse'], children: [
         ['Categories', '/categories', true],
         ['Products', '/products', true],
-        ['Print Barcode', '/barcode-print'],
+        ['Print Barcode', '/barcode-print', true],
         ['Units', '/unit', true],
         ['Brands', '/brand', true],
         ['Warehouses', '/warehouse', true],

@@ -72,6 +72,10 @@ export const bornoposApi = createApi({
             query: ({ endpoint, id }) => ({ url: `${endpoint}/${id}`, method: 'DELETE' }),
             invalidatesTags: (result, error, { endpoint }) => [{ type: 'Catalog', id: endpoint }],
         }),
+        getBarcode: builder.query({
+            query: () => '/barcode-print',
+            providesTags: ['Products'],
+        }),
         getPos: builder.query({
             query: () => '/pos',
             providesTags: ['Pos'],
@@ -119,6 +123,7 @@ export const {
     useGetCatalogQuery,
     useSaveCatalogMutation,
     useDeleteCatalogMutation,
+    useGetBarcodeQuery,
     useGetPosQuery,
     useCheckoutMutation,
     useGetSalesQuery,
