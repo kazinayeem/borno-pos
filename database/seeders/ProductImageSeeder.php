@@ -155,6 +155,6 @@ class ProductImageSeeder extends Seeder
             default => [$c, 0, $x],
         };
 
-        return [($r + $m) * 255, ($g + $m) * 255, ($b + $m) * 255];
+        return [(int) (($r + $m) * 255), (int) (($g + $m) * 255), (int) (($b + $m) * 255)];
     }
 }

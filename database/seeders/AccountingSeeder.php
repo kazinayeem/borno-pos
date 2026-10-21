@@ -114,15 +114,21 @@ class AccountingSeeder extends Seeder
             foreach (Employee::query()->get() as $employee) {
                 for ($day = 1; $day <= 8; $day++) {
                     $date = now()->subDays($day)->toDateString();
-                    Attendance::query()->firstOrCreate(
-                        ['employee_id' => $employee->id, 'attended_on' => $date],
-                        [
-                            'store_id' => $store->id,
-                            'status' => $day === 3 ? 'late' : 'present',
-                            'check_in' => $day === 3 ? '10:10' : '09:00',
-                            'check_out' => '18:00',
-                        ],
-                    );
+                    $exists = Attendance::query()
+                        ->where('employee_id', $employee->id)
+                        ->whereDate('attended_on', $date)
+                        ->exists();
+                    if ($exists) {
+                        continue;
+                    }
+                    Attendance::query()->create([
+                        'store_id' => $store->id,
+                        'employee_id' => $employee->id,
+                        'attended_on' => $date,
+                        'status' => $day === 3 ? 'late' : 'present',
+                        'check_in' => $day === 3 ? '10:10' : '09:00',
+                        'check_out' => '18:00',
+                    ]);
                 }
             }
 

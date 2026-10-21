@@ -9,7 +9,6 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Services\CheckoutService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class PosController extends Controller
@@ -34,7 +33,7 @@ class PosController extends Controller
                     'brand_id' => $product->brand_id,
                     'tax_bps' => (int) ($product->tax?->rate_bps ?? 0),
                     'tax_method' => $product->tax_method,
-                    'image' => $product->image ? Storage::disk('public')->url($product->image) : null,
+                    'image' => $product->image ? '/storage/'.$product->image : null,
                 ])->values(),
                 'categories' => Category::orderBy('name')->get(['id', 'name']),
                 'brands' => Brand::orderBy('name')->get(['id', 'name']),
