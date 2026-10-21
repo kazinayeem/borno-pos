@@ -1,0 +1,152 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Account;
+use App\Models\AccountTransaction;
+use App\Models\Expense;
+use App\Models\ExpenseCategory;
+use App\Models\MoneyTransfer;
+use App\Services\LedgerService;
+use App\Support\DateRange;
+use App\Support\Money;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class AccountingController extends Controller
+{
+    public function accounts()
+    {
+        $accounts = Account::latest()->get()->each(fn ($account) => $account->balance = $account->balanceCents());
+
+        return view('accounting.accounts', compact('accounts'));
+    }
+
+    public function storeAccount(Request $request, LedgerService $ledger)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'number' => ['nullable', 'string', 'max:40'],
+            'type' => ['required', 'in:cash,bank,mobile'],
+            'opening' => ['nullable'],
+        ]);
+        $opening = Money::parse($data['opening'] ?? 0);
+        Account::create([
+            'name' => $data['name'],
+            'number' => $data['number'] ?? null,
+            'type' => $data['type'],
+            'opening_cents' => $opening,
+            'is_default' => Account::count() === 0,
+        ]);
+
+        return back()->with('status', 'Account saved.');
+    }
+
+    public function transfers()
+    {
+        return view('accounting.transfers', [
+            'transfers' => MoneyTransfer::with(['fromAccount', 'toAccount'])->latest()->paginate(10),
+            'accounts' => Account::orderBy('name')->get(),
+        ]);
+    }
+
+    public function storeTransfer(Request $request, LedgerService $ledger)
+    {
+        $data = $request->validate([
+            'from_account_id' => ['required', 'integer', 'different:to_account_id'],
+            'to_account_id' => ['required', 'integer'],
+            'amount' => ['required'],
+            'transferred_on' => ['required', 'date'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+        $amount = Money::parse($data['amount']);
+        if ($amount < 1) {
+            return back()->withErrors(['amount' => 'Enter an amount greater than zero.'])->withInput();
+        }
+
+        DB::transaction(function () use ($request, $data, $amount, $ledger) {
+            $from = Account::findOrFail($data['from_account_id']);
+            $to = Account::findOrFail($data['to_account_id']);
+            if ($from->balanceCents() < $amount) {
+                abort(422, 'The source account does not have enough balance.');
+            }
+            $transfer = MoneyTransfer::create([
+                'from_account_id' => $from->id,
+                'to_account_id' => $to->id,
+                'user_id' => $request->user()->id,
+                'transferred_on' => $data['transferred_on'],
+                'amount_cents' => $amount,
+                'note' => $data['note'] ?? null,
+            ]);
+            $ledger->post($from, 'credit', $amount, 'transfer:'.$transfer->id.':out', 'Transfer out', $transfer, $transfer->transferred_on, $request->user());
+            $ledger->post($to, 'debit', $amount, 'transfer:'.$transfer->id.':in', 'Transfer in', $transfer, $transfer->transferred_on, $request->user());
+        });
+
+        return back()->with('status', 'Money transferred.');
+    }
+
+    public function balance()
+    {
+        $accounts = Account::get();
+        $cash = $accounts->sum(fn ($account) => $account->balanceCents());
+        $inventory = \App\Models\Product::get()->sum(fn ($product) => $product->stock_qty * $product->cost_cents);
+        $purchaseDue = \App\Models\Purchase::where('status', 'received')->get()->sum(fn ($purchase) => $purchase->dueCents());
+        $salesDue = \App\Models\Sale::where('status', 'completed')->get()->sum(fn ($sale) => $sale->dueCents());
+
+        return view('accounting.balance', compact('accounts', 'cash', 'inventory', 'purchaseDue', 'salesDue'));
+    }
+
+    public function expenses(Request $request)
+    {
+        [$from, $to] = DateRange::fromRequest($request);
+        $expenses = Expense::with('category')
+            ->whereBetween('spent_on', [$from->toDateString(), $to->toDateString()])
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('accounting.expenses', [
+            'expenses' => $expenses,
+            'categories' => ExpenseCategory::orderBy('name')->get(),
+            'accounts' => Account::orderBy('name')->get(),
+            'from' => $from,
+            'to' => $to,
+        ]);
+    }
+
+    public function storeExpense(Request $request, LedgerService $ledger)
+    {
+        $data = $request->validate([
+            'expense_category_id' => ['required', 'integer'],
+            'account_id' => ['nullable', 'integer'],
+            'spent_on' => ['required', 'date'],
+            'amount' => ['required'],
+            'note' => ['nullable', 'string', 'max:1000'],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+        ]);
+        $amount = Money::parse($data['amount']);
+        if ($amount < 1) {
+            return back()->withErrors(['amount' => 'Enter an amount greater than zero.'])->withInput();
+        }
+        $account = Account::find($data['account_id'] ?? null) ?? $ledger->defaultAccount((int) $request->user()->store_id);
+        $expense = Expense::create([
+            'expense_category_id' => $data['expense_category_id'],
+            'account_id' => $account->id,
+            'user_id' => $request->user()->id,
+            'spent_on' => $data['spent_on'],
+            'amount_cents' => $amount,
+            'note' => $data['note'] ?? null,
+            'attachment' => $request->file('attachment')?->store('expenses', 'public'),
+        ]);
+        $ledger->post($account, 'credit', $amount, 'expense:'.$expense->id, 'Expense', $expense, $expense->spent_on, $request->user());
+
+        return back()->with('status', 'Expense recorded.');
+    }
+
+    public function transactions()
+    {
+        return view('accounting.transactions', [
+            'transactions' => AccountTransaction::with('account')->latest()->paginate(15),
+        ]);
+    }
+}
