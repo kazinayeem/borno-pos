@@ -47,8 +47,8 @@ export default function SignIn() {
     }
 
     return (
-        <div className="guest" onClick={() => dispatch(closeMenus())}>
-            <div className="auth-top">
+        <div className="guest">
+            <div className="auth-top" onClick={(event) => event.stopPropagation()}>
                 <a className="brand-lock" href="/">
                     <Logo />
                     <div>BornoPos<small>{t('Powering Your Business')}</small></div>
@@ -66,7 +66,7 @@ export default function SignIn() {
                     </div>
                 </div>
             </div>
-            <div className="login-wrap">
+            <div className="login-wrap" onClick={() => dispatch(closeMenus())}>
                 <section className="login-copy enter">
                     <h1>{t('Smart POS')}<br />{t('for a Smarter Business')}</h1>
                     <p className="muted">{t('Manage sales, inventory, customers and more — all in one place.')}</p>
@@ -109,7 +109,7 @@ export default function SignIn() {
                         <label className="field">{t('Password')}
                             <span className="input-ico"><i>🔒</i>
                                 <input type={show ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={t('Enter your password')} required />
-                                <button type="button" className="eye" onClick={() => setShow((value) => !value)}>👁</button>
+                                <button type="button" className="eye" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setShow((value) => !value); }}>👁</button>
                             </span>
                         </label>
                         <label className="remember"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> {t('Remember me')}</label>

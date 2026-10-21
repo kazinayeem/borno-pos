@@ -5,7 +5,7 @@ import { Icon, Logo } from '../icons';
 import { adminNav, shopNav } from '../nav';
 import { languages, useT } from '../i18n';
 import { logout } from '../slices/sessionSlice';
-import { changeLocale, closeMenus, toggleMenu, toggleNarrow, toggleSidebar, toggleTheme } from '../slices/uiSlice';
+import { changeLocale, closeMenus, closeSidebar, toggleMenu, toggleNarrow, toggleSidebar, toggleTheme } from '../slices/uiSlice';
 
 function Item({ item, path }) {
     const t = useT();
@@ -51,7 +51,10 @@ export default function Shell({ children }) {
 
     useEffect(() => {
         function onKey(event) {
-            if (event.key === 'Escape') dispatch(closeMenus());
+            if (event.key === 'Escape') {
+                dispatch(closeMenus());
+                dispatch(closeSidebar());
+            }
         }
         window.addEventListener('keydown', onKey);
 
@@ -65,8 +68,8 @@ export default function Shell({ children }) {
     }
 
     return (
-        <div className={`app ${ui.theme} ${ui.narrow ? 'nav-narrow' : ''}`} onClick={() => dispatch(closeMenus())}>
-            {ui.sidebar && <button className="backdrop" type="button" aria-label="Close menu" onClick={() => dispatch(toggleSidebar())} />}
+        <div className={`app ${ui.theme} ${ui.narrow ? 'nav-narrow' : ''}`}>
+            {ui.sidebar && <button className="backdrop" type="button" aria-label="Close menu" onClick={(event) => { event.stopPropagation(); dispatch(closeSidebar()); }} />}
             <aside className={`sidebar ${ui.sidebar ? 'open' : ''}`}>
                 <Link className="brand" to={user?.role === 'super_admin' ? '/dashboard' : '/store-dashboard'}>
                     <Logo />
@@ -90,8 +93,8 @@ export default function Shell({ children }) {
                     <button type="button" title="Logout" onClick={(event) => { event.stopPropagation(); dispatch(logout()).then(() => navigate('/signin')); }}>↪</button>
                 </div>
             </aside>
-            <div className="main">
-                <header className="topbar">
+            <div className="main" onClick={() => { dispatch(closeMenus()); dispatch(closeSidebar()); }}>
+                <header className="topbar" onClick={(event) => event.stopPropagation()}>
                     <button className="icon-btn" type="button" aria-label="Menu" aria-expanded={ui.sidebar || ui.narrow} onClick={toggleNav}>☰</button>
                     <form className="search" action="/search" method="get">
                         <Icon name="search" />

@@ -39,6 +39,8 @@ const uiSlice = createSlice({
             state.langOpen = false;
             state.noticeOpen = false;
             state.userOpen = false;
+        },
+        closeSidebar(state) {
             state.sidebar = false;
         },
     },
@@ -50,5 +52,5 @@ const uiSlice = createSlice({
     },
 });
 
-export const { toggleTheme, toggleSidebar, toggleNarrow, toggleMenu, closeMenus } = uiSlice.actions;
+export const { toggleTheme, toggleSidebar, toggleNarrow, closeSidebar, toggleMenu, closeMenus } = uiSlice.actions;
 export default uiSlice.reducer;

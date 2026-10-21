@@ -230,3 +230,12 @@ html[dir="rtl"] .main { margin-left: 0; margin-right: var(--sidebar); }
   html[dir="rtl"] .sidebar { transform: translateX(105%); }
   html[dir="rtl"] .sidebar.open { transform: none; }
 }
+.hero-grid > div, .section, .cards-6 article, .cards-3 article { animation: rise .22s ease both; }
+.hero-grid > div:last-child { animation-delay: .06s; }
+.nav-landing a, .btn { transition: background .16s ease, transform .12s ease, box-shadow .16s ease; }
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(0) scale(.98); }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
