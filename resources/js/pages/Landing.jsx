@@ -305,7 +305,7 @@ export default function Landing() {
                     <div className="lp-footer-grid">
                         <div>
                             <Link className="lp-brand" to="/"><Logo /><span><strong>BornoPos</strong><small>Powering Your Business</small></span></Link>
-                            <p style={{ marginTop: 14 }}>BornoPos is a point-of-sale and shop workspace for sales, inventory, people, and accounts. Version {window.BornoPos?.version || '1.0.0'}.</p>
+                            <p style={{ marginTop: 14 }}>BornoPos is a product of <a href="https://bornosoft.bd" target="_blank" rel="noreferrer">BornoSoft</a>. It is a point-of-sale and shop workspace for sales, inventory, people, and accounts. Version {window.BornoPos?.version || '1.0.0'}.</p>
                         </div>
                         <div>
                             <h6>Quick Links</h6>
@@ -334,7 +334,8 @@ export default function Landing() {
                         </div>
                     </div>
                     <div className="lp-footer-bottom">
-                        <span>© {new Date().getFullYear()} BornoPos. All rights reserved.</span>
+                        <span>© {new Date().getFullYear()} BornoPos. A product of <a href="https://bornosoft.bd" target="_blank" rel="noreferrer">BornoSoft</a>.</span>
+                        <a href="https://bornosoft.bd" target="_blank" rel="noreferrer">bornosoft.bd</a>
                     </div>
                 </div>
             </footer>

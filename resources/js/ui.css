@@ -218,7 +218,8 @@ html[dir="rtl"] .sub { margin-left: 0; margin-right: 18px; border-left: 0; borde
 .form-grid .variant-line { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .form-grid .check { flex-direction: row; align-items: center; }
 .product-photo { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; }
-.pos-orders { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.pos-orders { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; position: sticky; top: 68px; z-index: 5; background: rgba(244,247,251,.94); padding: 8px 0; }
+html.dark .pos-orders { background: rgba(11, 18, 32, .94); }
 .order-tab { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #e2e8f0; background: #fff; border-radius: 999px; padding: 2px 4px 2px 2px; }
 .order-tab button { border: 0; background: transparent; color: #334155; font-weight: 700; cursor: pointer; border-radius: 999px; padding: 6px 8px; }
 .order-tab .x { padding: 4px 8px; color: #94a3b8; }
