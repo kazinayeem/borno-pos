@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Icon, Logo } from '../icons';
 import { adminNav, shopNav } from '../nav';
 import { languages, useT } from '../i18n';
+import { AnimatePresence, PageTransition, Popover, motion } from '../motion';
 import { logout } from '../slices/sessionSlice';
 import { changeLocale, closeMenus, closeSidebar, toggleMenu, toggleNarrow, toggleSidebar, toggleTheme } from '../slices/uiSlice';
 
@@ -50,6 +51,10 @@ export default function Shell({ children }) {
     const role = (user?.role || '').replace('_', ' ');
 
     useEffect(() => {
+        dispatch(closeSidebar());
+    }, [location.pathname, dispatch]);
+
+    useEffect(() => {
         function onKey(event) {
             if (event.key === 'Escape') {
                 dispatch(closeMenus());
@@ -69,7 +74,21 @@ export default function Shell({ children }) {
 
     return (
         <div className={`app ${ui.theme} ${ui.narrow ? 'nav-narrow' : ''}`}>
-            {ui.sidebar && <button className="backdrop" type="button" aria-label="Close menu" onClick={(event) => { event.stopPropagation(); dispatch(closeSidebar()); }} />}
+            <AnimatePresence>
+                {ui.sidebar && (
+                    <motion.button
+                        key="backdrop"
+                        className="backdrop"
+                        type="button"
+                        aria-label="Close menu"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        onClick={(event) => { event.stopPropagation(); dispatch(closeSidebar()); }}
+                    />
+                )}
+            </AnimatePresence>
             <aside className={`sidebar ${ui.sidebar ? 'open' : ''}`}>
                 <Link className="brand" to={user?.role === 'super_admin' ? '/dashboard' : '/store-dashboard'}>
                     <Logo />
@@ -105,28 +124,28 @@ export default function Shell({ children }) {
                     <button className="icon-btn round" type="button" title={ui.theme === 'dark' ? t('Light') : t('Dark')} onClick={(event) => { event.stopPropagation(); dispatch(toggleTheme()); }}>{ui.theme === 'dark' ? '☀' : '☾'}</button>
                     <div className={`menu ${ui.noticeOpen ? 'open' : ''}`}>
                         <button className="icon-btn round" type="button" aria-label="Notifications" aria-expanded={ui.noticeOpen} onClick={(event) => { event.stopPropagation(); dispatch(toggleMenu('notice')); }}>🔔</button>
-                        <div className="menu-pop"><div className="muted">{t('No notifications')}</div></div>
+                        <Popover open={ui.noticeOpen}><div className="muted">{t('No notifications')}</div></Popover>
                     </div>
                     <div className={`menu ${ui.langOpen ? 'open' : ''}`}>
                         <button className="lang" type="button" aria-expanded={ui.langOpen} onClick={(event) => { event.stopPropagation(); dispatch(toggleMenu('lang')); }}><span className="flag">{current.flag}</span> {current.label}</button>
-                        <div className="menu-pop" onClick={(event) => event.stopPropagation()}>
+                        <Popover open={ui.langOpen} onClick={(event) => event.stopPropagation()}>
                             {languages.map((item) => (
                                 <button type="button" key={item.id} className={item.id === ui.locale ? 'on' : ''} onClick={() => dispatch(changeLocale(item.id))}>{item.flag} {item.label}</button>
                             ))}
-                        </div>
+                        </Popover>
                     </div>
                     <div className={`menu ${ui.userOpen ? 'open' : ''}`}>
                         <button className="user-chip" type="button" aria-expanded={ui.userOpen} onClick={(event) => { event.stopPropagation(); dispatch(toggleMenu('user')); }}>
                             <span className="avatar">{(user?.name || 'A').slice(0, 1).toUpperCase()}</span>
                             <span className="who"><b>{user?.name}</b><small>{t(user?.role || role)}</small></span>
                         </button>
-                        <div className="menu-pop">
+                        <Popover open={ui.userOpen}>
                             <a href="/user/profile">{t('Profile')}</a>
                             <button type="button" onClick={() => dispatch(logout()).then(() => navigate('/signin'))}>{t('Logout')}</button>
-                        </div>
+                        </Popover>
                     </div>
                 </header>
-                <div key={location.pathname} className="content page-enter">{children}</div>
+                <PageTransition key={location.pathname} className="content">{children}</PageTransition>
                 <footer className="app-foot">
                     <span>© {new Date().getFullYear()} BornoPos</span>
                     <span>{window.BornoPos?.phone} · {window.BornoPos?.email}</span>

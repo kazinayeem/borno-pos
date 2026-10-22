@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { Logo } from '../icons';
+import { Popover, motion } from '../motion';
 import { languages, useT } from '../i18n';
 import { clearStatus, login } from '../slices/sessionSlice';
 import { changeLocale, closeMenus, toggleMenu, toggleTheme } from '../slices/uiSlice';
@@ -58,16 +59,16 @@ export default function SignIn() {
                     <button className="icon-btn round" type="button" title={ui.theme === 'dark' ? t('Light') : t('Dark')} onClick={() => dispatch(toggleTheme())}>{ui.theme === 'dark' ? '☀' : '☾'}</button>
                     <div className={`menu ${ui.langOpen ? 'open' : ''}`}>
                         <button className="lang" type="button" onClick={(event) => { event.stopPropagation(); dispatch(toggleMenu('lang')); }}><span className="flag">{current.flag}</span> {current.label}</button>
-                        <div className="menu-pop" onClick={(event) => event.stopPropagation()}>
+                        <Popover open={ui.langOpen} onClick={(event) => event.stopPropagation()}>
                             {languages.map((item) => (
                                 <button type="button" key={item.id} onClick={() => dispatch(changeLocale(item.id))}>{item.flag} {item.label}</button>
                             ))}
-                        </div>
+                        </Popover>
                     </div>
                 </div>
             </div>
             <div className="login-wrap" onClick={() => dispatch(closeMenus())}>
-                <section className="login-copy enter">
+                <motion.section className="login-copy" initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}>
                     <h1>{t('Smart POS')}<br />{t('for a Smarter Business')}</h1>
                     <p className="muted">{t('Manage sales, inventory, customers and more — all in one place.')}</p>
                     <div className="features">
@@ -92,8 +93,8 @@ export default function SignIn() {
                         <rect x="510" y="78" width="110" height="24" rx="8" fill="#111827" />
                         <rect x="598" y="62" width="26" height="86" rx="8" fill="#1f2937" />
                     </svg>
-                </section>
-                <section className="login-card enter">
+                </motion.section>
+                <motion.section className="login-card" initial={{ opacity: 0, y: 28, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}>
                     <div className="center">
                         <Logo />
                         <div className="wordmark">BornoPos</div>
@@ -126,7 +127,7 @@ export default function SignIn() {
                     </div>
                     <p className="center foot">{t('Register yourself as a shop owner')} <a href="/signup">{t('Sign Up')}</a></p>
                     <p className="muted center">© {new Date().getFullYear()} BornoPos. {t('All rights reserved.')}</p>
-                </section>
+                </motion.section>
             </div>
         </div>
     );

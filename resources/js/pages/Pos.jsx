@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { money } from '../api';
+import { motion } from '../motion';
 import { useT } from '../i18n';
 import { useCheckoutMutation, useGetPosQuery } from '../services/bornoposApi';
 
@@ -285,13 +286,13 @@ export default function Pos() {
                 <div className="product-tiles">
                     {isFetching && !data && <div className="skeleton-grid" aria-hidden="true">{Array.from({ length: 8 }, (_, index) => <span key={index} className="skeleton block" />)}</div>}
                     {products.map((product, index) => (
-                        <button type="button" key={product.id} className="tile" onClick={() => add(product)} style={index < 12 ? { animationDelay: `${index * 25}ms` } : undefined}>
+                        <motion.button type="button" key={product.id} className="tile" onClick={() => add(product)} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: Math.min(index, 12) * 0.025 }} whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}>
                             {product.image ? <img src={product.image} alt="" /> : <span className="thumb-fallback" />}
                             <strong>{product.name}</strong>
                             <span className="muted">{product.code}</span>
                             <em className={product.stock_qty > 0 ? 'in' : 'out'}>{t('In Stock')}: {product.stock_qty}</em>
                             <b>{money(product.price_cents)}</b>
-                        </button>
+                        </motion.button>
                     ))}
                     {picker && (
                         <div className="card wide">

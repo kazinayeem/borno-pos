@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Chart } from 'chart.js/auto';
 import { money } from '../api';
+import { motion } from '../motion';
 import { useT } from '../i18n';
 import { useGetDashboardQuery } from '../services/bornoposApi';
 
@@ -90,7 +91,7 @@ export default function Dashboard({ platform = false }) {
                 <div className="page-title"><div><h1>{t('Welcome back, {name}', { name: user?.name })}</h1><div className="muted">{t('Platform overview.')}</div></div></div>
                 <div className="kpis">
                     {[['Total Subscription Sale', kpis.subscription_sale, true], ['Total Subscriber', kpis.subscribers], ['Total Main Shop', kpis.shops], ['Total Store', kpis.stores]].map(([label, value, cash], index) => (
-                        <article className="kpi rise" style={{ animationDelay: `${index * 35}ms` }} key={label}><div className="label">{t(label)}</div><strong>{cash ? money(value || 0) : (value || 0)}</strong><em>{data?.label}</em></article>
+                        <motion.article className="kpi" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: index * 0.06 }} whileHover={{ y: -3 }} key={label}><div className="label">{t(label)}</div><strong>{cash ? money(value || 0) : (value || 0)}</strong><em>{data?.label}</em></motion.article>
                     ))}
                 </div>
             </>
@@ -118,12 +119,12 @@ export default function Dashboard({ platform = false }) {
             </div>
             <div className={`kpis ${!data && loading ? 'is-loading' : ''}`}>
                 {cards.map(([key, label, bg, color, icon], index) => (
-                    <article className="kpi rise" style={{ animationDelay: `${index * 35}ms` }} key={key}>
+                    <motion.article className="kpi" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: index * 0.06 }} whileHover={{ y: -3 }} key={key}>
                         <div className="label"><span className="mark" style={{ background: bg, color }}>{icon}</span> {t(label)}</div>
                         {!data && loading ? <span className="skeleton" /> : <strong>{money(data?.kpis?.[key] || 0)}</strong>}
                         <em>{data?.label || (loading ? t('Loading') : '')}</em>
                         <svg className="wave" viewBox="0 0 300 40" preserveAspectRatio="none"><path d="M0 28 C 50 8, 90 36, 140 22 S 230 6, 300 24 V40 H0Z" fill={bg} /></svg>
-                    </article>
+                    </motion.article>
                 ))}
             </div>
             <div className="grid-2">
