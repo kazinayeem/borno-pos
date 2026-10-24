@@ -16,6 +16,7 @@ import SignIn from './pages/SignIn';
 import StaffManagement from './pages/StaffManagement';
 import RoleManagement from './pages/RoleManagement';
 import ReportsCenter from './pages/ReportsCenter';
+import PurchaseList from './pages/PurchaseList';
 
 const catalogs = [
     '/categories', '/unit', '/brand', '/warehouse', '/tax', '/coupons', '/departments',
@@ -101,7 +102,7 @@ export default function App() {
                 <Route path="/sales" element={<Guard ability="sales.view"><Records kind="sales" /></Guard>} />
                 <Route path="/sales/draft" element={<Guard ability="sales.view"><Records kind="drafts" /></Guard>} />
                 <Route path="/sales/:id" element={<Guard ability="sales.view"><SaleDetail /></Guard>} />
-                <Route path="/purchase/list" element={<Guard ability="purchases.view"><Records kind="purchases" /></Guard>} />
+                <Route path="/purchase/list" element={<Guard ability="purchases.view"><PurchaseList /></Guard>} />
                 <Route path="/purchase/create" element={<Guard ability="purchases.create"><PurchaseForm /></Guard>} />
                 <Route path="/purchase/batch" element={<Guard ability="purchases.view"><Batches /></Guard>} />
                 <Route path="/purchase/:id" element={<Guard ability="purchases.view"><PurchaseDetail /></Guard>} />

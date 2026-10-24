@@ -108,10 +108,15 @@ Route::middleware('auth')->group(function () {
 
         // Purchases
         Route::get('/purchase/list', [PurchaseController::class, 'index'])->middleware('ability:purchases.view')->name('purchases.index');
+        Route::get('/purchase/export', [PurchaseController::class, 'export'])->middleware('ability:purchases.view')->name('purchases.export');
+        Route::get('/purchase/suppliers/payables', [PurchaseController::class, 'supplierPayables'])->middleware('ability:purchases.view')->name('purchases.suppliers.payables');
         Route::get('/purchase/create', [PurchaseController::class, 'create'])->middleware('ability:purchases.create,purchases.manage')->name('purchases.create');
         Route::get('/purchase/batch', [ReportController::class, 'batches'])->middleware('ability:purchases.view')->name('batches');
         Route::put('/purchase/batch/{batch}', [ReportController::class, 'updateBatch'])->middleware('ability:purchases.manage')->name('batches.update');
         Route::post('/purchase', [PurchaseController::class, 'store'])->middleware('ability:purchases.create,purchases.manage')->name('purchases.store');
+        Route::get('/purchase/{purchase}/print', [PurchaseController::class, 'printInvoice'])->middleware('ability:purchases.view')->name('purchases.print');
+        Route::get('/purchase/{purchase}/history', [PurchaseController::class, 'history'])->middleware('ability:purchases.view')->name('purchases.history');
+        Route::post('/purchase/{purchase}/payments', [PurchaseController::class, 'recordPayment'])->middleware('ability:purchases.manage,purchases.create')->name('purchases.payments.store');
         Route::get('/purchase/{purchase}', [PurchaseController::class, 'show'])->middleware('ability:purchases.view')->name('purchases.show');
         Route::post('/purchase/{purchase}/cancel', [PurchaseController::class, 'cancel'])->middleware('ability:purchases.manage')->name('purchases.cancel');
 

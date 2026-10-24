@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Account;
+use App\Models\AuditLog;
 use App\Models\Batch;
 use App\Models\Payment;
 use App\Models\Product;
@@ -163,6 +164,21 @@ class PurchaseService
                 );
             }
 
+            AuditLog::record(
+                $purchase->store_id,
+                $user->id,
+                'purchase.created',
+                Purchase::class,
+                $purchase->id,
+                [
+                    'reference' => $purchase->reference,
+                    'supplier' => $purchase->supplier?->name,
+                    'grand_cents' => $grand,
+                    'paid_cents' => $paid,
+                    'items_count' => count($lines),
+                ]
+            );
+
             return $purchase->fresh('items');
         });
     }
@@ -236,7 +252,109 @@ class PurchaseService
                 'note' => trim(($purchase->note ? $purchase->note.' | ' : '').'Cancelled: '.($reason ?? 'Reversed by operator')),
             ]);
 
+            AuditLog::record(
+                $purchase->store_id,
+                $user->id,
+                'purchase.cancelled',
+                Purchase::class,
+                $purchase->id,
+                [
+                    'reference' => $purchase->reference,
+                    'reason' => $reason,
+                    'reversal_amount' => $purchase->paid_cents,
+                ]
+            );
+
             return $purchase->fresh();
+        });
+    }
+
+    /**
+     * Record a supplier payment against an existing purchase.
+     *
+     * @param  array{amount: mixed, account_id?: int|null, payment_method?: string|null, paid_at?: string|null, note?: string|null}  $data
+     */
+    public function recordPayment(Purchase $purchase, User $user, array $data): Payment
+    {
+        if ($purchase->status === 'cancelled') {
+            throw ValidationException::withMessages(['payment' => 'Cannot record payment for a cancelled purchase.']);
+        }
+
+        $dueCents = $purchase->dueCents();
+        if ($dueCents <= 0) {
+            throw ValidationException::withMessages(['amount' => 'This purchase is already fully paid.']);
+        }
+
+        $amount = Money::parse($data['amount'] ?? 0);
+        if ($amount <= 0) {
+            throw ValidationException::withMessages(['amount' => 'Payment amount must be greater than zero.']);
+        }
+
+        if ($amount > $dueCents) {
+            throw ValidationException::withMessages([
+                'amount' => 'Payment amount cannot exceed the remaining due of '.Money::format($dueCents, 'BDT').'.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($purchase, $user, $data, $amount) {
+            $storeId = (int) $purchase->store_id;
+            $accountId = $data['account_id'] ?? null;
+            $account = $accountId ? Account::where('store_id', $storeId)->find($accountId) : null;
+            if (! $account) {
+                $account = $this->ledger->defaultAccount($storeId);
+            }
+
+            $method = $data['payment_method'] ?? 'Cash';
+            $paidAt = ! empty($data['paid_at']) ? Carbon::parse($data['paid_at']) : now();
+            $sourceKey = 'purchase:'.$purchase->id.':payment:'.now()->timestamp.':'.uniqid();
+
+            $payment = Payment::create([
+                'store_id' => $storeId,
+                'payable_type' => $purchase->getMorphClass(),
+                'payable_id' => $purchase->id,
+                'account_id' => $account->id,
+                'user_id' => $user->id,
+                'method' => $method,
+                'amount_cents' => $amount,
+                'paid_at' => $paidAt,
+                'source_key' => $sourceKey,
+            ]);
+
+            $purchase->increment('paid_cents', $amount);
+
+            if (! $purchase->account_id) {
+                $purchase->update(['account_id' => $account->id]);
+            }
+
+            $this->ledger->post(
+                $account,
+                'credit',
+                $amount,
+                $sourceKey,
+                'Supplier Payment for Purchase '.$purchase->reference.(! empty($data['note']) ? ' - '.$data['note'] : ''),
+                $purchase,
+                $paidAt->toDateString(),
+                $user
+            );
+
+            AuditLog::record(
+                $storeId,
+                $user->id,
+                'purchase.payment_recorded',
+                Purchase::class,
+                $purchase->id,
+                [
+                    'payment_id' => $payment->id,
+                    'reference' => $purchase->reference,
+                    'amount_cents' => $amount,
+                    'method' => $method,
+                    'account' => $account->name,
+                    'remaining_due_cents' => $purchase->fresh()->dueCents(),
+                    'note' => $data['note'] ?? null,
+                ]
+            );
+
+            return $payment->load(['account', 'user']);
         });
     }
 

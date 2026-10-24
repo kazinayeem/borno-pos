@@ -113,7 +113,7 @@ export const bornoposApi = createApi({
             invalidatesTags: ['Sales', 'Dashboard', 'Pos'],
         }),
         getPurchases: builder.query({
-            query: ({ page = 1, q = '' }) => `/purchase/list${queryString({ page, q })}`,
+            query: (params = {}) => `/purchase/list${queryString(params)}`,
             providesTags: ['Purchases'],
         }),
         getPurchaseForm: builder.query({
@@ -130,6 +130,18 @@ export const bornoposApi = createApi({
         cancelPurchase: builder.mutation({
             query: ({ id, reason }) => ({ url: `/purchase/${id}/cancel`, method: 'POST', body: { reason } }),
             invalidatesTags: ['Purchases', 'Products', 'Batches', 'Dashboard'],
+        }),
+        recordPurchasePayment: builder.mutation({
+            query: ({ id, body }) => ({ url: `/purchase/${id}/payments`, method: 'POST', body }),
+            invalidatesTags: ['Purchases', 'Dashboard'],
+        }),
+        getPurchaseSuppliersPayables: builder.query({
+            query: (params = {}) => `/purchase/suppliers/payables${queryString(params)}`,
+            providesTags: ['Purchases'],
+        }),
+        getPurchaseHistory: builder.query({
+            query: (id) => `/purchase/${id}/history`,
+            providesTags: ['Purchases'],
         }),
         getBatches: builder.query({
             query: ({ status = '', page = 1 } = {}) => `/purchase/batch${queryString({ status, page })}`,
@@ -177,6 +189,9 @@ export const {
     useSavePurchaseMutation,
     useGetPurchaseQuery,
     useCancelPurchaseMutation,
+    useRecordPurchasePaymentMutation,
+    useGetPurchaseSuppliersPayablesQuery,
+    useGetPurchaseHistoryQuery,
     useGetBatchesQuery,
     useGetInstallmentsQuery,
     useCreateInstallmentMutation,
