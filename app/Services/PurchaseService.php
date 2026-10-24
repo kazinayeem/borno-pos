@@ -167,6 +167,79 @@ class PurchaseService
         });
     }
 
+    public function cancel(Purchase $purchase, User $user, ?string $reason = null): Purchase
+    {
+        if ($purchase->status === 'cancelled') {
+            throw ValidationException::withMessages(['purchase' => 'This purchase is already cancelled.']);
+        }
+
+        return DB::transaction(function () use ($purchase, $user, $reason) {
+            $purchase->load(['items.product', 'payments']);
+
+            // 1. Verify stock availability for reversal
+            foreach ($purchase->items as $item) {
+                $product = $item->product;
+                if ($product && $product->stock_qty < $item->qty) {
+                    throw ValidationException::withMessages([
+                        'purchase' => "Cannot cancel purchase: {$product->name} only has {$product->stock_qty} in stock, but {$item->qty} were received.",
+                    ]);
+                }
+            }
+
+            // 2. Reverse stock & batches & serials
+            foreach ($purchase->items as $item) {
+                $product = Product::lockForUpdate()->find($item->product_id);
+                if ($product) {
+                    $this->inventory->move($product, -$item->qty, 'purchase_cancellation', $purchase, $user);
+                }
+
+                if ($item->batch_no) {
+                    $batch = Batch::where('product_id', $item->product_id)
+                        ->where('batch_no', $item->batch_no)
+                        ->first();
+                    if ($batch) {
+                        $newBatchQty = max(0, $batch->qty - $item->qty);
+                        if ($newBatchQty === 0) {
+                            $batch->delete();
+                        } else {
+                            $batch->update(['qty' => $newBatchQty]);
+                        }
+                    }
+                }
+
+                if ($item->serial) {
+                    $identifiers = array_map('trim', explode(',', $item->serial));
+                    ProductSerial::where('product_id', $item->product_id)
+                        ->whereIn('identifier', $identifiers)
+                        ->where('status', 'in_stock')
+                        ->update(['status' => 'cancelled']);
+                }
+            }
+
+            // 3. Reverse payment & accounting ledger
+            if ($purchase->paid_cents > 0) {
+                $account = Account::find($purchase->account_id) ?? $this->ledger->defaultAccount((int) $purchase->store_id);
+                $this->ledger->post(
+                    $account,
+                    'debit',
+                    $purchase->paid_cents,
+                    'purchase:'.$purchase->id.':cancelled',
+                    'Reversal of Purchase '.$purchase->reference.($reason ? ' ('.$reason.')' : ''),
+                    $purchase,
+                    now()->toDateString(),
+                    $user,
+                );
+            }
+
+            $purchase->update([
+                'status' => 'cancelled',
+                'note' => trim(($purchase->note ? $purchase->note.' | ' : '').'Cancelled: '.($reason ?? 'Reversed by operator')),
+            ]);
+
+            return $purchase->fresh();
+        });
+    }
+
     /**
      * @param  array<string, mixed>  $line
      * @return array<int, string>

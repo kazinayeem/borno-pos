@@ -15,6 +15,7 @@ use App\Support\DateRange;
 use App\Support\Money;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class AccountingController extends Controller
 {
@@ -43,6 +44,28 @@ class AccountingController extends Controller
         ]);
 
         return back()->with('status', 'Account saved.');
+    }
+
+    public function updateAccount(Request $request, Account $account)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'number' => ['nullable', 'string', 'max:40'],
+            'type' => ['required', 'in:cash,bank,mobile'],
+        ]);
+        $account->update($data);
+
+        return back()->with('status', 'Account updated.');
+    }
+
+    public function destroyAccount(Request $request, Account $account)
+    {
+        if (AccountTransaction::where('account_id', $account->id)->exists()) {
+            return back()->withErrors(['account' => 'Cannot delete account with existing transactions.']);
+        }
+        $account->delete();
+
+        return back()->with('status', 'Account deleted.');
     }
 
     public function transfers()
@@ -86,6 +109,22 @@ class AccountingController extends Controller
         });
 
         return back()->with('status', 'Money transferred.');
+    }
+
+    public function reverseTransfer(Request $request, MoneyTransfer $transfer, LedgerService $ledger)
+    {
+        $transfer->load(['fromAccount', 'toAccount']);
+        if ($transfer->toAccount->balanceCents() < $transfer->amount_cents) {
+            return back()->withErrors(['transfer' => 'Destination account does not have enough balance to reverse this transfer.']);
+        }
+
+        DB::transaction(function () use ($transfer, $request, $ledger) {
+            $ledger->post($transfer->toAccount, 'credit', $transfer->amount_cents, 'transfer:'.$transfer->id.':reversal:out', 'Reversal of transfer #'.$transfer->id, $transfer, now()->toDateString(), $request->user());
+            $ledger->post($transfer->fromAccount, 'debit', $transfer->amount_cents, 'transfer:'.$transfer->id.':reversal:in', 'Reversal of transfer #'.$transfer->id, $transfer, now()->toDateString(), $request->user());
+            $transfer->delete();
+        });
+
+        return back()->with('status', 'Money transfer reversed and balances restored.');
     }
 
     public function balance()
@@ -144,6 +183,20 @@ class AccountingController extends Controller
         $ledger->post($account, 'credit', $amount, 'expense:'.$expense->id, 'Expense', $expense, $expense->spent_on, $request->user());
 
         return back()->with('status', 'Expense recorded.');
+    }
+
+    public function destroyExpense(Request $request, Expense $expense, LedgerService $ledger)
+    {
+        DB::transaction(function () use ($expense, $request, $ledger) {
+            $account = Account::find($expense->account_id) ?? $ledger->defaultAccount((int) $request->user()->store_id);
+            $ledger->post($account, 'debit', $expense->amount_cents, 'expense:'.$expense->id.':reversal', 'Reversal of expense #'.$expense->id, $expense, now()->toDateString(), $request->user());
+            if ($expense->attachment) {
+                Storage::disk('public')->delete($expense->attachment);
+            }
+            $expense->delete();
+        });
+
+        return back()->with('status', 'Expense deleted and account balance restored.');
     }
 
     public function transactions(Request $request)

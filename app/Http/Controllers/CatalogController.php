@@ -10,8 +10,12 @@ use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Holiday;
+use App\Models\Product;
+use App\Models\Purchase;
+use App\Models\Sale;
 use App\Models\ShopRole;
 use App\Models\Supplier;
 use App\Models\Tax;
@@ -98,6 +102,15 @@ class CatalogController extends Controller
     public function destroy(Request $request, int $id)
     {
         $def = $this->definition($request);
+
+        if ($dependencyError = $this->checkDependencies($def['route'], $id)) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $dependencyError], 422);
+            }
+
+            return back()->withErrors(['dependency' => $dependencyError]);
+        }
+
         $def['model']::query()->findOrFail($id)->delete();
 
         if ($request->expectsJson()) {
@@ -105,6 +118,40 @@ class CatalogController extends Controller
         }
 
         return redirect()->route($def['route'].'.index')->with('status', $def['singular'].' deleted.');
+    }
+
+    private function checkDependencies(string $route, int $id): ?string
+    {
+        return match ($route) {
+            'categories' => Product::where('category_id', $id)->exists()
+                ? 'Cannot delete Category: Products are currently assigned to it. Reassign or remove the products first.'
+                : null,
+            'brands' => Product::where('brand_id', $id)->exists()
+                ? 'Cannot delete Brand: Products are currently linked to this brand.'
+                : null,
+            'units' => Product::where('unit_id', $id)->orWhere('purchase_unit_id', $id)->orWhere('sale_unit_id', $id)->exists()
+                ? 'Cannot delete Unit: Products are currently measured in this unit.'
+                : null,
+            'warehouses' => (Product::where('warehouse_id', $id)->exists() || Purchase::where('warehouse_id', $id)->exists())
+                ? 'Cannot delete Warehouse: It has active inventory or purchase records associated with it.'
+                : null,
+            'suppliers' => (Purchase::where('supplier_id', $id)->exists() || Product::where('supplier_id', $id)->exists())
+                ? 'Cannot delete Supplier: Purchases or products are linked to this supplier.'
+                : null,
+            'customers' => Sale::where('customer_id', $id)->exists()
+                ? 'Cannot delete Customer: Existing sales transactions or invoices are linked to this customer.'
+                : null,
+            'customer-groups' => Customer::where('customer_group_id', $id)->exists()
+                ? 'Cannot delete Customer Group: Customers are assigned to this group.'
+                : null,
+            'departments' => Employee::where('department_id', $id)->exists()
+                ? 'Cannot delete Department: Employees are currently assigned to it.'
+                : null,
+            'expense-categories' => Expense::where('expense_category_id', $id)->exists()
+                ? 'Cannot delete Expense Category: Historical expenses are recorded under this category.'
+                : null,
+            default => null,
+        };
     }
 
     private function payload(array $def, $rows = null, $row = null): array

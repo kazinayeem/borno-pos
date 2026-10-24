@@ -3,7 +3,9 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { money } from '../api';
 import { useT } from '../i18n';
 import {
+    useCancelPurchaseMutation,
     useCreateInstallmentMutation,
+    useDeleteSaleMutation,
     useGetPurchaseFormQuery,
     useGetPurchaseQuery,
     useGetPurchasesQuery,
@@ -19,12 +21,26 @@ export function Records({ kind }) {
     const t = useT();
     const [page, setPage] = useState(1);
     const [q, setQ] = useState('');
+    const [actionMsg, setActionMsg] = useState('');
     const sales = useGetSalesQuery({ drafts: kind === 'drafts', page, q }, { skip: kind === 'purchases' });
     const purchases = useGetPurchasesQuery({ page, q }, { skip: kind !== 'purchases' });
+    const [deleteSale, deleteSaleState] = useDeleteSaleMutation();
+
     const payload = kind === 'purchases' ? purchases.data : sales.data;
     const rows = payload?.data || [];
     const meta = payload?.meta || { last_page: 1, from: 0, to: 0, total: 0 };
     const title = kind === 'purchases' ? 'Purchases' : (payload?.title || (kind === 'drafts' ? 'Drafts' : 'Sales'));
+
+    async function handleDeleteDraft(id) {
+        if (!window.confirm(t('Are you sure you want to delete this draft?'))) return;
+        const res = await deleteSale(id);
+        if (res.error) {
+            setActionMsg(res.error.data?.message || t('Failed to delete draft.'));
+        } else {
+            setActionMsg(t('Draft deleted successfully.'));
+        }
+        setTimeout(() => setActionMsg(''), 3000);
+    }
 
     return (
         <>
@@ -34,6 +50,7 @@ export function Records({ kind }) {
                     {kind === 'purchases' && <Link className="btn primary" to="/purchase/create">Add purchase</Link>}
                 </div>
             </div>
+            {actionMsg && <div className="status" style={{ marginBottom: '12px' }}>{actionMsg}</div>}
             <section className="card table-card">
                 <div className="toolbar"><input value={q} placeholder="Search" onChange={(event) => { setQ(event.target.value); setPage(1); }} /></div>
                 <table className="grid">
@@ -48,10 +65,33 @@ export function Records({ kind }) {
                                 <td>{(meta.from || 1) + index}</td>
                                 <td>{row.invoice_no || row.reference}</td>
                                 <td>{row.customer || row.supplier || '—'}</td>
-                                <td className="cap">{row.status}</td>
+                                <td className="cap">
+                                    <span style={{
+                                        display: 'inline-block',
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 600,
+                                        backgroundColor: row.status === 'cancelled' ? '#fee2e2' : (row.status === 'completed' || row.status === 'received' ? '#dcfce7' : '#f1f5f9'),
+                                        color: row.status === 'cancelled' ? '#b91c1c' : (row.status === 'completed' || row.status === 'received' ? '#15803d' : '#475569')
+                                    }}>
+                                        {row.status}
+                                    </span>
+                                </td>
                                 <td>{money(row.grand_cents)}</td>
                                 <td>{money(row.paid_cents)}</td>
-                                <td><Link className="btn" to={kind === 'purchases' ? `/purchase/${row.id}` : `/sales/${row.id}`}>{t('View')}</Link></td>
+                                <td>
+                                    {kind === 'drafts' ? (
+                                        <div style={{ display: 'flex', gap: '6px' }}>
+                                            <a className="btn primary" href={`/pos?draft_id=${row.id}`}>{t('Resume')}</a>
+                                            <button type="button" className="btn" style={{ color: '#ef4444' }} onClick={() => handleDeleteDraft(row.id)}>
+                                                {t('Delete')}
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <Link className="btn" to={kind === 'purchases' ? `/purchase/${row.id}` : `/sales/${row.id}`}>{t('View')}</Link>
+                                    )}
+                                </td>
                             </tr>
                         )) : <tr><td className="empty" colSpan="7">{t('No data found')}</td></tr>}
                     </tbody>
@@ -190,23 +230,118 @@ export { PurchaseForm } from './PurchaseForm';
 
 export function PurchaseDetail() {
     const { id } = useParams();
+    const t = useT();
     const { data, isFetching } = useGetPurchaseQuery(id);
+    const [cancelPurchase, cancelState] = useCancelPurchaseMutation();
+    const [message, setMessage] = useState('');
     const purchase = data?.purchase;
-    if (!purchase) return <p className="muted">{isFetching ? 'Loading' : 'Purchase not found'}</p>;
+
+    if (!purchase) return <p className="muted">{isFetching ? 'Loading...' : 'Purchase not found'}</p>;
+
+    async function handleCancel() {
+        const reason = window.prompt(t('Enter reason for cancelling / reversing this purchase:'), 'Purchase cancelled by manager');
+        if (reason === null) return;
+        const res = await cancelPurchase({ id: purchase.id, reason: reason || 'Purchase cancelled' });
+        if (res.error) {
+            setMessage(res.error.data?.message || t('Could not cancel purchase. Check available stock.'));
+        } else {
+            setMessage(t('Purchase cancelled and stock/ledger successfully reversed.'));
+        }
+    }
+
+    const isCancelled = purchase.status === 'cancelled';
 
     return (
-        <section className="card">
-            <h1>{purchase.reference}</h1>
-            <p>{purchase.supplier?.name} · {purchase.status}</p>
-            <table className="grid">
-                <thead><tr><th>Product</th><th>Qty</th><th>Cost</th></tr></thead>
-                <tbody>
-                    {(purchase.items || []).map((item) => (
-                        <tr key={item.id}><td>{item.product?.name}</td><td>{item.qty}</td><td>{money(item.cost_cents)}</td></tr>
-                    ))}
-                </tbody>
-            </table>
-            <h2>Total {money(purchase.grand_cents)} · Paid {money(purchase.paid_cents)}</h2>
+        <section>
+            <div className="page-title">
+                <div>
+                    <h1>{purchase.reference}</h1>
+                    <div className="crumbs">
+                        <span style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            backgroundColor: isCancelled ? '#fee2e2' : '#dcfce7',
+                            color: isCancelled ? '#b91c1c' : '#15803d',
+                            marginRight: '8px'
+                        }}>
+                            {purchase.status.toUpperCase()}
+                        </span>
+                        {purchase.supplier?.name || 'Unknown Supplier'}
+                        {purchase.warehouse ? ` · Warehouse: ${purchase.warehouse.name}` : ''}
+                        {purchase.purchased_on ? ` · Date: ${purchase.purchased_on}` : ''}
+                    </div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <button className="btn" type="button" onClick={() => window.print()}>
+                        {t('Print')}
+                    </button>
+                    {!isCancelled && (
+                        <button
+                            className="btn"
+                            type="button"
+                            disabled={cancelState.isLoading}
+                            style={{ backgroundColor: '#fee2e2', color: '#b91c1c', borderColor: '#fca5a5' }}
+                            onClick={handleCancel}
+                        >
+                            {cancelState.isLoading ? t('Cancelling...') : t('Cancel / Reverse Purchase')}
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {message && <div className="status" style={{ marginBottom: '16px' }}>{message}</div>}
+
+            <section className="card">
+                <table className="grid">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Product</th>
+                            <th>Qty</th>
+                            <th>Cost</th>
+                            <th>Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {(purchase.items || []).map((item, idx) => (
+                            <tr key={item.id}>
+                                <td>{idx + 1}</td>
+                                <td>
+                                    <strong>{item.product?.name}</strong>
+                                    {item.batch_no && (
+                                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                            Batch: {item.batch_no} {item.expires_on ? `| Exp: ${item.expires_on}` : ''}
+                                        </div>
+                                    )}
+                                </td>
+                                <td>{item.qty}</td>
+                                <td>{money(item.cost_cents)}</td>
+                                <td>{money((item.qty * item.cost_cents))}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+
+                <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                    <div style={{ minWidth: '280px', lineHeight: '1.8' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>{t('Total Amount')}:</span>
+                            <strong>{money(purchase.grand_cents)}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
+                            <span>{t('Amount Paid')}:</span>
+                            <strong>{money(purchase.paid_cents)}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: purchase.grand_cents > purchase.paid_cents ? '#dc2626' : 'inherit', borderTop: '1px solid #e2e8f0', paddingTop: '4px' }}>
+                            <span>{t('Balance Due')}:</span>
+                            <strong>{money(Math.max(0, purchase.grand_cents - purchase.paid_cents))}</strong>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </section>
     );
 }

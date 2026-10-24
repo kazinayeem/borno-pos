@@ -131,4 +131,23 @@ class PurchaseController extends Controller
 
         return view('spa');
     }
+
+    public function cancel(Request $request, Purchase $purchase, PurchaseService $purchases)
+    {
+        if (! $request->user()->canDo('purchases.manage')) {
+            abort(403, 'You do not have permission to cancel purchases.');
+        }
+
+        $reason = $request->input('reason');
+        $cancelled = $purchases->cancel($purchase, $request->user(), $reason);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Purchase cancelled, stock deducted, and payment reversed.',
+                'purchase' => $cancelled,
+            ]);
+        }
+
+        return redirect()->route('purchases.show', $purchase)->with('status', 'Purchase cancelled and stock reversed.');
+    }
 }

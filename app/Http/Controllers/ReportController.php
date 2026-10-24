@@ -69,14 +69,22 @@ class ReportController extends Controller
     public function batches(Request $request)
     {
         $today = now()->toDateString();
-        $rows = Batch::with('product')
-            ->when($request->string('status')->toString() === 'expired', fn ($query) => $query->whereDate('expiry_date', '<', $today))
-            ->when($request->string('status')->toString() === 'soon', function ($query) use ($today) {
-                $query->whereNotNull('expiry_date')
+        $query = Batch::with('product')
+            ->when($request->string('status')->toString() === 'expired', fn ($q) => $q->whereDate('expiry_date', '<', $today))
+            ->when($request->string('status')->toString() === 'soon', function ($q) use ($today) {
+                $q->whereNotNull('expiry_date')
                     ->whereDate('expiry_date', '>=', $today)
                     ->whereRaw("expiry_date <= date(?, '+' || coalesce((select near_expiry_days from products where products.id = batches.product_id), 30) || ' days')", [$today]);
             })
-            ->latest()
+            ->when($request->filled('q'), function ($q) use ($request) {
+                $term = $request->string('q');
+                $q->where(function ($inner) use ($term) {
+                    $inner->where('batch_no', 'like', "%{$term}%")
+                        ->orWhereHas('product', fn ($pq) => $pq->where('name', 'like', "%{$term}%")->orWhere('code', 'like', "%{$term}%"));
+                });
+            });
+
+        $rows = $query->latest()
             ->paginate(15)
             ->withQueryString();
 
@@ -115,6 +123,22 @@ class ReportController extends Controller
         }
 
         return view('spa');
+    }
+
+    public function updateBatch(Request $request, Batch $batch)
+    {
+        $data = $request->validate([
+            'batch_no' => ['required', 'string', 'max:60'],
+            'expiry_date' => ['nullable', 'date'],
+            'manufactured_on' => ['nullable', 'date'],
+        ]);
+        $batch->update($data);
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Batch details updated.', 'batch' => $batch]);
+        }
+
+        return back()->with('status', 'Batch details updated.');
     }
 
     public function stockCount(Request $request)

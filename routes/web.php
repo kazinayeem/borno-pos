@@ -34,6 +34,7 @@ Route::get('/change-language', [AuthController::class, 'locale'])->name('locale'
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     Route::get('/user/profile', [SettingsController::class, 'profile'])->name('profile');
+    Route::put('/user/profile', [SettingsController::class, 'updateProfile'])->name('profile.update');
     Route::get('/api/search', [GlobalSearchController::class, 'search'])->name('api.search');
     Route::get('/search', function (Request $request) {
         if ($request->expectsJson() || $request->is('api/*')) {
@@ -109,13 +110,16 @@ Route::middleware('auth')->group(function () {
         Route::get('/purchase/list', [PurchaseController::class, 'index'])->middleware('ability:purchases.view')->name('purchases.index');
         Route::get('/purchase/create', [PurchaseController::class, 'create'])->middleware('ability:purchases.create,purchases.manage')->name('purchases.create');
         Route::get('/purchase/batch', [ReportController::class, 'batches'])->middleware('ability:purchases.view')->name('batches');
+        Route::put('/purchase/batch/{batch}', [ReportController::class, 'updateBatch'])->middleware('ability:purchases.manage')->name('batches.update');
         Route::post('/purchase', [PurchaseController::class, 'store'])->middleware('ability:purchases.create,purchases.manage')->name('purchases.store');
         Route::get('/purchase/{purchase}', [PurchaseController::class, 'show'])->middleware('ability:purchases.view')->name('purchases.show');
+        Route::post('/purchase/{purchase}/cancel', [PurchaseController::class, 'cancel'])->middleware('ability:purchases.manage')->name('purchases.cancel');
 
         // Sales
         Route::get('/sales', [SaleController::class, 'index'])->middleware('ability:sales.view')->name('sales.index');
         Route::get('/sales/draft', [SaleController::class, 'drafts'])->middleware('ability:sales.view')->name('sales.drafts');
         Route::get('/sales/{sale}', [SaleController::class, 'show'])->middleware('ability:sales.view')->name('sales.show');
+        Route::delete('/sales/{sale}', [SaleController::class, 'destroy'])->middleware('ability:sales.manage,sales.view')->name('sales.destroy');
         Route::get('/sales/{sale}/print', [SaleController::class, 'print'])->middleware('ability:sales.view')->name('sales.print');
         Route::post('/sales/{sale}/complete', [SaleController::class, 'complete'])->name('sales.complete');
         Route::post('/sales/{sale}/return', [SaleController::class, 'returnStore'])->name('sales.return');
@@ -128,17 +132,23 @@ Route::middleware('auth')->group(function () {
         // Accounting
         Route::get('/accounts', [AccountingController::class, 'accounts'])->middleware('ability:accounting.view')->name('accounts.index');
         Route::post('/accounts', [AccountingController::class, 'storeAccount'])->middleware('ability:accounting.create')->name('accounts.store');
+        Route::put('/accounts/{account}', [AccountingController::class, 'updateAccount'])->middleware('ability:accounting.create')->name('accounts.update');
+        Route::delete('/accounts/{account}', [AccountingController::class, 'destroyAccount'])->middleware('ability:accounting.create')->name('accounts.destroy');
         Route::get('/money-transfers', [AccountingController::class, 'transfers'])->middleware('ability:accounting.view')->name('transfers.index');
         Route::post('/money-transfers', [AccountingController::class, 'storeTransfer'])->middleware('ability:accounting.create')->name('transfers.store');
+        Route::post('/money-transfers/{transfer}/reverse', [AccountingController::class, 'reverseTransfer'])->middleware('ability:accounting.create')->name('transfers.reverse');
         Route::get('/account/balancesheet', [AccountingController::class, 'balance'])->middleware('ability:accounting.view')->name('balance');
         Route::get('/account/transactions', [AccountingController::class, 'transactions'])->middleware('ability:accounting.view')->name('transactions');
         Route::get('/expense', [AccountingController::class, 'expenses'])->middleware('ability:accounting.view')->name('expenses.index');
         Route::post('/expense', [AccountingController::class, 'storeExpense'])->middleware('ability:accounting.create')->name('expenses.store');
+        Route::delete('/expense/{expense}', [AccountingController::class, 'destroyExpense'])->middleware('ability:accounting.create')->name('expenses.destroy');
 
         Route::get('/attendance', [HrmController::class, 'attendance'])->name('attendance');
         Route::post('/attendance', [HrmController::class, 'storeAttendance'])->name('attendance.store');
+        Route::delete('/attendance/{attendance}', [HrmController::class, 'destroyAttendance'])->name('attendance.destroy');
         Route::get('/payrolls', [HrmController::class, 'payrolls'])->name('payrolls');
         Route::post('/payrolls', [HrmController::class, 'storePayroll'])->name('payrolls.store');
+        Route::delete('/payrolls/{payroll}', [HrmController::class, 'destroyPayroll'])->name('payrolls.destroy');
 
         Route::get('/stock/count', [ReportController::class, 'stockCount'])->name('stock.index');
         Route::post('/stock/count', [ReportController::class, 'storeStockCount'])->name('stock.store');

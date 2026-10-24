@@ -108,6 +108,10 @@ export const bornoposApi = createApi({
             query: ({ id, body }) => ({ url: `/sales/${id}/return`, method: 'POST', body }),
             invalidatesTags: ['Sales', 'Products', 'Pos', 'Dashboard'],
         }),
+        deleteSale: builder.mutation({
+            query: (id) => ({ url: `/sales/${id}`, method: 'DELETE' }),
+            invalidatesTags: ['Sales', 'Dashboard', 'Pos'],
+        }),
         getPurchases: builder.query({
             query: ({ page = 1, q = '' }) => `/purchase/list${queryString({ page, q })}`,
             providesTags: ['Purchases'],
@@ -122,6 +126,10 @@ export const bornoposApi = createApi({
         getPurchase: builder.query({
             query: (id) => `/purchase/${id}`,
             providesTags: (result, error, id) => [{ type: 'Purchases', id }],
+        }),
+        cancelPurchase: builder.mutation({
+            query: ({ id, reason }) => ({ url: `/purchase/${id}/cancel`, method: 'POST', body: { reason } }),
+            invalidatesTags: ['Purchases', 'Products', 'Batches', 'Dashboard'],
         }),
         getBatches: builder.query({
             query: ({ status = '', page = 1 } = {}) => `/purchase/batch${queryString({ status, page })}`,
@@ -163,10 +171,12 @@ export const {
     useGetSalesQuery,
     useGetSaleQuery,
     useReturnSaleMutation,
+    useDeleteSaleMutation,
     useGetPurchasesQuery,
     useGetPurchaseFormQuery,
     useSavePurchaseMutation,
     useGetPurchaseQuery,
+    useCancelPurchaseMutation,
     useGetBatchesQuery,
     useGetInstallmentsQuery,
     useCreateInstallmentMutation,

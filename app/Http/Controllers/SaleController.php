@@ -52,6 +52,26 @@ class SaleController extends Controller
         return view('spa');
     }
 
+    public function destroy(Request $request, Sale $sale)
+    {
+        if ($sale->status === 'draft') {
+            $sale->items()->delete();
+            $sale->delete();
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Draft deleted.']);
+            }
+
+            return redirect()->route('sales.drafts')->with('status', 'Draft deleted.');
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Completed sales cannot be deleted directly. Please use Sale Return to refund or cancel items.'], 422);
+        }
+
+        return back()->withErrors(['sale' => 'Completed sales cannot be deleted directly. Please use Sale Return to refund or cancel items.']);
+    }
+
     private function listing(Request $request, string $status, string $title)
     {
         $sales = $this->query($request, $status)->paginate(15)->withQueryString();
