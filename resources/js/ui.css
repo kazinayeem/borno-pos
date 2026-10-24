@@ -472,8 +472,8 @@ html.dark .order-tab.on { background: #1e3a5f; }
 
 .pos-shell {
   display: grid;
-  grid-template-columns: 210px minmax(0, 1fr) 380px;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 14px;
   flex: 1;
   min-height: 0;
   height: 100%;

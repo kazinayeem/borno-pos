@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\Batch;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\Unit;
+use App\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -23,13 +25,18 @@ class MedicineImportService
         ?int $storeId = null,
         int $limit = 10000,
         int $chunkSize = 500,
-        bool $dryRun = false
+        bool $dryRun = false,
+        int $initialStockMin = 20,
+        int $initialStockMax = 100,
+        bool $enablePos = true
     ): array {
         if (! file_exists($filePath)) {
             throw new \InvalidArgumentException("Source file not found at: {$filePath}");
         }
 
         $store = $this->resolveStore($storeId);
+        $warehouse = Warehouse::query()->where('store_id', $store->id)->first();
+        $warehouseId = $warehouse?->id;
 
         $stats = [
             'store_id' => $store->id,
@@ -197,12 +204,14 @@ class MedicineImportService
             $slug = $slugBase ?: ('med-'.Str::random(8));
 
             $matchKey = $this->compositeKey($fullName, $strength, $dosageForm, (int) $brandDbId);
+            $initialStock = $initialStockMin > 0 ? mt_rand($initialStockMin, max($initialStockMin, $initialStockMax)) : 0;
 
             $productData = [
                 'store_id' => $store->id,
                 'category_id' => $categoryId,
                 'brand_id' => $brandDbId,
                 'unit_id' => $unitId,
+                'warehouse_id' => $warehouseId,
                 'name' => $fullName,
                 'generic_name' => $generic,
                 'strength' => $strength ?: null,
@@ -217,10 +226,10 @@ class MedicineImportService
                 'slug' => $slug,
                 'price_cents' => $priceCents,
                 'cost_cents' => $costCents,
-                'stock_qty' => 0, // Clean inventory baseline
+                'stock_qty' => $initialStock,
                 'alert_qty' => 10,
                 'is_active' => true,
-                'featured_in_pos' => false,
+                'featured_in_pos' => $enablePos,
                 'has_batch' => true,
                 'has_serial' => false,
                 'has_variant' => false,
@@ -330,9 +339,102 @@ class MedicineImportService
             return $item;
         }, $chunk);
 
-        DB::transaction(function () use ($formatted) {
+        DB::transaction(function () use ($formatted, $now) {
             Product::query()->insert($formatted);
+
+            $codes = array_column($formatted, 'code');
+            $products = Product::query()->whereIn('code', $codes)->get(['id', 'store_id', 'code', 'stock_qty', 'price_cents', 'cost_cents']);
+
+            $batches = [];
+            foreach ($products as $p) {
+                if ($p->stock_qty > 0) {
+                    $batches[] = [
+                        'store_id' => $p->store_id,
+                        'product_id' => $p->id,
+                        'purchase_item_id' => null,
+                        'batch_no' => 'B-'.strtoupper(substr(md5($p->code), 0, 8)),
+                        'expiry_date' => $now->copy()->addMonths(mt_rand(14, 30))->toDateString(),
+                        'manufactured_on' => $now->copy()->subMonths(mt_rand(1, 4))->toDateString(),
+                        'qty' => $p->stock_qty,
+                        'cost_cents' => $p->cost_cents ?? (int) round($p->price_cents * 0.85),
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+            }
+
+            if (! empty($batches)) {
+                Batch::query()->insert($batches);
+            }
         });
+    }
+
+    /**
+     * Enable POS display and seed stock quantity (min 20-100) with batch tracking for medicines.
+     */
+    public function enablePosAndSeedStock(int $storeId, int $min = 20, int $max = 100): int
+    {
+        $warehouse = Warehouse::query()->where('store_id', $storeId)->first();
+        $warehouseId = $warehouse?->id;
+        $now = now();
+        $count = 0;
+
+        Product::query()
+            ->where('store_id', $storeId)
+            ->whereNotNull('generic_name')
+            ->select(['id', 'store_id', 'code', 'price_cents', 'cost_cents', 'stock_qty'])
+            ->chunkById(500, function ($products) use ($warehouseId, $min, $max, $now, &$count) {
+                DB::transaction(function () use ($products, $warehouseId, $min, $max, $now, &$count) {
+                    $batchRows = [];
+                    foreach ($products as $product) {
+                        $qty = mt_rand($min, $max);
+                        $cost = $product->cost_cents ?? (int) round($product->price_cents * 0.85);
+
+                        Product::query()->where('id', $product->id)->update([
+                            'stock_qty' => $qty,
+                            'is_active' => true,
+                            'featured_in_pos' => true,
+                            'has_batch' => true,
+                            'warehouse_id' => $warehouseId,
+                        ]);
+
+                        $batchNo = 'B-'.strtoupper(substr(md5($product->code ?: (string) $product->id), 0, 8));
+
+                        $existingBatch = Batch::query()
+                            ->where('product_id', $product->id)
+                            ->first();
+
+                        if ($existingBatch) {
+                            $existingBatch->update([
+                                'qty' => $qty,
+                                'cost_cents' => $cost,
+                                'expiry_date' => $now->copy()->addMonths(mt_rand(14, 30))->toDateString(),
+                            ]);
+                        } else {
+                            $batchRows[] = [
+                                'store_id' => $product->store_id,
+                                'product_id' => $product->id,
+                                'purchase_item_id' => null,
+                                'batch_no' => $batchNo,
+                                'qty' => $qty,
+                                'cost_cents' => $cost,
+                                'manufactured_on' => $now->copy()->subMonths(mt_rand(1, 4))->toDateString(),
+                                'expiry_date' => $now->copy()->addMonths(mt_rand(14, 30))->toDateString(),
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ];
+                        }
+
+                        $count++;
+                    }
+
+                    if (! empty($batchRows)) {
+                        Batch::query()->insert($batchRows);
+                    }
+                });
+            });
+
+        return $count;
     }
 
     /**

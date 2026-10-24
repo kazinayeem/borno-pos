@@ -123,8 +123,10 @@ class BangladeshMedicineImportTest extends TestCase
         $this->assertNotNull($sample->category_id);
         $this->assertNotNull($sample->unit_id);
 
-        // Catalog master records should have stock_qty 0 and has_batch enabled for pharmacy
-        $this->assertEquals(0, $sample->stock_qty);
+        // Catalog master records should have stock_qty between 20 and 100 and featured_in_pos enabled for pharmacy
+        $this->assertGreaterThanOrEqual(20, $sample->stock_qty);
+        $this->assertLessThanOrEqual(100, $sample->stock_qty);
+        $this->assertTrue($sample->featured_in_pos);
         $this->assertTrue($sample->has_batch);
         $this->assertTrue($sample->is_active);
     }

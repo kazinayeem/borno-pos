@@ -770,33 +770,9 @@ export default function Pos() {
                 </div>
             </header>
 
-            {/* Main 3-Column One-Page POS Shell */}
+            {/* Main 2-Column One-Page POS Shell */}
             <div className="pos-shell">
-                {/* 1. Left Column: Categories and Brands */}
-                <aside className="card pos-side">
-                    <button type="button" className={`pos-filter ${!category && !brand ? 'on' : ''}`} onClick={() => { setCategory(''); setBrand(''); }}>
-                        <span>📂 {t('All Products')}</span>
-                        <b>{data?.products?.length || 0}</b>
-                    </button>
-                    <div className="pos-side-scroll">
-                        <h2>{t('Categories')}</h2>
-                        {(data?.categories || []).filter((row) => counts.categories[row.id]).map((row) => (
-                            <button type="button" key={row.id} className={`pos-filter ${category === String(row.id) ? 'on' : ''}`} onClick={() => { setCategory(String(row.id)); setBrand(''); }}>
-                                <span>{row.name}</span>
-                                <b>{counts.categories[row.id]}</b>
-                            </button>
-                        ))}
-                        <h2>{t('Brands')}</h2>
-                        {(data?.brands || []).filter((row) => counts.brands[row.id]).map((row) => (
-                            <button type="button" key={row.id} className={`pos-filter ${brand === String(row.id) ? 'on' : ''}`} onClick={() => { setBrand(String(row.id)); setCategory(''); }}>
-                                <span>{row.name}</span>
-                                <b>{counts.brands[row.id]}</b>
-                            </button>
-                        ))}
-                    </div>
-                </aside>
-
-                {/* 2. Middle Column: Product Catalog & Search */}
+                {/* 1. Left/Main Column: Product Catalog & Search */}
                 <section className="card pos-catalog">
                     <div className="pos-catalog-head">
                         <div className="pos-search-bar" style={{ position: 'relative' }}>
@@ -817,16 +793,42 @@ export default function Pos() {
                                 </button>
                             )}
                         </div>
-                        {/* Quick category pill row */}
-                        <div className="pos-category-pills">
-                            <button type="button" className={`pos-cat-pill ${!category ? 'active' : ''}`} onClick={() => setCategory('')}>
-                                {t('All')} ({data?.products?.length || 0})
-                            </button>
-                            {(data?.categories || []).slice(0, 10).map((cat) => (
-                                <button key={cat.id} type="button" className={`pos-cat-pill ${category === String(cat.id) ? 'active' : ''}`} onClick={() => setCategory(String(cat.id))}>
-                                    {cat.name}
+                        {/* Single Top Category Pill Bar + Brand Selector */}
+                        <div className="pos-category-bar" style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div className="pos-category-pills" style={{ display: 'flex', gap: '6px', overflowX: 'auto', flex: 1, minWidth: 0 }}>
+                                <button type="button" className={`pos-cat-pill ${!category ? 'active' : ''}`} onClick={() => setCategory('')}>
+                                    {t('All')} ({data?.products?.length || 0})
                                 </button>
-                            ))}
+                                {(data?.categories || []).map((cat) => (
+                                    <button key={cat.id} type="button" className={`pos-cat-pill ${category === String(cat.id) ? 'active' : ''}`} onClick={() => setCategory(String(cat.id))}>
+                                        {cat.name}
+                                    </button>
+                                ))}
+                            </div>
+                            {(data?.brands || []).length > 0 && (
+                                <select
+                                    value={brand}
+                                    onChange={(event) => setBrand(event.target.value)}
+                                    title="Filter by Brand / Manufacturer"
+                                    style={{
+                                        padding: '5px 12px',
+                                        fontSize: '12px',
+                                        fontWeight: 600,
+                                        borderRadius: '20px',
+                                        border: '1px solid var(--line)',
+                                        background: 'var(--card)',
+                                        color: 'var(--text)',
+                                        cursor: 'pointer',
+                                        flexShrink: 0,
+                                        outline: 'none',
+                                    }}
+                                >
+                                    <option value="">{t('All Brands')}</option>
+                                    {(data?.brands || []).map((b) => (
+                                        <option key={b.id} value={b.id}>{b.name}</option>
+                                    ))}
+                                </select>
+                            )}
                         </div>
                     </div>
 

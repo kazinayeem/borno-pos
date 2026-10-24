@@ -12,7 +12,10 @@ class ImportBangladeshMedicinesCommand extends Command
                             {--store= : Target Store ID (defaults to active pharmacy store)}
                             {--limit=10000 : Maximum number of distinct records to import}
                             {--chunk=500 : Chunk size for database insertion}
-                            {--dry-run : Run validation and parsing without committing to database}';
+                            {--dry-run : Run validation and parsing without committing to database}
+                            {--seed-stock : Seed initial inventory quantity and enable in POS}
+                            {--min-stock=20 : Minimum stock quantity}
+                            {--max-stock=100 : Maximum stock quantity}';
 
     protected $description = 'Import verified Bangladesh DGDA allopathic medicines master dataset into pharmacy catalog.';
 
@@ -23,16 +26,36 @@ class ImportBangladeshMedicinesCommand extends Command
         $limit = (int) $this->option('limit');
         $chunk = (int) $this->option('chunk');
         $dryRun = (bool) $this->option('dry-run');
+        $seedStock = (bool) $this->option('seed-stock');
+        $minStock = max(1, (int) $this->option('min-stock'));
+        $maxStock = max($minStock, (int) $this->option('max-stock'));
 
         $this->components->info('Starting Bangladesh Medicine Database Import...');
         $this->components->twoColumnDetail('Source File', $filePath);
         $this->components->twoColumnDetail('Target Limit', (string) $limit);
         $this->components->twoColumnDetail('Execution Mode', $dryRun ? 'DRY-RUN (Simulated)' : 'PRODUCTION IMPORT');
+        if ($seedStock) {
+            $this->components->twoColumnDetail('Stock Seeding', "Enabled (Min: {$minStock}, Max: {$maxStock})");
+        }
 
         $startTime = microtime(true);
 
         try {
-            $stats = $importer->import($filePath, $storeId, $limit, $chunk, $dryRun);
+            $stats = $importer->import(
+                filePath: $filePath,
+                storeId: $storeId,
+                limit: $limit,
+                chunkSize: $chunk,
+                dryRun: $dryRun,
+                initialStockMin: $seedStock ? $minStock : 20,
+                initialStockMax: $seedStock ? $maxStock : 100,
+                enablePos: true
+            );
+
+            if ($seedStock && ! $dryRun) {
+                $seededCount = $importer->enablePosAndSeedStock($stats['store_id'], $minStock, $maxStock);
+                $stats['stocked_products'] = $seededCount;
+            }
         } catch (\Throwable $e) {
             $this->components->error('Import failed: '.$e->getMessage());
 
@@ -56,6 +79,9 @@ class ImportBangladeshMedicinesCommand extends Command
         $this->components->twoColumnDetail('Unpriced / Safe Default Records', number_format($stats['unpriced_count']));
         $this->components->twoColumnDetail('Dosage Categories Created', number_format($stats['categories_created']));
         $this->components->twoColumnDetail('Manufacturer Brands Created', number_format($stats['brands_created']));
+        if (! empty($stats['stocked_products'])) {
+            $this->components->twoColumnDetail('Stocked & POS Enabled', number_format($stats['stocked_products']));
+        }
 
         if (! empty($stats['errors'])) {
             $this->newLine();

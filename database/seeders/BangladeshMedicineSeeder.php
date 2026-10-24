@@ -20,9 +20,14 @@ class BangladeshMedicineSeeder extends Seeder
             storeId: null, // Resolves to pharmacy store
             limit: 10000,
             chunkSize: 500,
-            dryRun: false
+            dryRun: false,
+            initialStockMin: 20,
+            initialStockMax: 100,
+            enablePos: true
         );
 
-        $this->command?->info("Bangladesh Medicines Seeded: {$stats['inserted']} inserted, {$stats['updated']} updated, {$stats['distinct_processed']} total for {$stats['store_name']}.");
+        $importer->enablePosAndSeedStock($stats['store_id'], 20, 100);
+
+        $this->command?->info("Bangladesh Medicines Seeded: {$stats['distinct_processed']} total, stock seeded (20-100) and enabled in POS for {$stats['store_name']}.");
     }
 }

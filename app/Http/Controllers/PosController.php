@@ -44,20 +44,20 @@ class PosController extends Controller
                     ->orWhere('dosage_form', 'like', "%{$term}%")
                     ->orWhereHas('brand', fn ($b) => $b->where('name', 'like', "%{$term}%"));
             });
-            $products = $query->orderBy('name')->limit(80)->get();
+            $products = $query->orderBy('name')->limit(150)->get();
         } else {
-            // Default view: top 100 products (featured or in stock or most recent)
+            // Default view: top 150 products (featured or in stock or most recent)
             $products = $query->orderByDesc('featured_in_pos')
                 ->orderByDesc('stock_qty')
                 ->orderBy('name')
-                ->limit(100)
+                ->limit(150)
                 ->get();
 
             if ($products->isEmpty()) {
                 $products = Product::with(['tax', 'brand', 'category', 'variants', 'batches'])
                     ->where('is_active', true)
                     ->orderBy('name')
-                    ->limit(80)
+                    ->limit(150)
                     ->get();
             }
         }
