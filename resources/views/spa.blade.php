@@ -19,6 +19,7 @@
 <body>
 <div id="root"></div>
 @php
+    $store = auth()->user()?->store;
     $boot = [
         'version' => config('bornopos.version'),
         'demoPassword' => config('bornopos.demo_password'),
@@ -27,6 +28,14 @@
         'email' => config('bornopos.support_email'),
         'locale' => app()->getLocale(),
         'user' => auth()->user()?->only(['id', 'name', 'email', 'role', 'store_id']),
+        'currency_symbol' => $store?->symbol() ?? '$',
+        'currency_code' => $store?->currency_code ?? 'USD',
+        'store' => $store ? [
+            'id' => $store->id,
+            'name' => $store->name,
+            'currency_symbol' => $store->symbol(),
+            'currency_code' => $store->currency_code,
+        ] : null,
     ];
 @endphp
 <script>window.BornoPos = @json($boot);</script>

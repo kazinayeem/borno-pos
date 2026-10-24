@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { money } from '../api';
+import { api, money, setCurrency } from '../api';
 import { useT } from '../i18n';
 import { useDeleteCatalogMutation, useGetCatalogQuery, useSaveCatalogMutation } from '../services/bornoposApi';
 
@@ -63,6 +63,22 @@ export default function CatalogPage({ endpoint }) {
         if (!window.confirm('Delete this record?')) return;
         const result = await remove({ endpoint, id: row.id });
         if (result.error) setMessage(result.error.data?.message || 'Could not delete.');
+    }
+
+    async function activateCurrency(row) {
+        try {
+            const res = await api('/settings/store-currency', {
+                method: 'POST',
+                body: {
+                    currency_code: row.code,
+                    currency_symbol: row.symbol,
+                },
+            });
+            setCurrency(row.symbol, row.code);
+            setMessage(res.message || `Store currency set to ${row.name} (${row.symbol}).`);
+        } catch (err) {
+            setMessage(err.message || 'Could not update currency.');
+        }
     }
 
     return (
@@ -132,6 +148,13 @@ export default function CatalogPage({ endpoint }) {
                                 <td>{(meta.from || 1) + index}</td>
                                 {fields.filter((field) => field.type !== 'checks').map((field) => <td key={field.name}>{display(row, field)}</td>)}
                                 <td className="row-actions">
+                                    {endpoint === '/currency' && (
+                                        row.code === (window.BornoPos?.currency_code || 'USD') ? (
+                                            <span className="badge ok" style={{ fontSize: '11px', padding: '4px 8px' }}>✓ Active</span>
+                                        ) : (
+                                            <button className="btn primary" type="button" style={{ fontSize: '11px', padding: '4px 8px' }} onClick={() => activateCurrency(row)}>Set Active</button>
+                                        )
+                                    )}
                                     <button className="btn" type="button" onClick={() => open(row)}>Edit</button>
                                     <button className="btn" type="button" onClick={() => destroy(row)}>Delete</button>
                                 </td>

@@ -28,7 +28,22 @@ export async function api(url, { method = 'GET', body } = {}) {
     return data;
 }
 
-export function money(cents, symbol = '$') {
+export function getCurrencySymbol() {
+    return window.BornoPos?.currency_symbol || '$';
+}
+
+export function getCurrencyCode() {
+    return window.BornoPos?.currency_code || 'USD';
+}
+
+export function setCurrency(symbol, code) {
+    if (!window.BornoPos) window.BornoPos = {};
+    if (symbol) window.BornoPos.currency_symbol = symbol;
+    if (code) window.BornoPos.currency_code = code;
+    window.dispatchEvent(new CustomEvent('bornopos-currency-changed', { detail: { symbol, code } }));
+}
+
+export function money(cents, symbol = getCurrencySymbol()) {
     const value = Number(cents) || 0;
     const negative = value < 0;
     const formatted = (Math.abs(value) / 100).toLocaleString('en-US', {

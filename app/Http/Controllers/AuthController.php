@@ -49,9 +49,19 @@ class AuthController extends Controller
         $request->session()->regenerate();
 
         if ($request->expectsJson()) {
+            $store = $user->store;
+
             return response()->json([
                 'redirect' => route($user->homeRoute()),
                 'user' => $user->only(['id', 'name', 'email', 'role', 'store_id']),
+                'currency_symbol' => $store?->symbol() ?? '$',
+                'currency_code' => $store?->currency_code ?? 'USD',
+                'store' => $store ? [
+                    'id' => $store->id,
+                    'name' => $store->name,
+                    'currency_symbol' => $store->symbol(),
+                    'currency_code' => $store->currency_code,
+                ] : null,
             ]);
         }
 

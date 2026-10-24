@@ -58,9 +58,17 @@ class PosController extends Controller
                 ])->values(),
                 'categories' => Category::orderBy('name')->get(['id', 'name']),
                 'brands' => Brand::orderBy('name')->get(['id', 'name']),
-                'customers' => Customer::orderBy('name')->get(['id', 'name']),
+                'customers' => Customer::orderBy('name')->get(['id', 'name', 'phone', 'email', 'address']),
                 'coupons' => Coupon::where('is_active', true)->get(['id', 'code', 'type', 'value']),
                 'idempotency' => (string) Str::uuid(),
+                'currency_symbol' => $request->user()?->store?->symbol() ?? '$',
+                'currency_code' => $request->user()?->store?->currency_code ?? 'USD',
+                'store' => $request->user()?->store ? [
+                    'id' => $request->user()->store->id,
+                    'name' => $request->user()->store->name,
+                    'currency_symbol' => $request->user()->store->symbol(),
+                    'currency_code' => $request->user()->store->currency_code,
+                ] : null,
             ]);
         }
 

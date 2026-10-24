@@ -9,7 +9,7 @@ import { useGetDashboardQuery } from '../services/bornoposApi';
 
 const cards = [
     ['total_sales', 'Total Sales', '#e8f1ff', '#2f80ed', '🛒'],
-    ['net_profit', 'Net Profit', '#e7f8ee', '#16a34a', '$'],
+    ['net_profit', 'Net Profit', '#e7f8ee', '#16a34a', '💰'],
     ['gross_profit', 'Gross Profit', '#fff6e5', '#d97706', '📊'],
     ['sales_return', 'Sales Return', '#ffecec', '#ef4444', '↩'],
     ['purchase', 'Purchase', '#f3e8ff', '#7c3aed', '🛍'],

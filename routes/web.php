@@ -110,6 +110,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/settings/general-settings', [SettingsController::class, 'general'])->name('settings.general');
         Route::post('/settings/general-settings', [SettingsController::class, 'updateGeneral'])->name('settings.general.update');
+        Route::post('/settings/store-currency', [SettingsController::class, 'setStoreCurrency'])->name('settings.currency.update');
         Route::get('/settings/business-modules', [SettingsController::class, 'modules'])->name('settings.modules');
         Route::post('/settings/business-modules', [SettingsController::class, 'updateModules'])->name('settings.modules.update');
         Route::get('/shop-payment-gateway', [SettingsController::class, 'gateway'])->name('settings.gateway');

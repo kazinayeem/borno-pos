@@ -46,6 +46,7 @@ class SettingsController extends Controller
         return view('settings.general', [
             'settings' => $this->bag($requestStore = auth()->user()->store_id),
             'store' => auth()->user()->store,
+            'currencies' => \App\Models\Currency::orderBy('name')->get(),
         ]);
     }
 
@@ -57,6 +58,7 @@ class SettingsController extends Controller
             'address' => ['nullable', 'string', 'max:255'],
             'invoice_footer' => ['nullable', 'string', 'max:500'],
             'currency_symbol' => ['required', 'string', 'max:8'],
+            'currency_code' => ['nullable', 'string', 'max:8'],
         ]);
         $store = $request->user()->store;
         if ($store) {
@@ -65,11 +67,33 @@ class SettingsController extends Controller
                 'phone' => $data['phone'] ?? null,
                 'address' => $data['address'] ?? null,
                 'currency_symbol' => $data['currency_symbol'],
+                'currency_code' => $data['currency_code'] ?? $store->currency_code,
             ]);
         }
         $this->put($request->user()->store_id, 'invoice_footer', $data['invoice_footer'] ?? '');
 
         return back()->with('status', 'General settings saved.');
+    }
+
+    public function setStoreCurrency(Request $request)
+    {
+        $data = $request->validate([
+            'currency_code' => ['required', 'string', 'max:8'],
+            'currency_symbol' => ['required', 'string', 'max:8'],
+        ]);
+        $store = $request->user()->store;
+        if ($store) {
+            $store->update([
+                'currency_code' => $data['currency_code'],
+                'currency_symbol' => $data['currency_symbol'],
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Store currency updated to '.$data['currency_code'].' ('.$data['currency_symbol'].').',
+            'currency_code' => $store?->currency_code,
+            'currency_symbol' => $store?->symbol(),
+        ]);
     }
 
     public function modules()
