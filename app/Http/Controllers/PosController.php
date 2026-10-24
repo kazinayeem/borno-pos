@@ -16,22 +16,68 @@ class PosController extends Controller
 {
     public function index(Request $request)
     {
-        $products = Product::with([
+        $query = Product::with([
             'tax',
+            'brand',
+            'category',
             'variants',
             'batches' => fn ($query) => $query->where('qty', '>', 0)->orderByRaw('case when expiry_date is null then 1 else 0 end')->orderBy('expiry_date'),
         ])
-            ->where('is_active', true)
-            ->where('featured_in_pos', true)
-            ->orderBy('name')
-            ->get();
+            ->where('is_active', true);
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->integer('category_id'));
+        }
+
+        if ($request->filled('brand_id')) {
+            $query->where('brand_id', $request->integer('brand_id'));
+        }
+
+        if ($request->filled('q')) {
+            $term = trim($request->string('q')->toString());
+            $query->where(function ($sub) use ($term) {
+                $sub->where('name', 'like', "%{$term}%")
+                    ->orWhere('generic_name', 'like', "%{$term}%")
+                    ->orWhere('code', 'like', "%{$term}%")
+                    ->orWhere('barcode', $term)
+                    ->orWhere('strength', 'like', "%{$term}%")
+                    ->orWhere('dosage_form', 'like', "%{$term}%")
+                    ->orWhereHas('brand', fn ($b) => $b->where('name', 'like', "%{$term}%"));
+            });
+            $products = $query->orderBy('name')->limit(80)->get();
+        } else {
+            // Default view: top 100 products (featured or in stock or most recent)
+            $products = $query->orderByDesc('featured_in_pos')
+                ->orderByDesc('stock_qty')
+                ->orderBy('name')
+                ->limit(100)
+                ->get();
+
+            if ($products->isEmpty()) {
+                $products = Product::with(['tax', 'brand', 'category', 'variants', 'batches'])
+                    ->where('is_active', true)
+                    ->orderBy('name')
+                    ->limit(80)
+                    ->get();
+            }
+        }
 
         if ($request->expectsJson()) {
             return response()->json([
                 'products' => $products->map(fn (Product $product) => [
                     'id' => $product->id,
                     'name' => $product->name,
+                    'generic_name' => $product->generic_name,
+                    'strength' => $product->strength,
+                    'dosage_form' => $product->dosage_form,
+                    'pack_size' => $product->pack_size,
+                    'dar_no' => $product->dar_no,
+                    'route' => $product->route,
+                    'prescription_required' => (bool) $product->prescription_required,
+                    'brand_name' => $product->brand?->name,
+                    'category_name' => $product->category?->name,
                     'code' => $product->code,
+                    'barcode' => $product->barcode,
                     'price_cents' => $product->sellingPriceCents(),
                     'stock_qty' => $product->stock_qty,
                     'category_id' => $product->category_id,
@@ -58,7 +104,7 @@ class PosController extends Controller
                     ])->values() : [],
                 ])->values(),
                 'categories' => Category::orderBy('name')->get(['id', 'name']),
-                'brands' => Brand::orderBy('name')->get(['id', 'name']),
+                'brands' => Brand::orderBy('name')->limit(300)->get(['id', 'name']),
                 'customers' => Customer::orderBy('name')->get(['id', 'name', 'phone', 'email', 'address']),
                 'coupons' => Coupon::where('is_active', true)->get(['id', 'code', 'type', 'value']),
                 'idempotency' => (string) Str::uuid(),

@@ -41,11 +41,25 @@ export default function Pos() {
     const navigate = useNavigate();
     const dispatch = useDispatch();
     const uiTheme = useSelector((state) => state.ui?.theme) || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
-    const { data, isFetching, refetch } = useGetPosQuery();
-    const [checkout, checkoutState] = useCheckoutMutation();
     const [q, setQ] = useState('');
+    const [debouncedQ, setDebouncedQ] = useState('');
     const [category, setCategory] = useState('');
     const [brand, setBrand] = useState('');
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedQ(q.trim());
+        }, 220);
+
+        return () => clearTimeout(handler);
+    }, [q]);
+
+    const { data, isFetching, refetch } = useGetPosQuery({
+        q: debouncedQ,
+        category_id: category,
+        brand_id: brand,
+    });
+    const [checkout, checkoutState] = useCheckoutMutation();
     const [picker, setPicker] = useState(null);
     const [paidNotice, setPaidNotice] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -177,7 +191,7 @@ export default function Pos() {
     }, [allCustomers, customerSearch]);
 
     const products = useMemo(() => (data?.products || []).filter((product) => {
-        const text = `${product.name} ${product.code}`.toLowerCase();
+        const text = `${product.name} ${product.generic_name || ''} ${product.code} ${product.barcode || ''} ${product.strength || ''} ${product.dosage_form || ''} ${product.brand_name || ''}`.toLowerCase();
 
         return (!q || text.includes(q.toLowerCase()))
             && (!category || String(product.category_id) === category)
@@ -837,11 +851,25 @@ export default function Pos() {
                                     <img src={product.image} alt={product.name} loading="lazy" />
                                 ) : (
                                     <div className="thumb-fallback" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
-                                        📦
+                                        {product.generic_name ? '💊' : '📦'}
                                     </div>
                                 )}
-                                <strong>{product.name}</strong>
-                                <span className="muted" style={{ fontSize: '11px' }}>{product.code}</span>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: '4px' }}>
+                                    <strong style={{ flex: 1, textAlign: 'left' }}>{product.name}</strong>
+                                    {product.prescription_required && (
+                                        <span title="Prescription Required" style={{ fontSize: '9px', fontWeight: 800, padding: '1px 4px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', flexShrink: 0 }}>
+                                            Rx
+                                        </span>
+                                    )}
+                                </div>
+                                {product.generic_name && (
+                                    <span style={{ fontSize: '11px', color: 'var(--blue)', fontWeight: 600, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }} title={product.generic_name}>
+                                        {product.generic_name}
+                                    </span>
+                                )}
+                                <span className="muted" style={{ fontSize: '10.5px' }}>
+                                    {product.dosage_form ? `${product.dosage_form} · ` : ''}{product.code}
+                                </span>
                                 <em className={product.stock_qty > 0 ? 'in' : 'out'}>
                                     {product.stock_qty > 0 ? `${t('Stock')}: ${product.stock_qty}` : t('Out of stock')}
                                 </em>

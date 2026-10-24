@@ -59,6 +59,7 @@ class AuthController extends Controller
                 'store' => $store ? [
                     'id' => $store->id,
                     'name' => $store->name,
+                    'business_type' => $store->business_type,
                     'currency_symbol' => $store->symbol(),
                     'currency_code' => $store->currency_code,
                 ] : null,

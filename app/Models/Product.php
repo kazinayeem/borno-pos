@@ -19,6 +19,7 @@ class Product extends Model
         'warehouse_id', 'supplier_id', 'tax_id', 'name', 'slug', 'code', 'barcode', 'type', 'cost_cents', 'price_cents',
         'promo_price_cents', 'alert_qty', 'near_expiry_days', 'stock_qty', 'image', 'description', 'details', 'tax_method',
         'is_active', 'featured_in_pos', 'has_serial', 'has_batch', 'has_variant',
+        'generic_name', 'strength', 'dosage_form', 'pack_size', 'dar_no', 'route', 'prescription_required', 'therapeutic_class',
     ];
 
     protected function casts(): array
@@ -29,6 +30,7 @@ class Product extends Model
             'has_serial' => 'boolean',
             'has_batch' => 'boolean',
             'has_variant' => 'boolean',
+            'prescription_required' => 'boolean',
             'details' => 'array',
         ];
     }

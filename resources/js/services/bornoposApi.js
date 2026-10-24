@@ -82,7 +82,7 @@ export const bornoposApi = createApi({
             providesTags: ['Products'],
         }),
         getPos: builder.query({
-            query: () => '/pos',
+            query: (params) => `/pos${queryString(params || {})}`,
             providesTags: ['Pos'],
         }),
         checkout: builder.mutation({
