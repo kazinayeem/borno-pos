@@ -11,4 +11,3 @@ class Unit extends Model
 
     protected $fillable = ['store_id', 'name', 'short_name'];
 }
-

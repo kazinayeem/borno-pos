@@ -7,6 +7,8 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\Purchase;
+use App\Models\Sale;
 use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\Unit;
@@ -91,7 +93,7 @@ class TrackingExampleSeeder extends Seeder
             ],
         ]));
         $reference = 'DEMO-RX-'.$store->id;
-        if (! \App\Models\Purchase::query()->where('reference', $reference)->exists()) {
+        if (! Purchase::query()->where('reference', $reference)->exists()) {
             app(PurchaseService::class)->receive($owner, [
                 'warehouse_id' => $warehouse->id,
                 'supplier_id' => $supplier->id,
@@ -134,7 +136,7 @@ class TrackingExampleSeeder extends Seeder
         ]));
         $reference = 'DEMO-IMEI-'.$store->id;
         $serial = 'DEMO-SN-'.$store->id;
-        if (! \App\Models\Purchase::query()->where('reference', $reference)->exists()) {
+        if (! Purchase::query()->where('reference', $reference)->exists()) {
             app(PurchaseService::class)->receive($owner, [
                 'warehouse_id' => $warehouse->id,
                 'supplier_id' => $supplier->id,
@@ -160,7 +162,7 @@ class TrackingExampleSeeder extends Seeder
             ]);
         }
         $key = 'demo-emi-'.$store->id;
-        if (! \App\Models\Sale::query()->where('idempotency_key', $key)->exists()) {
+        if (! Sale::query()->where('idempotency_key', $key)->exists()) {
             $customer = Customer::query()->where('store_id', $store->id)->first();
             if (! $customer) {
                 return;
@@ -192,7 +194,7 @@ class TrackingExampleSeeder extends Seeder
             'details' => ['pack_size' => '5kg', 'weight' => '5kg', 'wholesale' => '7.00', 'wholesale_cents' => 700],
         ]));
         $reference = 'DEMO-GROC-'.$store->id;
-        if (! \App\Models\Purchase::query()->where('reference', $reference)->exists()) {
+        if (! Purchase::query()->where('reference', $reference)->exists()) {
             app(PurchaseService::class)->receive($owner, [
                 'warehouse_id' => $warehouse->id,
                 'supplier_id' => $supplier->id,
@@ -225,7 +227,7 @@ class TrackingExampleSeeder extends Seeder
             ['qty' => 2],
         );
         $reference = 'DEMO-FLOUR-'.$store->id;
-        if (! \App\Models\Purchase::query()->where('reference', $reference)->exists()) {
+        if (! Purchase::query()->where('reference', $reference)->exists()) {
             app(PurchaseService::class)->receive($owner, [
                 'warehouse_id' => $warehouse->id,
                 'supplier_id' => $supplier->id,
@@ -240,7 +242,7 @@ class TrackingExampleSeeder extends Seeder
             ]]);
         }
         $key = 'demo-bread-'.$store->id;
-        if (! \App\Models\Sale::query()->where('idempotency_key', $key)->exists()) {
+        if (! Sale::query()->where('idempotency_key', $key)->exists()) {
             app(CheckoutService::class)->checkout($owner, [
                 'payment_method' => 'Cash',
                 'amount_paid' => '4.00',

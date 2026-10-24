@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
@@ -31,7 +32,7 @@ class ProductController extends Controller
                 $query->where(function ($inner) use ($term) {
                     $inner->where('name', 'like', "%{$term}%")
                         ->orWhere('code', 'like', "%{$term}%")
-                            ->orWhere('barcode', 'like', "%{$term}%");
+                        ->orWhere('barcode', 'like', "%{$term}%");
                 });
             })
             ->when($request->filled('category_id'), fn ($q) => $q->where('category_id', $request->integer('category_id')))
@@ -246,12 +247,12 @@ class ProductController extends Controller
         ProductRules::assert($data['type'], $batch, $serial, $variant);
         $opening = (int) ($data['opening_stock'] ?? 0);
         if (! $product->exists && $opening > 0 && ($batch || $serial)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'opening_stock' => 'Receive batch and serial stock through a purchase so each unit stays traceable.',
             ]);
         }
         if (! $product->exists && $opening > 0 && in_array($data['type'], ['service', 'digital', 'combo'], true)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'opening_stock' => 'Opening stock applies to stocked products. Bundles use their ingredients.',
             ]);
         }
@@ -264,7 +265,7 @@ class ProductController extends Controller
             }
         }
         if (! $product->exists && $opening > 0 && $variantQtyPreview > 0) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'opening_stock' => 'Use either an opening quantity or variant quantities, so stock is only recorded once.',
             ]);
         }
@@ -347,7 +348,7 @@ class ProductController extends Controller
                 foreach ($data['ingredients'] ?? [] as $input) {
                     $ingredient = Product::where('store_id', $storeId)->whereKey($input['ingredient_id'])->first();
                     if (! $ingredient || (int) $ingredient->id === (int) $product->id || $ingredient->type === 'combo') {
-                        throw \Illuminate\Validation\ValidationException::withMessages([
+                        throw ValidationException::withMessages([
                             'ingredients' => 'Choose an ingredient from this shop.',
                         ]);
                     }

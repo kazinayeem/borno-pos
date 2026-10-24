@@ -2,14 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Plan;
+use App\Models\Currency;
 use App\Models\Setting;
-use App\Models\Store;
-use App\Models\Subscription;
-use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class SettingsController extends Controller
@@ -46,7 +41,7 @@ class SettingsController extends Controller
         return view('settings.general', [
             'settings' => $this->bag($requestStore = auth()->user()->store_id),
             'store' => auth()->user()->store,
-            'currencies' => \App\Models\Currency::orderBy('name')->get(),
+            'currencies' => Currency::orderBy('name')->get(),
         ]);
     }
 

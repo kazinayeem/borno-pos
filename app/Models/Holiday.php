@@ -16,4 +16,3 @@ class Holiday extends Model
         return ['starts_on' => 'date', 'ends_on' => 'date'];
     }
 }
-

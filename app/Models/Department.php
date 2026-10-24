@@ -11,4 +11,3 @@ class Department extends Model
 
     protected $fillable = ['store_id', 'name'];
 }
-

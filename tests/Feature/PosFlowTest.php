@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Account;
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\Store;
@@ -14,6 +15,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\DashboardService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class PosFlowTest extends TestCase
@@ -55,7 +57,7 @@ class PosFlowTest extends TestCase
             'alert_qty' => 1,
             'is_active' => 1,
             'featured_in_pos' => 1,
-            'image' => \Illuminate\Http\UploadedFile::fake()->image('item.jpg'),
+            'image' => UploadedFile::fake()->image('item.jpg'),
         ])->assertRedirect();
         $photo = Product::where('code', 'PHOTO1')->first();
         $this->assertNotNull($photo->image);
@@ -141,6 +143,39 @@ class PosFlowTest extends TestCase
         ]);
         $this->actingAs($staff)->delete('/products/'.$product->id)->assertForbidden();
         $this->actingAs($owner)->get('/dashboard')->assertForbidden();
+    }
+
+    public function test_pos_includes_customer_phone_and_store_currency(): void
+    {
+        [$owner, $store] = $this->shop();
+        Customer::create([
+            'store_id' => $store->id,
+            'name' => 'Rahim Ali',
+            'phone' => '01711223344',
+        ]);
+
+        $res = $this->actingAs($owner)->getJson('/pos');
+        $res->assertOk();
+        $res->assertJsonFragment(['name' => 'Rahim Ali', 'phone' => '01711223344']);
+        $res->assertJsonStructure(['currency_symbol', 'currency_code', 'customers']);
+    }
+
+    public function test_store_currency_can_be_updated_globally(): void
+    {
+        [$owner, $store] = $this->shop();
+
+        $res = $this->actingAs($owner)->postJson('/settings/store-currency', [
+            'currency_code' => 'BDT',
+            'currency_symbol' => '৳',
+        ]);
+        $res->assertOk();
+        $res->assertJson([
+            'currency_code' => 'BDT',
+            'currency_symbol' => '৳',
+        ]);
+
+        $this->assertEquals('BDT', $store->fresh()->currency_code);
+        $this->assertEquals('৳', $store->fresh()->currency_symbol);
     }
 
     private function shop(string $name = 'Demo Shop', string $email = 'owner@bornopos.test'): array

@@ -11,4 +11,3 @@ class Tax extends Model
 
     protected $fillable = ['store_id', 'name', 'rate_bps'];
 }
-

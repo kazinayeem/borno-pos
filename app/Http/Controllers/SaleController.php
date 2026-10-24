@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ProductSerial;
 use App\Models\Sale;
+use App\Models\SaleReturn;
+use App\Models\Setting;
 use App\Services\CheckoutService;
 use App\Services\ReturnService;
 use App\Support\DateRange;
@@ -31,7 +34,7 @@ class SaleController extends Controller
                     $item->product->image = '/storage/'.$item->product->image;
                 }
                 $serial = $item->serial
-                    ? \App\Models\ProductSerial::where('product_id', $item->product_id)->where('identifier', $item->serial)->first()
+                    ? ProductSerial::where('product_id', $item->product_id)->where('identifier', $item->serial)->first()
                     : null;
                 $item->setAttribute('serial_unit', $serial ? [
                     'id' => $serial->id,
@@ -78,11 +81,14 @@ class SaleController extends Controller
         return view('spa');
     }
 
-    public function print(Sale $sale)
+    public function print(Request $request, Sale $sale)
     {
         $sale->load(['items.product', 'customer', 'user', 'store', 'installmentPlan.installments']);
+        $format = $request->query('format', 'pos');
+        $auto = $request->boolean('auto');
+        $footer = Setting::withoutGlobalScopes()->where('store_id', $sale->store_id)->where('key', 'invoice_footer')->value('value');
 
-        return view('sales.print', compact('sale'));
+        return view('sales.print', compact('sale', 'format', 'auto', 'footer'));
     }
 
     public function complete(Request $request, Sale $sale, CheckoutService $checkout)
@@ -99,7 +105,7 @@ class SaleController extends Controller
     public function returns(Request $request)
     {
         [$from, $to] = DateRange::fromRequest($request);
-        $returns = \App\Models\SaleReturn::with('sale')
+        $returns = SaleReturn::with('sale')
             ->whereBetween('returned_on', [$from->toDateString(), $to->toDateString()])
             ->latest()
             ->paginate(10);

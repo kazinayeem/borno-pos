@@ -26,4 +26,3 @@ class MoneyTransfer extends Model
         return $this->belongsTo(Account::class, 'to_account_id');
     }
 }
-

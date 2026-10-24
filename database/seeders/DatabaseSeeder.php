@@ -9,7 +9,9 @@ use App\Models\Currency;
 use App\Models\Customer;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\Payroll;
 use App\Models\Plan;
 use App\Models\Product;
 use App\Models\Store;
@@ -19,6 +21,7 @@ use App\Models\User;
 use App\Models\UserNotice;
 use App\Models\Warehouse;
 use App\Services\CheckoutService;
+use App\Services\LedgerService;
 use App\Services\PurchaseService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Auth;
@@ -164,7 +167,7 @@ class DatabaseSeeder extends Seeder
             $category = ExpenseCategory::create(['store_id' => $store->id, 'name' => 'Rent']);
             $department = Department::create(['store_id' => $store->id, 'name' => 'Sales']);
             $employee = Employee::create(['store_id' => $store->id, 'department_id' => $department->id, 'name' => 'Karim', 'salary_cents' => 20000]);
-            $expense = \App\Models\Expense::create([
+            $expense = Expense::create([
                 'store_id' => $store->id,
                 'expense_category_id' => $category->id,
                 'user_id' => $owner->id,
@@ -172,7 +175,7 @@ class DatabaseSeeder extends Seeder
                 'amount_cents' => 100000,
                 'note' => 'Counter rent',
             ]);
-            app(\App\Services\LedgerService::class)->post(
+            app(LedgerService::class)->post(
                 Account::where('is_default', true)->first(),
                 'credit',
                 100000,
@@ -182,7 +185,7 @@ class DatabaseSeeder extends Seeder
                 now(),
                 $owner,
             );
-            $payroll = \App\Models\Payroll::create([
+            $payroll = Payroll::create([
                 'store_id' => $store->id,
                 'employee_id' => $employee->id,
                 'user_id' => $owner->id,
@@ -190,7 +193,7 @@ class DatabaseSeeder extends Seeder
                 'amount_cents' => 20000,
                 'paid_on' => now()->toDateString(),
             ]);
-            app(\App\Services\LedgerService::class)->post(
+            app(LedgerService::class)->post(
                 Account::where('is_default', true)->first(),
                 'credit',
                 20000,

@@ -62,6 +62,7 @@ class SalesSeeder extends Seeder
                     ], [['product_id' => $product->id, 'qty' => 1]]);
                 } catch (\Throwable $exception) {
                     $this->command?->warn($store->name.' sale '.$n.' skipped: '.$exception->getMessage());
+
                     continue;
                 }
                 $this->backdateSale($sale, $when);

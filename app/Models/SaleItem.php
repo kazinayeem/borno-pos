@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class SaleItem extends Model
 {
-    protected $fillable = ['sale_id','product_id','product_variant_id','batch_id','qty','price_cents','cost_cents','tax_cents','subtotal_cents','serial'];
+    protected $fillable = ['sale_id', 'product_id', 'product_variant_id', 'batch_id', 'qty', 'price_cents', 'cost_cents', 'tax_cents', 'subtotal_cents', 'serial'];
 
     public function product()
     {
@@ -23,4 +23,3 @@ class SaleItem extends Model
         return $this->hasMany(SaleItemBatch::class);
     }
 }
-

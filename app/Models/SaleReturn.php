@@ -26,4 +26,3 @@ class SaleReturn extends Model
         return $this->hasMany(SaleReturnItem::class);
     }
 }
-

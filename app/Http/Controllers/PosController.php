@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Services\CheckoutService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -98,14 +99,49 @@ class PosController extends Controller
         $message = $sale->status === 'draft' ? 'Draft saved.' : 'Sale completed.';
 
         if ($request->expectsJson()) {
+            $sale->load(['items.product', 'customer', 'store', 'user']);
+
             return response()->json([
                 'message' => $message,
                 'sale' => [
                     'id' => $sale->id,
                     'invoice_no' => $sale->invoice_no,
                     'status' => $sale->status,
-                    'grand_cents' => $sale->grand_cents,
-                    'paid_cents' => $sale->paid_cents,
+                    'grand_cents' => (int) $sale->grand_cents,
+                    'paid_cents' => (int) $sale->paid_cents,
+                    'subtotal_cents' => (int) $sale->subtotal_cents,
+                    'tax_cents' => (int) $sale->tax_cents,
+                    'discount_cents' => (int) $sale->discount_cents,
+                    'coupon_discount_cents' => (int) $sale->coupon_discount_cents,
+                    'change_cents' => max(0, (int) $sale->paid_cents - (int) $sale->grand_cents),
+                    'payment_method' => $sale->payment_method,
+                    'sold_at' => optional($sale->sold_at)->format('d M Y, h:i A') ?? now()->format('d M Y, h:i A'),
+                    'cashier' => $sale->user?->name ?? $request->user()->name,
+                    'customer' => $sale->customer ? [
+                        'id' => $sale->customer->id,
+                        'name' => $sale->customer->name,
+                        'phone' => $sale->customer->phone,
+                        'email' => $sale->customer->email,
+                        'address' => $sale->customer->address,
+                    ] : null,
+                    'store' => [
+                        'name' => $sale->store?->name ?? 'BornoPos',
+                        'phone' => $sale->store?->phone,
+                        'address' => $sale->store?->address,
+                        'logo' => $sale->store?->logo ? '/storage/'.$sale->store->logo : null,
+                        'currency_symbol' => $sale->store?->symbol() ?? '$',
+                        'currency_code' => $sale->store?->currency_code ?? 'USD',
+                        'invoice_footer' => Setting::withoutGlobalScopes()->where('store_id', $sale->store_id)->where('key', 'invoice_footer')->value('value'),
+                    ],
+                    'items' => $sale->items->map(fn ($item) => [
+                        'id' => $item->id,
+                        'name' => $item->product?->name ?? 'Product',
+                        'code' => $item->product?->code ?? '',
+                        'qty' => (int) $item->qty,
+                        'price_cents' => (int) $item->price_cents,
+                        'subtotal_cents' => (int) $item->subtotal_cents,
+                        'serial' => $item->serial,
+                    ])->values(),
                 ],
             ]);
         }

@@ -16,4 +16,3 @@ class Coupon extends Model
         return ['expires_on' => 'date', 'is_active' => 'boolean'];
     }
 }
-

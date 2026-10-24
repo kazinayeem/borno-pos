@@ -14,6 +14,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleItemBatch;
 use App\Models\User;
+use App\Support\Imei;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -313,7 +314,7 @@ class CheckoutService
         if (! $serial || (int) $serial->product_id !== (int) $product->id || $serial->status !== 'in_stock') {
             throw ValidationException::withMessages(['items' => "{$identifier} is not available to sell."]);
         }
-        if ($serial->kind === 'imei' && ! \App\Support\Imei::valid($identifier)) {
+        if ($serial->kind === 'imei' && ! Imei::valid($identifier)) {
             throw ValidationException::withMessages(['items' => "{$identifier} is not a valid IMEI."]);
         }
         $months = (int) ($product->details['warranty_months'] ?? 0);

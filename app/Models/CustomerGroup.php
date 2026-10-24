@@ -11,4 +11,3 @@ class CustomerGroup extends Model
 
     protected $fillable = ['store_id', 'name', 'discount_bps'];
 }
-

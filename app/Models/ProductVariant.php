@@ -16,4 +16,3 @@ class ProductVariant extends Model
         return ['attributes' => 'array'];
     }
 }
-

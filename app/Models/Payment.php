@@ -21,4 +21,3 @@ class Payment extends Model
         return $this->morphTo();
     }
 }
-

@@ -5,11 +5,13 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HrmController;
+use App\Http\Controllers\InstallmentController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
+use App\Http\Controllers\SerialController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShopController;
 use Illuminate\Support\Facades\Route;
@@ -73,10 +75,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/sales/{sale}/print', [SaleController::class, 'print'])->middleware('ability:sales.view')->name('sales.print');
         Route::post('/sales/{sale}/complete', [SaleController::class, 'complete'])->name('sales.complete');
         Route::post('/sales/{sale}/return', [SaleController::class, 'returnStore'])->name('sales.return');
-        Route::post('/sales/{sale}/installments', [\App\Http\Controllers\InstallmentController::class, 'store'])->middleware('ability:sales.view')->name('sales.installments.store');
-        Route::get('/report/installments', [\App\Http\Controllers\InstallmentController::class, 'index'])->middleware('ability:sales.view')->name('installments.index');
-        Route::post('/installments/{installment}/pay', [\App\Http\Controllers\InstallmentController::class, 'pay'])->middleware('ability:sales.view')->name('installments.pay');
-        Route::post('/product-serials/{serial}/service', [\App\Http\Controllers\SerialController::class, 'service'])->middleware('ability:products.manage,sales.view')->name('serials.service');
+        Route::post('/sales/{sale}/installments', [InstallmentController::class, 'store'])->middleware('ability:sales.view')->name('sales.installments.store');
+        Route::get('/report/installments', [InstallmentController::class, 'index'])->middleware('ability:sales.view')->name('installments.index');
+        Route::post('/installments/{installment}/pay', [InstallmentController::class, 'pay'])->middleware('ability:sales.view')->name('installments.pay');
+        Route::post('/product-serials/{serial}/service', [SerialController::class, 'service'])->middleware('ability:products.manage,sales.view')->name('serials.service');
         Route::get('/sale-returns', [SaleController::class, 'returns'])->name('sales.returns');
 
         Route::get('/accounts', [AccountingController::class, 'accounts'])->name('accounts.index');

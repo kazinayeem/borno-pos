@@ -9,6 +9,5 @@ class Setting extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id','key','value'];
+    protected $fillable = ['store_id', 'key', 'value'];
 }
-

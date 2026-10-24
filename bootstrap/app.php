@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Middleware\EnsureAbility;
+use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\EnsureShop;
+use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,12 +18,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo('/signin');
         $middleware->web(append: [
-            \App\Http\Middleware\SetLocale::class,
+            SetLocale::class,
         ]);
         $middleware->alias([
-            'shop' => \App\Http\Middleware\EnsureShop::class,
-            'role' => \App\Http\Middleware\EnsureRole::class,
-            'ability' => \App\Http\Middleware\EnsureAbility::class,
+            'shop' => EnsureShop::class,
+            'role' => EnsureRole::class,
+            'ability' => EnsureAbility::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Sale extends Model
@@ -38,7 +39,7 @@ class Sale extends Model
         return $this->hasMany(SaleItem::class);
     }
 
-    public function installmentPlan(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function installmentPlan(): HasOne
     {
         return $this->hasOne(InstallmentPlan::class);
     }

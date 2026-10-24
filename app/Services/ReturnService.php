@@ -6,6 +6,7 @@ use App\Models\Batch;
 use App\Models\Product;
 use App\Models\ProductSerial;
 use App\Models\ProductSerialEvent;
+use App\Models\ProductVariant;
 use App\Models\Sale;
 use App\Models\SaleItemBatch;
 use App\Models\SaleReturn;
@@ -98,7 +99,7 @@ class ReturnService
                 } elseif ($product) {
                     $this->inventory->move($product, $qty, 'sale_return', $return, $user);
                     if ($item->product_variant_id) {
-                        \App\Models\ProductVariant::where('product_id', $product->id)->whereKey($item->product_variant_id)->lockForUpdate()->increment('stock_qty', $qty);
+                        ProductVariant::where('product_id', $product->id)->whereKey($item->product_variant_id)->lockForUpdate()->increment('stock_qty', $qty);
                     }
                     $this->restoreBatches($item, $product, $qty);
                     $this->restoreSerial($item, $product);

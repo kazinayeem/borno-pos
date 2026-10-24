@@ -7,6 +7,9 @@ use App\Models\AccountTransaction;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\MoneyTransfer;
+use App\Models\Product;
+use App\Models\Purchase;
+use App\Models\Sale;
 use App\Services\LedgerService;
 use App\Support\DateRange;
 use App\Support\Money;
@@ -89,9 +92,9 @@ class AccountingController extends Controller
     {
         $accounts = Account::get();
         $cash = $accounts->sum(fn ($account) => $account->balanceCents());
-        $inventory = \App\Models\Product::get()->sum(fn ($product) => $product->stock_qty * $product->cost_cents);
-        $purchaseDue = \App\Models\Purchase::where('status', 'received')->get()->sum(fn ($purchase) => $purchase->dueCents());
-        $salesDue = \App\Models\Sale::where('status', 'completed')->get()->sum(fn ($sale) => $sale->dueCents());
+        $inventory = Product::get()->sum(fn ($product) => $product->stock_qty * $product->cost_cents);
+        $purchaseDue = Purchase::where('status', 'received')->get()->sum(fn ($purchase) => $purchase->dueCents());
+        $salesDue = Sale::where('status', 'completed')->get()->sum(fn ($sale) => $sale->dueCents());
 
         return view('accounting.balance', compact('accounts', 'cash', 'inventory', 'purchaseDue', 'salesDue'));
     }

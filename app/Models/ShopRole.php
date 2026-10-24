@@ -16,4 +16,3 @@ class ShopRole extends Model
         return ['permissions' => 'array'];
     }
 }
-

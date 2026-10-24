@@ -3,13 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Account;
+use App\Models\Customer;
 use App\Models\Plan;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\Store;
 use App\Models\Subscription;
-use App\Models\Customer;
-use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;

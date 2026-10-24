@@ -9,6 +9,7 @@ use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\StockCount;
 use App\Models\StockCountItem;
+use App\Models\Warehouse;
 use App\Services\DashboardService;
 use App\Services\InventoryService;
 use App\Support\DateRange;
@@ -120,7 +121,7 @@ class ReportController extends Controller
         return view('stock.index', [
             'counts' => StockCount::with('warehouse')->latest()->paginate(10),
             'products' => Product::orderBy('name')->get(),
-            'warehouses' => \App\Models\Warehouse::orderBy('name')->get(),
+            'warehouses' => Warehouse::orderBy('name')->get(),
         ]);
     }
 

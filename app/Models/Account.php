@@ -29,4 +29,3 @@ class Account extends Model
         return (int) $this->opening_cents + $debits - $credits;
     }
 }
-
