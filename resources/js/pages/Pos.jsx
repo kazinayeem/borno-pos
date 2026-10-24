@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, getCurrencyCode, getCurrencySymbol, money, setCurrency } from '../api';
 import { Logo } from '../icons';
 import { motion, AnimatePresence } from '../motion';
 import { useT } from '../i18n';
+import { toggleTheme } from '../slices/uiSlice';
 import { useCheckoutMutation, useGetPosQuery } from '../services/bornoposApi';
 
 function cents(value) {
@@ -37,6 +39,8 @@ function blankOrder(number) {
 export default function Pos() {
     const t = useT();
     const navigate = useNavigate();
+    const dispatch = useDispatch();
+    const uiTheme = useSelector((state) => state.ui?.theme) || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
     const { data, isFetching, refetch } = useGetPosQuery();
     const [checkout, checkoutState] = useCheckoutMutation();
     const [q, setQ] = useState('');
@@ -719,6 +723,15 @@ export default function Pos() {
                         <span>⌨️</span>
                         <b>{t('Shortcuts')}</b>
                         <kbd className="pos-kbd-badge">F10</kbd>
+                    </button>
+                    <button
+                        type="button"
+                        className="icon-btn round theme-toggle-btn"
+                        style={{ width: '36px', height: '36px', fontSize: '15px' }}
+                        title={uiTheme === 'dark' ? t('Light') : t('Dark')}
+                        onClick={() => dispatch(toggleTheme())}
+                    >
+                        {uiTheme === 'dark' ? '☀' : '☾'}
                     </button>
                     <button
                         type="button"
