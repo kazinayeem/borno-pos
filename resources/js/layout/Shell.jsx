@@ -7,6 +7,7 @@ import { languages, useT } from '../i18n';
 import { AnimatePresence, PageTransition, Popover, motion } from '../motion';
 import { logout } from '../slices/sessionSlice';
 import { changeLocale, closeMenus, closeSidebar, toggleMenu, toggleNarrow, toggleSidebar, toggleTheme } from '../slices/uiSlice';
+import GlobalSearch from '../components/GlobalSearch';
 
 function Item({ item, path }) {
     const t = useT();
@@ -47,7 +48,26 @@ export default function Shell({ children }) {
     const ui = useSelector((state) => state.ui);
     const t = useT();
     const current = languages.find((item) => item.id === ui.locale) || languages[0];
-    const items = user?.role === 'super_admin' ? adminNav : shopNav;
+    const rawItems = user?.role === 'super_admin' ? adminNav : shopNav;
+    const isOwner = user?.role === 'super_admin' || user?.role === 'owner';
+    const userPerms = Array.isArray(user?.permissions) ? user.permissions : [];
+
+    const items = rawItems.map((item) => {
+        if (isOwner) return item;
+        if (item.permission && !userPerms.includes(item.permission) && !item.children) {
+            return null;
+        }
+        if (item.children) {
+            const allowed = item.children.filter((child) => {
+                const childPerm = child[3];
+                return !childPerm || userPerms.includes(childPerm);
+            });
+            if (allowed.length === 0) return null;
+            return { ...item, children: allowed };
+        }
+        return item;
+    }).filter(Boolean);
+
     const role = (user?.role || '').replace('_', ' ');
 
     useEffect(() => {
@@ -115,12 +135,8 @@ export default function Shell({ children }) {
             <div className="main" onClick={() => { dispatch(closeMenus()); dispatch(closeSidebar()); }}>
                 <header className="topbar" onClick={(event) => event.stopPropagation()}>
                     <button className="icon-btn" type="button" aria-label="Menu" aria-expanded={ui.sidebar || ui.narrow} onClick={toggleNav}>☰</button>
-                    <form className="search" action="/search" method="get">
-                        <Icon name="search" />
-                        <input name="q" placeholder={t('Search product, invoice, customer...')} />
-                        <kbd>⌘K</kbd>
-                    </form>
-                    {user?.role !== 'super_admin' && <Link className="pos-btn" to="/pos"><Icon name="cart" /> {t('POS')}</Link>}
+                    <GlobalSearch />
+                    {user?.role !== 'super_admin' && (isOwner || userPerms.includes('pos.view')) && <Link className="pos-btn" to="/pos"><Icon name="cart" /> {t('POS')}</Link>}
                     <button className="icon-btn round" type="button" title={ui.theme === 'dark' ? t('Light') : t('Dark')} onClick={(event) => { event.stopPropagation(); dispatch(toggleTheme()); }}>{ui.theme === 'dark' ? '☀' : '☾'}</button>
                     <div className={`menu ${ui.noticeOpen ? 'open' : ''}`}>
                         <button className="icon-btn round" type="button" aria-label="Notifications" aria-expanded={ui.noticeOpen} onClick={(event) => { event.stopPropagation(); dispatch(toggleMenu('notice')); }}>🔔</button>
@@ -137,7 +153,7 @@ export default function Shell({ children }) {
                     <div className={`menu ${ui.userOpen ? 'open' : ''}`}>
                         <button className="user-chip" type="button" aria-expanded={ui.userOpen} onClick={(event) => { event.stopPropagation(); dispatch(toggleMenu('user')); }}>
                             <span className="avatar">{(user?.name || 'A').slice(0, 1).toUpperCase()}</span>
-                            <span className="who"><b>{user?.name}</b><small>{t(user?.role || role)}</small></span>
+                            <span className="who"><b>{user?.name}</b><small>{t(user?.role_title || user?.role || role)}</small></span>
                         </button>
                         <Popover open={ui.userOpen}>
                             <a href="/user/profile">{t('Profile')}</a>

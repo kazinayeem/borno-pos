@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Batch;
+use App\Models\Category;
 use App\Models\Expense;
 use App\Models\Product;
 use App\Models\Purchase;
@@ -116,12 +117,35 @@ class ReportController extends Controller
         return view('spa');
     }
 
-    public function stockCount()
+    public function stockCount(Request $request)
     {
+        $productQuery = Product::with(['category', 'brand']);
+
+        if ($request->filled('q')) {
+            $term = $request->string('q');
+            $productQuery->where(function ($q) use ($term) {
+                $q->where('name', 'like', "%{$term}%")
+                    ->orWhere('code', 'like', "%{$term}%")
+                    ->orWhere('barcode', 'like', "%{$term}%")
+                    ->orWhere('generic_name', 'like', "%{$term}%");
+            });
+        }
+
+        if ($request->filled('category_id')) {
+            $productQuery->where('category_id', $request->integer('category_id'));
+        }
+
+        if ($request->filled('warehouse_id')) {
+            $productQuery->where('warehouse_id', $request->integer('warehouse_id'));
+        }
+
+        $products = $productQuery->orderBy('name')->paginate(15)->withQueryString();
+
         return view('stock.index', [
-            'counts' => StockCount::with('warehouse')->latest()->paginate(10),
-            'products' => Product::orderBy('name')->get(),
+            'counts' => StockCount::with(['warehouse', 'user'])->latest()->paginate(10, ['*'], 'counts_page')->withQueryString(),
+            'products' => $products,
             'warehouses' => Warehouse::orderBy('name')->get(),
+            'categories' => Category::orderBy('name')->get(),
         ]);
     }
 

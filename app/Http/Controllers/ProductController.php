@@ -100,6 +100,10 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
+        if (! $request->user()->canDo('products.create')) {
+            abort(403, 'You do not have permission to create products.');
+        }
+
         $product = $this->persist($request, new Product);
 
         if ($request->expectsJson()) {
@@ -133,6 +137,10 @@ class ProductController extends Controller
 
     public function update(Request $request, Product $product)
     {
+        if (! $request->user()->canDo('products.edit')) {
+            abort(403, 'You do not have permission to edit products.');
+        }
+
         $this->persist($request, $product);
 
         if ($request->expectsJson()) {
@@ -144,6 +152,10 @@ class ProductController extends Controller
 
     public function destroy(Request $request, Product $product)
     {
+        if (! $request->user()->canDo('products.delete')) {
+            abort(403, 'You do not have permission to delete products.');
+        }
+
         $used = SaleItem::where('product_id', $product->id)->exists() || PurchaseItem::where('product_id', $product->id)->exists();
         if ($used) {
             $product->update(['is_active' => false]);

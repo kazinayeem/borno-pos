@@ -13,9 +13,12 @@ import ProductForm from './pages/ProductForm';
 import Products from './pages/Products';
 import Landing from './pages/Landing';
 import SignIn from './pages/SignIn';
+import StaffManagement from './pages/StaffManagement';
+import RoleManagement from './pages/RoleManagement';
+import ReportsCenter from './pages/ReportsCenter';
 
 const catalogs = [
-    '/categories', '/unit', '/brand', '/warehouse', '/tax', '/coupons', '/departments', '/role',
+    '/categories', '/unit', '/brand', '/warehouse', '/tax', '/coupons', '/departments',
     '/employees', '/holidays', '/customer', '/customer-group', '/supplier', '/expense-categories', '/currency',
 ];
 
@@ -32,11 +35,33 @@ export function DocumentSync() {
     return null;
 }
 
-function Guard({ children }) {
+function Guard({ children, ability }) {
     const user = useSelector((state) => state.session.user);
     const location = useLocation();
+
     if (!user) {
         return <Navigate to="/signin" replace state={{ from: location.pathname }} />;
+    }
+
+    if (ability) {
+        const isOwner = user.role === 'owner' || user.role === 'super_admin';
+        const hasPerm = isOwner || (Array.isArray(user.permissions) && user.permissions.includes(ability));
+        if (!hasPerm) {
+            return (
+                <Shell>
+                    <section className="card" style={{ maxWidth: '640px', margin: '48px auto', textAlign: 'center', padding: '48px 24px' }}>
+                        <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
+                        <h2 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>Access Restricted</h2>
+                        <p className="muted" style={{ marginBottom: '24px', fontSize: '14px' }}>
+                            You do not have the required permission (<code>{ability}</code>) to view this module.
+                        </p>
+                        <a className="btn primary" href={user.home_route || '/store-dashboard'}>
+                            Return to Authorized Dashboard
+                        </a>
+                    </section>
+                </Shell>
+            );
+        }
     }
 
     return <Shell>{children}</Shell>;
@@ -65,22 +90,25 @@ export default function App() {
             <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/signin" element={<SignIn />} />
-                <Route path="/store-dashboard" element={<Guard><Dashboard /></Guard>} />
+                <Route path="/store-dashboard" element={<Guard ability="dashboard.view"><Dashboard /></Guard>} />
                 <Route path="/dashboard" element={<Guard><Dashboard platform /></Guard>} />
-                <Route path="/products" element={<Guard><Products /></Guard>} />
-                <Route path="/products/create" element={<Guard><ProductForm /></Guard>} />
-                <Route path="/products/:id/edit" element={<Guard><ProductForm /></Guard>} />
-                <Route path="/products/:id" element={<Guard><ProductForm readOnly /></Guard>} />
-                <Route path="/barcode-print" element={<Guard><BarcodePrint /></Guard>} />
-                <Route path="/pos" element={<Guard><Pos /></Guard>} />
-                <Route path="/sales" element={<Guard><Records kind="sales" /></Guard>} />
-                <Route path="/sales/draft" element={<Guard><Records kind="drafts" /></Guard>} />
-                <Route path="/sales/:id" element={<Guard><SaleDetail /></Guard>} />
-                <Route path="/purchase/list" element={<Guard><Records kind="purchases" /></Guard>} />
-                <Route path="/purchase/create" element={<Guard><PurchaseForm /></Guard>} />
-                <Route path="/purchase/batch" element={<Guard><Batches /></Guard>} />
-                <Route path="/purchase/:id" element={<Guard><PurchaseDetail /></Guard>} />
-                <Route path="/report/installments" element={<Guard><Installments /></Guard>} />
+                <Route path="/products" element={<Guard ability="products.view"><Products /></Guard>} />
+                <Route path="/products/create" element={<Guard ability="products.create"><ProductForm /></Guard>} />
+                <Route path="/products/:id/edit" element={<Guard ability="products.edit"><ProductForm /></Guard>} />
+                <Route path="/products/:id" element={<Guard ability="products.view"><ProductForm readOnly /></Guard>} />
+                <Route path="/barcode-print" element={<Guard ability="products.view"><BarcodePrint /></Guard>} />
+                <Route path="/pos" element={<Guard ability="pos.view"><Pos /></Guard>} />
+                <Route path="/sales" element={<Guard ability="sales.view"><Records kind="sales" /></Guard>} />
+                <Route path="/sales/draft" element={<Guard ability="sales.view"><Records kind="drafts" /></Guard>} />
+                <Route path="/sales/:id" element={<Guard ability="sales.view"><SaleDetail /></Guard>} />
+                <Route path="/purchase/list" element={<Guard ability="purchases.view"><Records kind="purchases" /></Guard>} />
+                <Route path="/purchase/create" element={<Guard ability="purchases.create"><PurchaseForm /></Guard>} />
+                <Route path="/purchase/batch" element={<Guard ability="purchases.view"><Batches /></Guard>} />
+                <Route path="/purchase/:id" element={<Guard ability="purchases.view"><PurchaseDetail /></Guard>} />
+                <Route path="/report/installments" element={<Guard ability="sales.view"><Installments /></Guard>} />
+                <Route path="/staff" element={<Guard ability="staff.view"><StaffManagement /></Guard>} />
+                <Route path="/role" element={<Guard ability="roles.view"><RoleManagement /></Guard>} />
+                <Route path="/reports/center" element={<Guard ability="reports.view"><ReportsCenter /></Guard>} />
                 {catalogs.map((path) => (
                     <Route key={path} path={path} element={<Guard><CatalogPage endpoint={path} /></Guard>} />
                 ))}

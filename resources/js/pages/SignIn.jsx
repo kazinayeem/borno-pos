@@ -23,6 +23,7 @@ export default function SignIn() {
     const { error, pending, status } = useSelector((state) => state.session);
     const ui = useSelector((state) => state.ui);
     const current = languages.find((item) => item.id === ui.locale) || languages[0];
+    const [loginMode, setLoginMode] = useState('owner');
     const [loginValue, setLoginValue] = useState('');
     const [password, setPassword] = useState('');
     const [show, setShow] = useState(false);
@@ -39,7 +40,7 @@ export default function SignIn() {
 
     async function submit(event) {
         event.preventDefault();
-        const result = await dispatch(login({ login: loginValue, password, remember }));
+        const result = await dispatch(login({ login: loginValue, password, remember, mode: loginMode }));
         if (login.fulfilled.match(result)) {
             const target = result.payload.redirect || '/store-dashboard';
             const path = target.startsWith('http') ? new URL(target).pathname : target;
@@ -98,14 +99,69 @@ export default function SignIn() {
                     <div className="center">
                         <Logo />
                         <div className="wordmark">BornoPos</div>
-                        <h1>{t('Welcome Back')}</h1>
-                        <p className="muted">{t('Sign in to your account to continue')}</p>
+                        <h1>{loginMode === 'staff' ? t('Staff Login') : t('Welcome Back')}</h1>
+                        <p className="muted">
+                            {loginMode === 'staff'
+                                ? t('Sign in with your staff account credentials')
+                                : t('Sign in to your owner or admin account')}
+                        </p>
                     </div>
+
+                    {/* Mode Selection Tabs */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', background: 'var(--bg)', padding: '4px', borderRadius: '12px', margin: '14px 0 16px' }}>
+                        <button
+                            type="button"
+                            onClick={() => { setLoginMode('owner'); dispatch(clearStatus()); }}
+                            style={{
+                                padding: '8px 10px',
+                                fontSize: '13px',
+                                fontWeight: 700,
+                                borderRadius: '9px',
+                                border: 'none',
+                                background: loginMode === 'owner' ? 'var(--card)' : 'transparent',
+                                color: loginMode === 'owner' ? 'var(--blue)' : 'var(--muted)',
+                                boxShadow: loginMode === 'owner' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                            }}
+                        >
+                            👤 {t('Owner / Admin')}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setLoginMode('staff'); dispatch(clearStatus()); }}
+                            style={{
+                                padding: '8px 10px',
+                                fontSize: '13px',
+                                fontWeight: 700,
+                                borderRadius: '9px',
+                                border: 'none',
+                                background: loginMode === 'staff' ? 'var(--card)' : 'transparent',
+                                color: loginMode === 'staff' ? 'var(--blue)' : 'var(--muted)',
+                                boxShadow: loginMode === 'staff' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                            }}
+                        >
+                            👥 {t('Staff Login')}
+                        </button>
+                    </div>
+
                     {status && <div className="flash note">{status} <button type="button" onClick={() => dispatch(clearStatus())} aria-label="Dismiss">×</button></div>}
                     {error && <div className="errors note">{error}</div>}
                     <form onSubmit={submit}>
-                        <label className="field">{t('Email or Username')}
-                            <span className="input-ico"><i>👤</i><input value={loginValue} onChange={(event) => setLoginValue(event.target.value)} placeholder={t('Enter your email or username')} required autoFocus /></span>
+                        <label className="field">
+                            {loginMode === 'staff' ? t('Staff Email or Username') : t('Email or Username')}
+                            <span className="input-ico">
+                                <i>👤</i>
+                                <input
+                                    value={loginValue}
+                                    onChange={(event) => setLoginValue(event.target.value)}
+                                    placeholder={loginMode === 'staff' ? t('Enter staff email or username') : t('Enter your email or username')}
+                                    required
+                                    autoFocus
+                                />
+                            </span>
                         </label>
                         <label className="field">{t('Password')}
                             <span className="input-ico"><i>🔒</i>
@@ -114,18 +170,29 @@ export default function SignIn() {
                             </span>
                         </label>
                         <label className="remember"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> {t('Remember me')}</label>
-                        <button className={`signin-btn ${pending ? 'busy' : ''}`} type="submit" disabled={pending} aria-busy={pending}>{pending ? t('Signing in…') : t('Sign In')}</button>
+                        <button className={`signin-btn ${pending ? 'busy' : ''}`} type="submit" disabled={pending} aria-busy={pending}>
+                            {pending ? t('Signing in…') : (loginMode === 'staff' ? t('Login as Staff') : t('Sign In'))}
+                        </button>
                     </form>
-                    <div className="or"><span>{t('or')}</span></div>
-                    <div className="demo">
-                        <div className="demo-head"><strong>{t('Demo Access')}</strong><span>{t('In the above button demo and local purpose')}</span></div>
-                        <div className="demo-grid">
-                            {demos.map(([label, email]) => (
-                                <button key={email} type="button" onClick={() => { setLoginValue(email); setPassword(window.BornoPos?.demoPassword || ''); }}>{label}</button>
-                            ))}
-                        </div>
-                    </div>
-                    <p className="center foot">{t('Register yourself as a shop owner')} <a href="/signup">{t('Sign Up')}</a></p>
+
+                    {loginMode === 'owner' ? (
+                        <>
+                            <div className="or"><span>{t('or')}</span></div>
+                            <div className="demo">
+                                <div className="demo-head"><strong>{t('Demo Access')}</strong><span>{t('In the above button demo and local purpose')}</span></div>
+                                <div className="demo-grid">
+                                    {demos.map(([label, email]) => (
+                                        <button key={email} type="button" onClick={() => { setLoginValue(email); setPassword(window.BornoPos?.demoPassword || ''); }}>{label}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            <p className="center foot">{t('Register yourself as a shop owner')} <a href="/signup">{t('Sign Up')}</a></p>
+                        </>
+                    ) : (
+                        <p className="center foot" style={{ marginTop: '20px', fontSize: '13px', color: 'var(--muted)' }}>
+                            {t('Need credentials? Contact your store owner or manager to create your account.')}
+                        </p>
+                    )}
                     <p className="muted center">© {new Date().getFullYear()} BornoPos. {t('All rights reserved.')}</p>
                 </motion.section>
             </div>

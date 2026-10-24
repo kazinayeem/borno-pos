@@ -26,11 +26,18 @@ export const bornoposApi = createApi({
             return headers;
         },
     }),
-    tagTypes: ['Products', 'Catalog', 'Pos', 'Sales', 'Purchases', 'Dashboard', 'Batches', 'Installments'],
+    tagTypes: ['Products', 'Catalog', 'Pos', 'Sales', 'Purchases', 'Dashboard', 'Batches', 'Installments', 'Reports'],
     endpoints: (builder) => ({
         getDashboard: builder.query({
             query: ({ platform, ...params }) => `${platform ? '/api/dashboard' : '/api/store-dashboard'}${queryString(params)}`,
             providesTags: ['Dashboard'],
+        }),
+        getReportsCenter: builder.query({
+            query: (params) => `/api/reports/center${queryString(params)}`,
+            providesTags: ['Reports'],
+        }),
+        getGlobalSearch: builder.query({
+            query: (params) => `/api/search${queryString(params)}`,
         }),
         getProducts: builder.query({
             query: (params) => `/api/products${queryString(params)}`,
@@ -141,6 +148,8 @@ export const bornoposApi = createApi({
 
 export const {
     useGetDashboardQuery,
+    useGetReportsCenterQuery,
+    useGetGlobalSearchQuery,
     useGetProductsQuery,
     useGetProductFormQuery,
     useSaveProductMutation,

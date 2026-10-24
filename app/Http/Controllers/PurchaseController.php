@@ -52,10 +52,26 @@ class PurchaseController extends Controller
     public function create(Request $request)
     {
         if ($request->expectsJson()) {
+            $productQuery = Product::where('is_active', true);
+            if ($request->filled('q')) {
+                $term = $request->string('q');
+                $productQuery->where(function ($q) use ($term) {
+                    $q->where('name', 'like', "%{$term}%")
+                        ->orWhere('code', 'like', "%{$term}%")
+                        ->orWhere('barcode', 'like', "%{$term}%")
+                        ->orWhere('generic_name', 'like', "%{$term}%");
+                });
+            }
+
             return response()->json([
                 'warehouses' => Warehouse::orderBy('name')->get(['id', 'name']),
-                'suppliers' => Supplier::orderBy('name')->get(['id', 'name']),
-                'products' => Product::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code', 'cost_cents', 'has_batch', 'has_serial']),
+                'suppliers' => Supplier::orderBy('name')->get(['id', 'name', 'company', 'phone']),
+                'products' => $productQuery->orderBy('name')->limit(500)->get([
+                    'id', 'name', 'code', 'barcode', 'cost_cents', 'price_cents', 'stock_qty',
+                    'has_batch', 'has_serial', 'generic_name', 'strength', 'dosage_form',
+                ]),
+                'payment_methods' => ['Cash', 'Bank Transfer', 'bKash', 'Nagad', 'Rocket', 'Card', 'Cheque'],
+                'suggested_reference' => 'PO-'.now()->format('Ymd-His'),
             ]);
         }
 
@@ -65,6 +81,7 @@ class PurchaseController extends Controller
     public function store(Request $request, PurchaseService $purchases)
     {
         $data = $request->validate([
+            'reference' => ['nullable', 'string', 'max:100'],
             'warehouse_id' => ['required', 'integer'],
             'supplier_id' => ['required', 'integer'],
             'purchased_on' => ['required', 'date'],

@@ -1418,3 +1418,66 @@ img, svg, canvas { max-width: 100%; }
   .kpis { grid-template-columns: 1fr; }
   .topbar .icon-btn.round { width: 36px; height: 36px; }
 }
+
+/* Laravel Pagination Styling for Blade Views */
+nav[role="navigation"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+nav[role="navigation"] svg {
+  width: 16px !important;
+  height: 16px !important;
+  display: inline-block;
+  vertical-align: middle;
+}
+nav[role="navigation"] .flex.justify-between.flex-1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+nav[role="navigation"] .relative.inline-flex,
+nav[role="navigation"] .inline-flex {
+  display: inline-flex;
+  align-items: center;
+}
+nav[role="navigation"] a,
+nav[role="navigation"] span.relative,
+nav[role="navigation"] span[aria-disabled] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none;
+  min-width: 32px;
+  height: 34px;
+  margin: 0 2px;
+}
+nav[role="navigation"] span[aria-current="page"] span,
+nav[role="navigation"] span[aria-current="page"] {
+  background: var(--blue) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+nav[role="navigation"] a:hover {
+  background: rgba(47, 128, 237, 0.08);
+  color: var(--blue);
+}
+html.dark nav[role="navigation"] a,
+html.dark nav[role="navigation"] span.relative {
+  background: #161e2e;
+  border-color: #2a3548;
+  color: #e5e7eb;
+}

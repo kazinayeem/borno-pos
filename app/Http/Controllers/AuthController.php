@@ -46,6 +46,25 @@ class AuthController extends Controller
             return back()->withErrors(['login' => 'These credentials do not match our records.'])->onlyInput('login');
         }
 
+        if (! $user->is_active) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            if ($request->expectsJson()) {
+                throw ValidationException::withMessages([
+                    'login' => 'Your staff account has been deactivated. Please contact your store administrator.',
+                ]);
+            }
+
+            return back()->withErrors(['login' => 'Your staff account has been deactivated. Please contact your store administrator.'])->onlyInput('login');
+        }
+
+        $user->update([
+            'last_login_at' => now(),
+            'last_login_ip' => $request->ip(),
+        ]);
+
         $request->session()->regenerate();
 
         if ($request->expectsJson()) {
@@ -53,7 +72,19 @@ class AuthController extends Controller
 
             return response()->json([
                 'redirect' => route($user->homeRoute()),
-                'user' => $user->only(['id', 'name', 'email', 'role', 'store_id']),
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'username' => $user->username,
+                    'role' => $user->role,
+                    'role_id' => $user->role_id,
+                    'role_title' => $user->roleTitle(),
+                    'store_id' => $user->store_id,
+                    'is_active' => (bool) $user->is_active,
+                    'home_route' => route($user->homeRoute(), [], false),
+                    'permissions' => $user->allPermissions(),
+                ],
                 'currency_symbol' => $store?->symbol() ?? '$',
                 'currency_code' => $store?->currency_code ?? 'USD',
                 'store' => $store ? [

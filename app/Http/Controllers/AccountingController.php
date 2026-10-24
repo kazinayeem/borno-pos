@@ -146,10 +146,40 @@ class AccountingController extends Controller
         return back()->with('status', 'Expense recorded.');
     }
 
-    public function transactions()
+    public function transactions(Request $request)
     {
-        return view('accounting.transactions', [
-            'transactions' => AccountTransaction::with('account')->latest()->paginate(15),
-        ]);
+        $query = AccountTransaction::with('account');
+
+        if ($request->filled('q')) {
+            $term = $request->string('q');
+            $query->where(function ($q) use ($term) {
+                $q->where('description', 'like', "%{$term}%")
+                    ->orWhere('reference', 'like', "%{$term}%")
+                    ->orWhereHas('account', fn ($aq) => $aq->where('name', 'like', "%{$term}%")->orWhere('number', 'like', "%{$term}%"));
+            });
+        }
+
+        if ($request->filled('account_id')) {
+            $query->where('account_id', $request->integer('account_id'));
+        }
+
+        if ($request->filled('direction') && in_array($request->string('direction')->toString(), ['debit', 'credit'], true)) {
+            $query->where('direction', $request->string('direction')->toString());
+        }
+
+        if ($request->filled('from')) {
+            $query->whereDate('transacted_on', '>=', $request->string('from')->toString());
+        }
+        if ($request->filled('to')) {
+            $query->whereDate('transacted_on', '<=', $request->string('to')->toString());
+        }
+
+        $totalDebit = (int) (clone $query)->where('direction', 'debit')->sum('amount_cents');
+        $totalCredit = (int) (clone $query)->where('direction', 'credit')->sum('amount_cents');
+
+        $transactions = $query->latest('transacted_on')->latest('id')->paginate(15)->withQueryString();
+        $accounts = Account::orderBy('name')->get();
+
+        return view('accounting.transactions', compact('transactions', 'accounts', 'totalDebit', 'totalCredit'));
     }
 }
