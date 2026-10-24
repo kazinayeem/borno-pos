@@ -12,7 +12,6 @@ use App\Services\PurchaseService;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PurchaseController extends Controller
@@ -587,7 +586,7 @@ class PurchaseController extends Controller
         $totalAmount = (int) (clone $base)->sum('grand_cents');
         $totalPaid = (int) (clone $base)->sum('paid_cents');
 
-        $totalDue = (int) (clone $activeBase)->selectRaw('COALESCE(SUM(GREATEST(0, grand_cents - paid_cents)), 0) as total_due')->value('total_due');
+        $totalDue = (int) (clone $activeBase)->selectRaw('COALESCE(SUM(CASE WHEN (grand_cents - paid_cents) > 0 THEN (grand_cents - paid_cents) ELSE 0 END), 0) as total_due')->value('total_due');
 
         $unpaidCount = (int) (clone $activeBase)->where('paid_cents', '<=', 0)->count();
         $partialCount = (int) (clone $activeBase)->where('paid_cents', '>', 0)->whereColumn('paid_cents', '<', 'grand_cents')->count();
