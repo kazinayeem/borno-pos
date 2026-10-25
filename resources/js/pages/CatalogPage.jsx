@@ -42,9 +42,10 @@ export default function CatalogPage({ endpoint }) {
     const meta = data?.meta || { current_page: 1, last_page: 1, total: 0, from: 0, to: 0 };
 
     function open(row = null) {
-        setEditing(row);
+        setEditing(row || {});
         setForm(seed(fields, row));
         setMessage('');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     async function submit(event) {
@@ -62,7 +63,11 @@ export default function CatalogPage({ endpoint }) {
     async function destroy(row) {
         if (!window.confirm('Delete this record?')) return;
         const result = await remove({ endpoint, id: row.id });
-        if (result.error) setMessage(result.error.data?.message || 'Could not delete.');
+        if (result.error) {
+            setMessage(result.error.data?.message || 'Could not delete.');
+        } else {
+            setMessage(result.data?.message || 'Deleted successfully.');
+        }
     }
 
     async function activateCurrency(row) {
@@ -81,6 +86,13 @@ export default function CatalogPage({ endpoint }) {
         }
     }
 
+    const isErrorMessage = message && (
+        message.toLowerCase().includes('not') ||
+        message.toLowerCase().includes('cannot') ||
+        message.toLowerCase().includes('failed') ||
+        message.toLowerCase().includes('error')
+    );
+
     return (
         <>
             <div className="page-title">
@@ -88,12 +100,49 @@ export default function CatalogPage({ endpoint }) {
                     <h1>{t(data?.title || 'Loading')}</h1>
                     <div className="crumbs">{data?.singular}</div>
                 </div>
-                <button className="btn primary" type="button" onClick={() => open(null)}>+ Add</button>
+                <button className="btn primary" type="button" onClick={() => open(null)}>
+                    + {t('Add')} {data?.singular ? t(data.singular) : ''}
+                </button>
             </div>
-            {message && <p className="status">{message}</p>}
+            {message && (
+                <div
+                    className="status"
+                    style={{
+                        marginBottom: '16px',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        background: isErrorMessage ? '#fee2e2' : '#dcfce7',
+                        color: isErrorMessage ? '#991b1b' : '#166534',
+                        border: `1px solid ${isErrorMessage ? '#fca5a5' : '#86efac'}`,
+                        fontWeight: 500,
+                    }}
+                >
+                    {message}
+                </div>
+            )}
             {editing !== null && (
-                <form className="card form-grid" onSubmit={submit}>
-                    <h2 className="wide">{editing?.id ? 'Edit' : 'Add'} {data?.singular}</h2>
+                <form
+                    className="card form-grid"
+                    onSubmit={submit}
+                    style={{
+                        border: '2px solid var(--primary, #4f46e5)',
+                        marginBottom: '20px',
+                        boxShadow: '0 4px 12px rgba(79, 70, 229, 0.08)',
+                    }}
+                >
+                    <div className="wide" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>
+                            {editing?.id ? t('Edit {item}', { item: data?.singular || 'Item' }) : t('Add New {item}', { item: data?.singular || 'Item' })}
+                        </h2>
+                        <button
+                            type="button"
+                            onClick={() => setEditing(null)}
+                            style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}
+                            title="Close"
+                        >
+                            ✕
+                        </button>
+                    </div>
                     {fields.map((field) => (
                         <label key={field.name} className={field.type === 'checks' ? 'wide' : ''}>
                             {field.label}
@@ -123,9 +172,11 @@ export default function CatalogPage({ endpoint }) {
                             )}
                         </label>
                     ))}
-                    <div className="wide actions">
-                        <button className="btn primary" type="submit" disabled={saveState.isLoading}>Save</button>
-                        <button className="btn" type="button" onClick={() => setEditing(null)}>Cancel</button>
+                    <div className="wide actions" style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                        <button className="btn primary" type="submit" disabled={saveState.isLoading}>
+                            {saveState.isLoading ? t('Saving...') : t('Save')}
+                        </button>
+                        <button className="btn" type="button" onClick={() => setEditing(null)}>{t('Cancel')}</button>
                     </div>
                 </form>
             )}

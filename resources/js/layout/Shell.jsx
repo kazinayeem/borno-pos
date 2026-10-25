@@ -49,7 +49,7 @@ export default function Shell({ children }) {
     const t = useT();
     const current = languages.find((item) => item.id === ui.locale) || languages[0];
     const rawItems = user?.role === 'super_admin' ? adminNav : shopNav;
-    const isOwner = user?.role === 'super_admin' || user?.role === 'owner';
+    const isOwner = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'owner';
     const userPerms = Array.isArray(user?.permissions) ? user.permissions : [];
 
     const items = rawItems.map((item) => {

@@ -14,7 +14,22 @@ class LedgerService
     {
         $account = Account::withoutGlobalScopes()->where('store_id', $storeId)->where('is_default', true)->first();
 
-        return $account ?? Account::withoutGlobalScopes()->where('store_id', $storeId)->firstOrFail();
+        if ($account) {
+            return $account;
+        }
+
+        $any = Account::withoutGlobalScopes()->where('store_id', $storeId)->first();
+        if ($any) {
+            return $any;
+        }
+
+        return Account::withoutGlobalScopes()->create([
+            'store_id' => $storeId,
+            'name' => 'Cash',
+            'number' => 'CASH-001',
+            'type' => 'cash',
+            'is_default' => true,
+        ]);
     }
 
     public function post(

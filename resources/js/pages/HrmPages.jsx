@@ -45,11 +45,16 @@ export function AttendancePage() {
         e.preventDefault();
         setMsg('');
         setErr('');
+        const empId = parseInt(targetEmp || (employees[0] ? employees[0].id : 0), 10);
+        if (!empId) {
+            setErr(t('Please select an employee.'));
+            return;
+        }
         try {
             await api('/attendance', {
                 method: 'POST',
                 body: {
-                    employee_id: parseInt(targetEmp),
+                    employee_id: empId,
                     attended_on: attendedOn,
                     status: attStatus,
                     check_in: checkIn || null,
@@ -83,7 +88,7 @@ export function AttendancePage() {
                     <div className="crumbs">{t('Staff daily check-ins, leaves, and attendance logs')}</div>
                 </div>
                 <button type="button" className="btn primary" onClick={() => setShowModal(true)}>
-                    + {t('Mark Attendance')}
+                    + {t('Add Attendance')}
                 </button>
             </div>
 
@@ -246,11 +251,16 @@ export function PayrollsPage() {
         e.preventDefault();
         setMsg('');
         setErr('');
+        const empId = parseInt(targetEmp || (employees[0] ? employees[0].id : 0), 10);
+        if (!empId) {
+            setErr(t('Please select an employee.'));
+            return;
+        }
         try {
             await api('/payrolls', {
                 method: 'POST',
                 body: {
-                    employee_id: parseInt(targetEmp),
+                    employee_id: empId,
                     month,
                     amount: parseFloat(amount),
                     paid_on: paidOn,
@@ -284,7 +294,7 @@ export function PayrollsPage() {
                     <div className="crumbs">{t('Staff salaries, monthly disbursements, and accounting records')}</div>
                 </div>
                 <button type="button" className="btn primary" onClick={() => setShowModal(true)}>
-                    + {t('Record Payroll')}
+                    + {t('Add Payroll')}
                 </button>
             </div>
 

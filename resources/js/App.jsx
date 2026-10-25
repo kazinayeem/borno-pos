@@ -72,7 +72,7 @@ function Guard({ children, ability }) {
     }
 
     if (ability) {
-        const isOwner = user.role === 'owner' || user.role === 'super_admin';
+        const isOwner = user.role === 'owner' || user.role === 'super_admin' || user.role === 'admin';
         const hasPerm = isOwner || (Array.isArray(user.permissions) && user.permissions.includes(ability));
         if (!hasPerm) {
             return (

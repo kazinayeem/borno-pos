@@ -24,8 +24,9 @@
             [__('Balance Sheet'), route('balance'), request()->is('account/balancesheet'), 'accounting.view'],
             [__('Transactions'), route('transactions'), request()->is('account/transactions'), 'accounting.view'],
         ]],
-        ['label' => __('Sales'), 'show' => $modules['sales'], 'permission' => 'sales.view', 'active' => request()->is('sales*','sale-returns*'), 'icon' => 'tag', 'children' => [
-            [__('Sales'), route('sales.index'), request()->routeIs('sales.index','sales.show','sales.print'), 'sales.view'],
+        ['label' => __('Sales'), 'show' => $modules['sales'], 'permission' => 'sales.view', 'active' => request()->is('sales*', 'sale-returns*', 'pos*'), 'icon' => 'tag', 'children' => [
+            [__('POS'), route('pos'), request()->is('pos*'), 'sales.view'],
+            [__('Sales'), route('sales.index'), request()->routeIs('sales.index', 'sales.show', 'sales.print'), 'sales.view'],
             [__('Drafts'), route('sales.drafts'), request()->routeIs('sales.drafts'), 'sales.view'],
             [__('Sale Returns'), route('sales.returns'), request()->is('sale-returns*'), 'sales.view'],
         ]],

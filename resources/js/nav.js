@@ -20,7 +20,8 @@ export const shopNav = [
         ['Balance Sheet', '/account/balancesheet', true, 'accounting.view'],
         ['Transactions', '/account/transactions', true, 'accounting.view'],
     ] },
-    { label: 'Sales', icon: 'tag', permission: 'sales.view', match: ['/sales', '/sale-returns', '/report/installments'], children: [
+    { label: 'Sales', icon: 'tag', permission: 'sales.view', match: ['/sales', '/pos', '/sale-returns', '/report/installments'], children: [
+        ['POS', '/pos', true, 'sales.view'],
         ['Sales', '/sales', true, 'sales.view'],
         ['Drafts', '/sales/draft', true, 'sales.view'],
         ['Sale Returns', '/sale-returns', true, 'sales.view'],

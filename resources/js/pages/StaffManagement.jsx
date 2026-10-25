@@ -44,9 +44,10 @@ export default function StaffManagement() {
     const [formErrors, setFormErrors] = useState({});
     const [submitting, setSubmitting] = useState(false);
 
-    const canCreate = currentUser?.role === 'owner' || currentUser?.role === 'super_admin' || currentUser?.permissions?.includes('staff.create');
-    const canEdit = currentUser?.role === 'owner' || currentUser?.role === 'super_admin' || currentUser?.permissions?.includes('staff.edit');
-    const canDelete = currentUser?.role === 'owner' || currentUser?.role === 'super_admin' || currentUser?.permissions?.includes('staff.delete');
+    const isOwnerOrAdmin = currentUser?.role === 'owner' || currentUser?.role === 'super_admin' || currentUser?.role === 'admin';
+    const canCreate = isOwnerOrAdmin || currentUser?.permissions?.includes('staff.create');
+    const canEdit = isOwnerOrAdmin || currentUser?.permissions?.includes('staff.edit');
+    const canDelete = isOwnerOrAdmin || currentUser?.permissions?.includes('staff.delete');
 
     async function loadStaff(pageNumber = page) {
         setLoading(true);

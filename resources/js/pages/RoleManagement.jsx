@@ -28,9 +28,10 @@ export default function RoleManagement() {
     const [formErrors, setFormErrors] = useState({});
     const [submitting, setSubmitting] = useState(false);
 
-    const canCreate = currentUser?.role === 'owner' || currentUser?.role === 'super_admin' || currentUser?.permissions?.includes('roles.create');
-    const canEdit = currentUser?.role === 'owner' || currentUser?.role === 'super_admin' || currentUser?.permissions?.includes('roles.edit');
-    const canDelete = currentUser?.role === 'owner' || currentUser?.role === 'super_admin' || currentUser?.permissions?.includes('roles.delete');
+    const isOwnerOrAdmin = currentUser?.role === 'owner' || currentUser?.role === 'super_admin' || currentUser?.role === 'admin';
+    const canCreate = isOwnerOrAdmin || currentUser?.permissions?.includes('roles.create');
+    const canEdit = isOwnerOrAdmin || currentUser?.permissions?.includes('roles.edit');
+    const canDelete = isOwnerOrAdmin || currentUser?.permissions?.includes('roles.delete');
 
     async function loadRoles() {
         setLoading(true);

@@ -4,17 +4,23 @@ export function csrf() {
     return match ? decodeURIComponent(match[1]) : '';
 }
 
-export async function api(url, { method = 'GET', body } = {}) {
+export async function api(url, { method = 'GET', body, headers = {} } = {}) {
+    const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+    const reqHeaders = {
+        Accept: 'application/json',
+        'X-XSRF-TOKEN': csrf(),
+        'X-Requested-With': 'XMLHttpRequest',
+        ...headers,
+    };
+    if (!isFormData) {
+        reqHeaders['Content-Type'] = 'application/json';
+    }
+
     const response = await fetch(url, {
         method,
         credentials: 'same-origin',
-        headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'X-XSRF-TOKEN': csrf(),
-            'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: body ? JSON.stringify(body) : undefined,
+        headers: reqHeaders,
+        body: body ? (isFormData || typeof body === 'string' ? body : JSON.stringify(body)) : undefined,
     });
 
     const data = await response.json().catch(() => ({}));

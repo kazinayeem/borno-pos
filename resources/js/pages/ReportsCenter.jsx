@@ -50,7 +50,7 @@ export default function ReportsCenter() {
 
     const report = res?.data || {};
     const lookups = res?.lookups || {};
-    const canViewAllStaff = res?.can_view_all_staff ?? (user?.role === 'owner' || user?.role === 'super_admin');
+    const canViewAllStaff = res?.can_view_all_staff ?? (user?.role === 'owner' || user?.role === 'super_admin' || user?.role === 'admin');
 
     function updateFilter(updates) {
         const next = new URLSearchParams(params);

@@ -159,7 +159,7 @@ export default function Dashboard({ platform = false }) {
 
     const lookups = data?.filter_lookups || {};
     const selectedStaff = data?.selected_staff_summary;
-    const isOwner = user?.role === 'owner' || user?.role === 'super_admin';
+    const isOwner = user?.role === 'owner' || user?.role === 'super_admin' || user?.role === 'admin';
     const canViewAllStaff = data?.can_view_all_staff ?? isOwner;
 
     return (
