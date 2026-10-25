@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from '../motion';
 import { useT } from '../i18n';
 import { toggleTheme } from '../slices/uiSlice';
 import { useCheckoutMutation, useGetPosQuery } from '../services/bornoposApi';
+import { ProductImage } from '../components/ui';
 
 function cents(value) {
     const number = Number(String(value || '0').replace(/,/g, ''));
@@ -1114,13 +1115,11 @@ export default function Pos() {
                                         {cartItemCounts[product.id]}
                                     </span>
                                 )}
-                                {product.image ? (
-                                    <img src={product.image} alt={product.name} loading="lazy" />
-                                ) : (
-                                    <div className="thumb-fallback" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
-                                        {product.generic_name ? '💊' : '📦'}
-                                    </div>
-                                )}
+                                <ProductImage
+                                    product={product}
+                                    size="md"
+                                    style={{ width: '100%', height: '80px', marginBottom: '6px' }}
+                                />
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: '4px' }}>
                                     <strong style={{ flex: 1, textAlign: 'left' }}>{product.name}</strong>
                                     {product.prescription_required && (

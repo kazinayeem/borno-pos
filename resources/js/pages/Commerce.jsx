@@ -18,6 +18,7 @@ import {
 } from '../services/bornoposApi';
 
 import { useUrlQueryState } from '../hooks/useUrlQueryState';
+import { ProductImage } from '../components/ui';
 import { Pagination, SearchInput, Modal, ConfirmModal } from '../components/ui';
 
 export function Records({ kind }) {
@@ -245,7 +246,10 @@ export function SaleDetail() {
                     <tbody>
                         {sale.items.map((item) => (
                             <tr key={item.id}>
-                                <td>{item.product?.image && <img className="thumb-sm" src={item.product.image} alt="" />} {item.product?.name}</td>
+                                <td style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <ProductImage product={item.product} size="sm" />
+                                    <span>{item.product?.name}</span>
+                                </td>
                                 <td>{item.qty}</td>
                                 <td>{money(item.price_cents)}</td>
                                 <td>{money(item.subtotal_cents)}</td>

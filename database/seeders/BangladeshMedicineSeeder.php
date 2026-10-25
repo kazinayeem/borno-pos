@@ -17,17 +17,15 @@ class BangladeshMedicineSeeder extends Seeder
         $importer = app(MedicineImportService::class);
         $stats = $importer->import(
             filePath: $filePath,
-            storeId: null, // Resolves to pharmacy store
+            storeId: null, // Resolves to pharmacy store (pharmacy@bornopos.test)
+            replaceExisting: true,
             limit: 10000,
             chunkSize: 500,
             dryRun: false,
-            initialStockMin: 20,
-            initialStockMax: 100,
+            seedStock: false,
             enablePos: true
         );
 
-        $importer->enablePosAndSeedStock($stats['store_id'], 20, 100);
-
-        $this->command?->info("Bangladesh Medicines Seeded: {$stats['distinct_processed']} total, stock seeded (20-100) and enabled in POS for {$stats['store_name']}.");
+        $this->command?->info("Bangladesh Medicines Seeded: {$stats['distinct_processed']} verified medicines cataloged and enabled in POS for {$stats['store_name']}.");
     }
 }

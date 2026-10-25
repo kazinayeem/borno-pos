@@ -31,6 +31,7 @@ class ProductController extends Controller
                 $term = trim((string) ($request->input('search') ?? $request->input('q')));
                 $query->where(function ($inner) use ($term) {
                     $inner->where('name', 'like', "%{$term}%")
+                        ->orWhere('generic_name', 'like', "%{$term}%")
                         ->orWhere('code', 'like', "%{$term}%")
                         ->orWhere('barcode', 'like', "%{$term}%");
                 });

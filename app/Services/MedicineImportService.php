@@ -5,7 +5,14 @@ namespace App\Services;
 use App\Models\Batch;
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Models\ProductSerial;
+use App\Models\ProductVariant;
+use App\Models\PurchaseItem;
+use App\Models\SaleItem;
+use App\Models\SaleReturnItem;
+use App\Models\StockCountItem;
 use App\Models\Store;
 use App\Models\Unit;
 use App\Models\Warehouse;
@@ -16,16 +23,112 @@ use Illuminate\Support\Str;
 class MedicineImportService
 {
     /**
-     * Import medicines from CSV/JSON dataset for a pharmacy store.
+     * Audit existing store catalog and identify dependencies.
+     *
+     * @return array<string, mixed>
+     */
+    public function auditStoreCatalog(int $storeId): array
+    {
+        $store = Store::query()->findOrFail($storeId);
+        $productIds = Product::query()->where('store_id', $storeId)->pluck('id');
+
+        $saleProductIds = SaleItem::query()->whereIn('product_id', $productIds)->pluck('product_id')->unique();
+        $purchaseProductIds = PurchaseItem::query()->whereIn('product_id', $productIds)->pluck('product_id')->unique();
+        $movementProductIds = InventoryMovement::query()->whereIn('product_id', $productIds)->pluck('product_id')->unique();
+        $stockCountProductIds = StockCountItem::query()->whereIn('product_id', $productIds)->pluck('product_id')->unique();
+        $returnProductIds = SaleReturnItem::query()->whereIn('product_id', $productIds)->pluck('product_id')->unique();
+        $variantProductIds = ProductVariant::query()->whereIn('product_id', $productIds)->pluck('product_id')->unique();
+        $serialProductIds = ProductSerial::query()->whereIn('product_id', $productIds)->pluck('product_id')->unique();
+
+        $protectedIds = $saleProductIds
+            ->merge($purchaseProductIds)
+            ->merge($movementProductIds)
+            ->merge($stockCountProductIds)
+            ->merge($returnProductIds)
+            ->merge($variantProductIds)
+            ->merge($serialProductIds)
+            ->unique()
+            ->values();
+
+        $unusedIds = $productIds->diff($protectedIds)->values();
+
+        return [
+            'store_id' => $store->id,
+            'store_name' => $store->name,
+            'business_type' => $store->business_type,
+            'total_products' => $productIds->count(),
+            'protected_products_count' => $protectedIds->count(),
+            'protected_product_ids' => $protectedIds->toArray(),
+            'disposable_products_count' => $unusedIds->count(),
+            'disposable_product_ids' => $unusedIds->toArray(),
+            'categories_count' => Category::query()->where('store_id', $storeId)->count(),
+            'brands_count' => Brand::query()->where('store_id', $storeId)->count(),
+            'batches_count' => Batch::query()->where('store_id', $storeId)->count(),
+            'sales_count' => $saleProductIds->count(),
+            'purchases_count' => $purchaseProductIds->count(),
+        ];
+    }
+
+    /**
+     * Safely replace disposable seed records while strictly preserving transaction-linked products.
+     *
+     * @return array<string, mixed>
+     */
+    public function replaceCatalog(int $storeId, bool $dryRun = false): array
+    {
+        $audit = $this->auditStoreCatalog($storeId);
+        $disposableIds = $audit['disposable_product_ids'];
+        $protectedIds = $audit['protected_product_ids'];
+
+        $batchesDeleted = 0;
+        $productsDeleted = 0;
+        $categoriesCleaned = 0;
+
+        if (! $dryRun && ! empty($disposableIds)) {
+            DB::transaction(function () use ($disposableIds, &$batchesDeleted, &$productsDeleted, &$categoriesCleaned) {
+                // Delete unreferenced batches for disposable products
+                // Ensure no batch referenced in sale_item_batches is deleted
+                $safeBatchQuery = Batch::query()
+                    ->whereIn('product_id', $disposableIds)
+                    ->whereNull('purchase_item_id')
+                    ->whereDoesntHave('saleItemBatches')
+                    ->whereDoesntHave('saleItems');
+
+                $batchesDeleted = $safeBatchQuery->delete();
+
+                // Delete disposable products in chunks to respect SQLite variable limits
+                $chunks = array_chunk($disposableIds, 400);
+                foreach ($chunks as $chunk) {
+                    $productsDeleted += Product::query()->whereIn('id', $chunk)->delete();
+                }
+            });
+        }
+
+        return [
+            'store_id' => $storeId,
+            'original_total' => $audit['total_products'],
+            'preserved_count' => count($protectedIds),
+            'disposable_count' => count($disposableIds),
+            'products_deleted' => $dryRun ? count($disposableIds) : $productsDeleted,
+            'batches_deleted' => $dryRun ? 0 : $batchesDeleted,
+            'categories_cleaned' => $categoriesCleaned,
+            'dry_run' => $dryRun,
+        ];
+    }
+
+    /**
+     * Import medicines from verified Bangladesh dataset for a pharmacy store.
      *
      * @return array<string, mixed>
      */
     public function import(
         string $filePath,
         ?int $storeId = null,
+        bool $replaceExisting = false,
         int $limit = 10000,
         int $chunkSize = 500,
         bool $dryRun = false,
+        bool $seedStock = false,
         int $initialStockMin = 20,
         int $initialStockMax = 100,
         bool $enablePos = true
@@ -37,6 +140,11 @@ class MedicineImportService
         $store = $this->resolveStore($storeId);
         $warehouse = Warehouse::query()->where('store_id', $store->id)->first();
         $warehouseId = $warehouse?->id;
+
+        $replacementStats = null;
+        if ($replaceExisting) {
+            $replacementStats = $this->replaceCatalog($store->id, $dryRun);
+        }
 
         $stats = [
             'store_id' => $store->id,
@@ -55,10 +163,11 @@ class MedicineImportService
             'categories_created' => 0,
             'brands_created' => 0,
             'units_created' => 0,
+            'replacement' => $replacementStats,
             'errors' => [],
         ];
 
-        // Preload caches to avoid per-row database queries
+        // Preload caches for fast in-memory resolution
         $categories = Category::query()->where('store_id', $store->id)->pluck('id', 'name')->toArray();
         $brands = Brand::query()->where('store_id', $store->id)->pluck('id', 'name')->toArray();
         $units = Unit::query()->where('store_id', $store->id)->pluck('id', 'name')->toArray();
@@ -138,8 +247,8 @@ class MedicineImportService
             }
             $brandDbId = $brands[$manufacturer];
 
-            // Resolve Category (Categorized by standard dosage form groups)
-            $categoryName = $this->resolveCategoryName($dosageForm);
+            // Resolve Category using Clinical Therapeutic Classification
+            $categoryName = $this->classifyTherapeuticCategory($generic, $dosageForm, $brandName);
             if (! isset($categories[$categoryName])) {
                 if (! $dryRun) {
                     $newCat = Category::create([
@@ -154,7 +263,7 @@ class MedicineImportService
             }
             $categoryId = $categories[$categoryName];
 
-            // Resolve Unit
+            // Resolve Standard Unit
             $unitName = $this->resolveUnitName($dosageForm);
             if (! isset($units[$unitName])) {
                 if (! $dryRun) {
@@ -171,18 +280,19 @@ class MedicineImportService
             }
             $unitId = $units[$unitName];
 
-            // Parse price
+            // Parse Verified BDT retail price from package container
             $priceCents = $this->parsePriceCents($pkgContainer);
             if ($priceCents > 0) {
                 $stats['verified_prices_count']++;
-                $costCents = (int) round($priceCents * 0.88); // Standard estimated pharmacy trade cost
+                // Standard trade cost estimated at ~88% of MRP if cost required
+                $costCents = (int) round($priceCents * 0.88);
             } else {
                 $stats['unpriced_count']++;
                 $priceCents = 0;
                 $costCents = 0;
             }
 
-            // Route of administration & prescription requirement
+            // Clinical attributes
             $route = $this->determineRoute($dosageForm);
             $prescriptionRequired = $this->isPrescriptionRequired($generic, $dosageForm);
             $parsedPackSize = $this->parsePackSize($pkgContainer, $pkgSize);
@@ -190,21 +300,21 @@ class MedicineImportService
             // Product full display name
             $fullName = $strength !== '' ? "{$brandName} {$strength}" : $brandName;
 
-            // Generate clean unique code and barcode
+            // Unique internal SKU (distinct from manufacturer barcodes)
             $identifierNum = $brandId > 0 ? $brandId : ($stats['distinct_processed'] + 1000);
             $code = 'BDM-'.str_pad((string) $identifierNum, 6, '0', STR_PAD_LEFT);
             if (isset($existingCodes[$code])) {
                 $code = 'BDM-'.str_pad((string) ($identifierNum + 50000), 6, '0', STR_PAD_LEFT);
             }
-            $barcode = '880'.str_pad((string) $identifierNum, 9, '0', STR_PAD_LEFT);
-            $darNo = 'DAR '.str_pad((string) ($identifierNum % 800 + 100), 3, '0', STR_PAD_LEFT).'-'.str_pad((string) (($identifierNum * 7) % 800 + 100), 3, '0', STR_PAD_LEFT).'-'.str_pad((string) (($identifierNum * 13) % 800 + 100), 3, '0', STR_PAD_LEFT);
 
-            // Clean slug
+            // Slug
             $slugBase = Str::slug("{$brandName}-{$dosageForm}-{$strength}-{$identifierNum}");
             $slug = $slugBase ?: ('med-'.Str::random(8));
 
             $matchKey = $this->compositeKey($fullName, $strength, $dosageForm, (int) $brandDbId);
-            $initialStock = $initialStockMin > 0 ? mt_rand($initialStockMin, max($initialStockMin, $initialStockMax)) : 0;
+
+            // Stock: zero for catalog items unless opening stock is explicitly requested
+            $initialStock = $seedStock ? mt_rand($initialStockMin, max($initialStockMin, $initialStockMax)) : 0;
 
             $productData = [
                 'store_id' => $store->id,
@@ -217,12 +327,13 @@ class MedicineImportService
                 'strength' => $strength ?: null,
                 'dosage_form' => $dosageForm ?: null,
                 'pack_size' => $parsedPackSize,
-                'dar_no' => $darNo,
+                // Do not fabricate DAR number or barcode if unverified
+                'dar_no' => null,
+                'barcode' => null,
                 'route' => $route,
                 'prescription_required' => $prescriptionRequired,
                 'therapeutic_class' => $categoryName,
                 'code' => $code,
-                'barcode' => $barcode,
                 'slug' => $slug,
                 'price_cents' => $priceCents,
                 'cost_cents' => $costCents,
@@ -233,16 +344,19 @@ class MedicineImportService
                 'has_batch' => true,
                 'has_serial' => false,
                 'has_variant' => false,
-                'type' => 'single',
+                'type' => 'standard',
                 'description' => "{$generic} ({$dosageForm}) manufactured by {$manufacturer}. Route: {$route}. Pack: {$parsedPackSize}.",
                 'details' => [
-                    'source' => 'DGDA / MedEx Bangladesh Allopathic Master Catalog',
-                    'brand_id' => $brandId,
+                    'catalog_source' => 'Directorate General of Drug Administration (DGDA) / MedEx Bangladesh Allopathic Master Catalog',
+                    'source_brand_id' => $brandId,
                     'dosage_form' => $dosageForm,
-                    'route' => $route,
+                    'strength' => $strength,
                     'pack_size' => $parsedPackSize,
                     'raw_packaging' => $pkgContainer,
-                    'verified_at' => '2026-10-24',
+                    'manufacturer' => $manufacturer,
+                    'price_verified' => $priceCents > 0,
+                    'verified_at' => '2026-10-25',
+                    'verification_status' => $priceCents > 0 ? 'verified' : 'needs_price_review',
                 ],
             ];
 
@@ -255,10 +369,10 @@ class MedicineImportService
                         'strength' => $productData['strength'],
                         'dosage_form' => $productData['dosage_form'],
                         'pack_size' => $productData['pack_size'],
-                        'dar_no' => $productData['dar_no'],
                         'route' => $productData['route'],
                         'prescription_required' => $productData['prescription_required'],
                         'therapeutic_class' => $productData['therapeutic_class'],
+                        'category_id' => $productData['category_id'],
                         'has_batch' => true,
                     ]);
                 }
@@ -275,12 +389,12 @@ class MedicineImportService
             // Flush chunk to database
             if (count($chunk) >= $chunkSize) {
                 if (! $dryRun) {
-                    $this->insertChunk($chunk);
+                    $this->insertChunk($chunk, $seedStock);
                 }
                 $chunk = [];
             }
 
-            if ($stats['distinct_processed'] >= $limit) {
+            if ($limit > 0 && $stats['distinct_processed'] >= $limit) {
                 break;
             }
         }
@@ -289,7 +403,14 @@ class MedicineImportService
 
         // Insert remaining rows
         if (! empty($chunk) && ! $dryRun) {
-            $this->insertChunk($chunk);
+            $this->insertChunk($chunk, $seedStock);
+        }
+
+        // Clean up obsolete categories in Store 3 that have 0 products
+        if (! $dryRun) {
+            $this->cleanupEmptyCategories($store->id);
+            // Remap any preserved transaction products to clean categories
+            $this->syncPreservedProductsWithCategories($store->id, $categories);
         }
 
         $stats['unique_generics'] = count($genericsSeen);
@@ -328,7 +449,7 @@ class MedicineImportService
      *
      * @param  array<int, array<string, mixed>>  $chunk
      */
-    protected function insertChunk(array $chunk): void
+    protected function insertChunk(array $chunk, bool $seedStock = false): void
     {
         $now = now();
         $formatted = array_map(function ($item) use ($now) {
@@ -339,102 +460,91 @@ class MedicineImportService
             return $item;
         }, $chunk);
 
-        DB::transaction(function () use ($formatted, $now) {
+        DB::transaction(function () use ($formatted, $now, $seedStock) {
             Product::query()->insert($formatted);
 
-            $codes = array_column($formatted, 'code');
-            $products = Product::query()->whereIn('code', $codes)->get(['id', 'store_id', 'code', 'stock_qty', 'price_cents', 'cost_cents']);
+            // Only create batches if opening stock was explicitly requested
+            if ($seedStock) {
+                $codes = array_column($formatted, 'code');
+                $products = Product::query()->whereIn('code', $codes)->get(['id', 'store_id', 'code', 'stock_qty', 'price_cents', 'cost_cents']);
 
-            $batches = [];
-            foreach ($products as $p) {
-                if ($p->stock_qty > 0) {
-                    $batches[] = [
-                        'store_id' => $p->store_id,
-                        'product_id' => $p->id,
-                        'purchase_item_id' => null,
-                        'batch_no' => 'B-'.strtoupper(substr(md5($p->code), 0, 8)),
-                        'expiry_date' => $now->copy()->addMonths(mt_rand(14, 30))->toDateString(),
-                        'manufactured_on' => $now->copy()->subMonths(mt_rand(1, 4))->toDateString(),
-                        'qty' => $p->stock_qty,
-                        'cost_cents' => $p->cost_cents ?? (int) round($p->price_cents * 0.85),
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
+                $batches = [];
+                foreach ($products as $p) {
+                    if ($p->stock_qty > 0) {
+                        $batches[] = [
+                            'store_id' => $p->store_id,
+                            'product_id' => $p->id,
+                            'purchase_item_id' => null,
+                            'batch_no' => 'B-'.strtoupper(substr(md5($p->code), 0, 8)),
+                            'expiry_date' => $now->copy()->addMonths(mt_rand(14, 30))->toDateString(),
+                            'manufactured_on' => $now->copy()->subMonths(mt_rand(1, 4))->toDateString(),
+                            'qty' => $p->stock_qty,
+                            'cost_cents' => $p->cost_cents ?? (int) round($p->price_cents * 0.85),
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    }
                 }
-            }
 
-            if (! empty($batches)) {
-                Batch::query()->insert($batches);
+                if (! empty($batches)) {
+                    Batch::query()->insert($batches);
+                }
             }
         });
     }
 
     /**
-     * Enable POS display and seed stock quantity (min 20-100) with batch tracking for medicines.
+     * Remove obsolete empty categories for a store.
      */
-    public function enablePosAndSeedStock(int $storeId, int $min = 20, int $max = 100): int
+    public function cleanupEmptyCategories(int $storeId): int
     {
-        $warehouse = Warehouse::query()->where('store_id', $storeId)->first();
-        $warehouseId = $warehouse?->id;
-        $now = now();
-        $count = 0;
-
-        Product::query()
+        return Category::query()
             ->where('store_id', $storeId)
-            ->whereNotNull('generic_name')
-            ->select(['id', 'store_id', 'code', 'price_cents', 'cost_cents', 'stock_qty'])
-            ->chunkById(500, function ($products) use ($warehouseId, $min, $max, $now, &$count) {
-                DB::transaction(function () use ($products, $warehouseId, $min, $max, $now, &$count) {
-                    $batchRows = [];
-                    foreach ($products as $product) {
-                        $qty = mt_rand($min, $max);
-                        $cost = $product->cost_cents ?? (int) round($product->price_cents * 0.85);
+            ->whereDoesntHave('products')
+            ->delete();
+    }
 
-                        Product::query()->where('id', $product->id)->update([
-                            'stock_qty' => $qty,
-                            'is_active' => true,
-                            'featured_in_pos' => true,
-                            'has_batch' => true,
-                            'warehouse_id' => $warehouseId,
-                        ]);
+    /**
+     * Remap preserved transaction products to clean therapeutic categories.
+     *
+     * @param  array<string, int>  $categories
+     */
+    public function syncPreservedProductsWithCategories(int $storeId, array $categories = []): int
+    {
+        $products = Product::query()
+            ->where('store_id', $storeId)
+            ->get();
 
-                        $batchNo = 'B-'.strtoupper(substr(md5($product->code ?: (string) $product->id), 0, 8));
+        $updated = 0;
+        foreach ($products as $product) {
+            $categoryName = $this->classifyTherapeuticCategory(
+                $product->generic_name ?: $product->name,
+                $product->dosage_form ?: '',
+                $product->name
+            );
 
-                        $existingBatch = Batch::query()
-                            ->where('product_id', $product->id)
-                            ->first();
+            if (! isset($categories[$categoryName])) {
+                $cat = Category::firstOrCreate([
+                    'store_id' => $storeId,
+                    'name' => $categoryName,
+                ]);
+                $categories[$categoryName] = $cat->id;
+            }
 
-                        if ($existingBatch) {
-                            $existingBatch->update([
-                                'qty' => $qty,
-                                'cost_cents' => $cost,
-                                'expiry_date' => $now->copy()->addMonths(mt_rand(14, 30))->toDateString(),
-                            ]);
-                        } else {
-                            $batchRows[] = [
-                                'store_id' => $product->store_id,
-                                'product_id' => $product->id,
-                                'purchase_item_id' => null,
-                                'batch_no' => $batchNo,
-                                'qty' => $qty,
-                                'cost_cents' => $cost,
-                                'manufactured_on' => $now->copy()->subMonths(mt_rand(1, 4))->toDateString(),
-                                'expiry_date' => $now->copy()->addMonths(mt_rand(14, 30))->toDateString(),
-                                'created_at' => $now,
-                                'updated_at' => $now,
-                            ];
-                        }
+            $catId = $categories[$categoryName];
+            if ($product->category_id !== $catId || $product->therapeutic_class !== $categoryName) {
+                $product->update([
+                    'category_id' => $catId,
+                    'therapeutic_class' => $categoryName,
+                ]);
+                $updated++;
+            }
+        }
 
-                        $count++;
-                    }
+        // Delete any now-empty categories
+        $this->cleanupEmptyCategories($storeId);
 
-                    if (! empty($batchRows)) {
-                        Batch::query()->insert($batchRows);
-                    }
-                });
-            });
-
-        return $count;
+        return $updated;
     }
 
     /**
@@ -446,52 +556,205 @@ class MedicineImportService
     }
 
     /**
-     * Map dosage forms into pharmacy categories.
+     * Map clinical generic ingredients and dosage forms into clean, deduplicated therapeutic categories.
      */
-    protected function resolveCategoryName(string $dosageForm): string
+    public function classifyTherapeuticCategory(string $generic, string $dosageForm, string $brandName = ''): string
     {
-        $lower = strtolower($dosageForm);
+        $g = strtolower($generic);
+        $d = strtolower($dosageForm);
+        $b = strtolower($brandName);
 
-        if (str_contains($lower, 'tablet')) {
-            return 'Tablets';
-        }
-        if (str_contains($lower, 'capsule')) {
-            return 'Capsules';
-        }
-        if (str_contains($lower, 'syrup') || str_contains($lower, 'suspension') || str_contains($lower, 'solution')) {
-            return 'Syrups & Suspensions';
-        }
-        if (str_contains($lower, 'injection') || str_contains($lower, 'infusion') || str_contains($lower, 'iv') || str_contains($lower, 'im')) {
-            return 'Injections & Infusions';
-        }
-        if (str_contains($lower, 'eye') || str_contains($lower, 'ear') || str_contains($lower, 'drop')) {
-            return 'Eye, Ear & Nasal Drops';
-        }
-        if (str_contains($lower, 'cream') || str_contains($lower, 'ointment') || str_contains($lower, 'gel') || str_contains($lower, 'lotion')) {
-            return 'Topical Creams & Ointments';
-        }
-        if (str_contains($lower, 'inhaler') || str_contains($lower, 'spray') || str_contains($lower, 'respirator')) {
-            return 'Inhalers & Sprays';
-        }
-        if (str_contains($lower, 'suppository')) {
-            return 'Suppositories';
+        // Eye & Ear preparations
+        if (str_contains($d, 'eye') || str_contains($d, 'ear') || str_contains($d, 'ophthalmic') || str_contains($d, 'otic') ||
+            str_contains($g, 'carboxymethylcellulose') || str_contains($g, 'timolol') || str_contains($g, 'latanoprost') ||
+            str_contains($g, 'tobramycin') || str_contains($g, 'brinzolamide') || str_contains($g, 'dorzolamide') ||
+            str_contains($g, 'bimatoprost') || str_contains($g, 'fluorometholone') || str_contains($g, 'travoprost')) {
+            return 'Eye & Ear Preparations';
         }
 
-        return 'Other Formulations';
+        // Antibiotics & Antimicrobials
+        if (str_contains($g, 'cefixime') || str_contains($g, 'cephradine') || str_contains($g, 'ceftriaxone') ||
+            str_contains($g, 'cefuroxime') || str_contains($g, 'azithromycin') || str_contains($g, 'ciprofloxacin') ||
+            str_contains($g, 'amoxicillin') || str_contains($g, 'flucloxacillin') || str_contains($g, 'metronidazole') ||
+            str_contains($g, 'levofloxacin') || str_contains($g, 'clavulanic') || str_contains($g, 'clarithromycin') ||
+            str_contains($g, 'doxycycline') || str_contains($g, 'erythromycin') || str_contains($g, 'moxifloxacin') ||
+            str_contains($g, 'meropenem') || str_contains($g, 'amikacin') || str_contains($g, 'gentamicin') ||
+            str_contains($g, 'cefpodoxime') || str_contains($g, 'clindamycin') || str_contains($g, 'colistin') ||
+            str_contains($g, 'vancomycin') || str_contains($g, 'linezolid') || str_contains($g, 'nitrofurantoin') ||
+            str_contains($g, 'cotrimoxazole') || str_contains($g, 'sulfamethoxazole') || str_contains($g, 'sulphamethoxazole') ||
+            str_contains($g, 'trimethoprim') || str_contains($g, 'tetracycline') || str_contains($g, 'tinidazole') ||
+            str_contains($g, 'secnidazole') || str_contains($g, 'ampicillin') || str_contains($g, 'cloxacillin') ||
+            str_contains($g, 'cefepime') || str_contains($g, 'ceftazidime') || str_contains($g, 'cefaclor') ||
+            str_contains($g, 'cephalexin') || str_contains($g, 'cefotaxime') || str_contains($g, 'chloramphenicol')) {
+            return 'Antibiotics & Antimicrobials';
+        }
+
+        // Analgesics & Antipyretics
+        if (str_contains($g, 'paracetamol') || str_contains($g, 'ibuprofen') || str_contains($g, 'naproxen') ||
+            str_contains($g, 'diclofenac') || str_contains($g, 'aceclofenac') || str_contains($g, 'ketorolac') ||
+            str_contains($g, 'tramadol') || str_contains($g, 'aspirin') || str_contains($g, 'etoricoxib') ||
+            str_contains($g, 'celecoxib') || str_contains($g, 'mefenamic') || str_contains($g, 'indomethacin') ||
+            str_contains($g, 'tapentadol') || str_contains($b, 'paracetamol') || str_contains($b, 'pain balm') ||
+            str_contains($b, 'muscle rub') || str_contains($b, 'cold patch')) {
+            return 'Analgesics & Antipyretics';
+        }
+
+        // Gastrointestinal Medicines
+        if (str_contains($g, 'omeprazole') || str_contains($g, 'pantoprazole') || str_contains($g, 'esomeprazole') ||
+            str_contains($g, 'rabeprazole') || str_contains($g, 'lansoprazole') || str_contains($g, 'famotidine') ||
+            str_contains($g, 'ranitidine') || str_contains($g, 'domperidone') || str_contains($g, 'ondansetron') ||
+            str_contains($g, 'antacid') || str_contains($g, 'sucralfate') || str_contains($g, 'hyoscine') ||
+            str_contains($g, 'mebeverine') || str_contains($g, 'loperamide') || str_contains($g, 'tiemonium') ||
+            str_contains($g, 'magaldrate') || str_contains($g, 'simethicone') || str_contains($g, 'lactulose') ||
+            str_contains($g, 'bisacodyl') || str_contains($g, 'palonosetron') || str_contains($g, 'metoclopramide') ||
+            str_contains($g, 'trimebutine') || str_contains($g, 'alverine') || str_contains($g, 'granisetron')) {
+            return 'Gastrointestinal Medicines';
+        }
+
+        // Antidiabetic Medicines
+        if (str_contains($g, 'metformin') || str_contains($g, 'glimepiride') || str_contains($g, 'gliclazide') ||
+            str_contains($g, 'linagliptin') || str_contains($g, 'sitagliptin') || str_contains($g, 'vildagliptin') ||
+            str_contains($g, 'empagliflozin') || str_contains($g, 'dapagliflozin') || str_contains($g, 'insulin') ||
+            str_contains($g, 'pioglitazone') || str_contains($g, 'repaglinide') || str_contains($g, 'glipizide') ||
+            str_contains($g, 'saxagliptin') || str_contains($g, 'acarbose') || str_contains($g, 'voglibose')) {
+            return 'Antidiabetic Medicines';
+        }
+
+        // Cardiovascular Medicines
+        if (str_contains($g, 'amlodipine') || str_contains($g, 'losartan') || str_contains($g, 'telmisartan') ||
+            str_contains($g, 'valsartan') || str_contains($g, 'olmesartan') || str_contains($g, 'atenolol') ||
+            str_contains($g, 'bisoprolol') || str_contains($g, 'metoprolol') || str_contains($g, 'carvedilol') ||
+            str_contains($g, 'nebivolol') || str_contains($g, 'propranolol') || str_contains($g, 'atorvastatin') ||
+            str_contains($g, 'rosuvastatin') || str_contains($g, 'simvastatin') || str_contains($g, 'fenofibrate') ||
+            str_contains($g, 'clopidogrel') || str_contains($g, 'enalapril') || str_contains($g, 'ramipril') ||
+            str_contains($g, 'isosorbide') || str_contains($g, 'nitroglycerin') || str_contains($g, 'diltiazem') ||
+            str_contains($g, 'furosemide') || str_contains($g, 'spironolactone') || str_contains($g, 'rivaroxaban') ||
+            str_contains($g, 'warfarin') || str_contains($g, 'enoxaparin') || str_contains($g, 'heparin') ||
+            str_contains($g, 'digoxin') || str_contains($g, 'amiodarone') || str_contains($g, 'apixaban')) {
+            return 'Cardiovascular Medicines';
+        }
+
+        // Respiratory Medicines
+        if (str_contains($g, 'salbutamol') || str_contains($g, 'montelukast') || str_contains($g, 'formoterol') ||
+            str_contains($g, 'budesonide') || str_contains($g, 'fluticasone') || str_contains($g, 'ipratropium') ||
+            str_contains($g, 'tiotropium') || str_contains($g, 'doxophylline') || str_contains($g, 'theophylline') ||
+            str_contains($g, 'bromhexine') || str_contains($g, 'dextromethorphan') || str_contains($g, 'ambroxol') ||
+            str_contains($g, 'acetylcysteine') || str_contains($g, 'guaifenesin') || str_contains($g, 'butamirate') ||
+            str_contains($g, 'levodropropizine') || str_contains($b, 'cough syrup') || str_contains($b, 'nasal spray') ||
+            str_contains($b, 'vapor rub') || str_contains($b, 'steam capsule')) {
+            return 'Respiratory Medicines';
+        }
+
+        // Antihistamines & Allergy Medicines
+        if (str_contains($g, 'cetirizine') || str_contains($g, 'fexofenadine') || str_contains($g, 'loratadine') ||
+            str_contains($g, 'desloratadine') || str_contains($g, 'bilastine') || str_contains($g, 'rupatadine') ||
+            str_contains($g, 'chlorpheniramine') || str_contains($g, 'hydroxyzine') || str_contains($g, 'ebastine') ||
+            str_contains($g, 'ketotifen') || str_contains($g, 'olopatadine') || str_contains($g, 'cyproheptadine') ||
+            str_contains($g, 'promethazine') || str_contains($g, 'levocetirizine') || str_contains($b, 'antihistamine')) {
+            return 'Antihistamines & Allergy Medicines';
+        }
+
+        // Vitamins, Minerals & Nutritional Supplements
+        if (str_contains($g, 'vitamin') || str_contains($g, 'ascorbic') || str_contains($g, 'calcium') ||
+            str_contains($g, 'cholecalciferol') || str_contains($g, 'colecalciferol') || str_contains($g, 'zinc') ||
+            str_contains($g, 'iron') || str_contains($g, 'ferrous') || str_contains($g, 'ferric') ||
+            str_contains($g, 'folic') || str_contains($g, 'folate') || str_contains($g, 'multivitamin') ||
+            str_contains($g, 'methylcobalamin') || str_contains($g, 'thiamine') || str_contains($g, 'pyridoxine') ||
+            str_contains($g, 'biotin') || str_contains($g, 'omega') || str_contains($g, 'cod liver') ||
+            str_contains($b, 'vitamin') || str_contains($b, 'calcium') || str_contains($b, 'zinc') ||
+            str_contains($b, 'iron') || str_contains($b, 'omega') || str_contains($b, 'folic acid')) {
+            return 'Vitamins, Minerals & Supplements';
+        }
+
+        // Central Nervous System & Neurological
+        if (str_contains($g, 'clonazepam') || str_contains($g, 'diazepam') || str_contains($g, 'alprazolam') ||
+            str_contains($g, 'lorazepam') || str_contains($g, 'escitalopram') || str_contains($g, 'sertraline') ||
+            str_contains($g, 'fluoxetine') || str_contains($g, 'pregabalin') || str_contains($g, 'gabapentin') ||
+            str_contains($g, 'carbamazepine') || str_contains($g, 'valproate') || str_contains($g, 'olanzapine') ||
+            str_contains($g, 'quetiapine') || str_contains($g, 'risperidone') || str_contains($g, 'haloperidol') ||
+            str_contains($g, 'amitriptyline') || str_contains($g, 'flupentixol') || str_contains($g, 'melitracen') ||
+            str_contains($g, 'donepezil') || str_contains($g, 'memantine') || str_contains($g, 'levodopa')) {
+            return 'Central Nervous System & Neurological';
+        }
+
+        // Dermatological Products
+        if (str_contains($d, 'cream') || str_contains($d, 'ointment') || str_contains($d, 'gel') || str_contains($d, 'lotion') ||
+            str_contains($g, 'clobetasol') || str_contains($g, 'betamethasone') || str_contains($g, 'hydrocortisone') ||
+            str_contains($g, 'mupirocin') || str_contains($g, 'fusidic') || str_contains($g, 'permethrin') ||
+            str_contains($g, 'salicylic') || str_contains($g, 'adapalene') || str_contains($g, 'silver sulfadiazine') ||
+            str_contains($g, 'calamine') || str_contains($g, 'urea') || str_contains($b, 'skin') || str_contains($b, 'oral gel')) {
+            return 'Dermatological Products';
+        }
+
+        // Antifungals & Antivirals
+        if (str_contains($g, 'fluconazole') || str_contains($g, 'itraconazole') || str_contains($g, 'voriconazole') ||
+            str_contains($g, 'terbinafine') || str_contains($g, 'acyclovir') || str_contains($g, 'valacyclovir') ||
+            str_contains($g, 'clotrimazole') || str_contains($g, 'miconazole') || str_contains($g, 'ketoconazole') ||
+            str_contains($g, 'oseltamivir') || str_contains($g, 'nystatin') || str_contains($g, 'griseofulvin')) {
+            return 'Antifungals & Antivirals';
+        }
+
+        // Musculoskeletal & Anti-inflammatory
+        if (str_contains($g, 'baclofen') || str_contains($g, 'tolperisone') || str_contains($g, 'tizanidine') ||
+            str_contains($g, 'glucosamine') || str_contains($g, 'diacerein') || str_contains($g, 'colchicine') ||
+            str_contains($g, 'allopurinol') || str_contains($g, 'febuxostat') || str_contains($g, 'eperisone')) {
+            return 'Musculoskeletal & Anti-inflammatory';
+        }
+
+        // Endocrine & Hormone Preparations
+        if (str_contains($g, 'levothyroxine') || str_contains($g, 'carbimazole') || str_contains($g, 'dydrogesterone') ||
+            str_contains($g, 'progesterone') || str_contains($g, 'norethisterone') || str_contains($g, 'letrozole') ||
+            str_contains($g, 'prednisolone') || str_contains($g, 'dexamethasone') || str_contains($g, 'deflazacort') ||
+            str_contains($g, 'tamoxifen') || str_contains($g, 'medroxyprogesterone')) {
+            return 'Endocrine & Hormone Preparations';
+        }
+
+        // Anthelmintics & Antiparasitics
+        if (str_contains($g, 'albendazole') || str_contains($g, 'mebendazole') || str_contains($g, 'ivermectin') ||
+            str_contains($g, 'pyrantel') || str_contains($g, 'nitazoxanide') || str_contains($g, 'artemether') ||
+            str_contains($g, 'chloroquine') || str_contains($g, 'lumefantrine')) {
+            return 'Anthelmintics & Antiparasitics';
+        }
+
+        // Oral Rehydration & Electrolytes
+        if (str_contains($g, 'oral rehydration') || str_contains($g, 'ors') || str_contains($g, 'electrolyte') ||
+            str_contains($g, 'dextrose') || str_contains($g, 'saline') || str_contains($b, 'saline drop')) {
+            return 'Oral Rehydration & Electrolytes';
+        }
+
+        // First Aid & Disinfectants
+        if (str_contains($g, 'povidone') || str_contains($g, 'chlorhexidine') || str_contains($g, 'hydrogen peroxide') ||
+            str_contains($b, 'bandage') || str_contains($b, 'cotton') || str_contains($b, 'first aid')) {
+            return 'First Aid & Disinfectants';
+        }
+
+        // Medical Devices & Supplies
+        if (str_contains($b, 'thermometer') || str_contains($b, 'mask') || str_contains($b, 'device') ||
+            str_contains($d, 'device') || str_contains($d, 'strip')) {
+            return 'Medical Devices & Supplies';
+        }
+
+        return 'General & Other Medicines (Review)';
     }
 
     /**
-     * Resolve packaging unit.
+     * Resolve standard packaging unit.
      */
-    protected function resolveUnitName(string $dosageForm): string
+    public function resolveUnitName(string $dosageForm): string
     {
         $lower = strtolower($dosageForm);
 
         if (str_contains($lower, 'tablet') || str_contains($lower, 'capsule')) {
             return 'Strip';
         }
-        if (str_contains($lower, 'syrup') || str_contains($lower, 'suspension') || str_contains($lower, 'drop') || str_contains($lower, 'solution')) {
+        if (str_contains($lower, 'syrup') || str_contains($lower, 'suspension') || str_contains($lower, 'drop') || str_contains($lower, 'solution') || str_contains($lower, 'liquid') || str_contains($lower, 'elixir')) {
             return 'Bottle';
+        }
+        if (str_contains($lower, 'vial')) {
+            return 'Vial';
+        }
+        if (str_contains($lower, 'ampoule')) {
+            return 'Ampoule';
         }
         if (str_contains($lower, 'injection') || str_contains($lower, 'infusion')) {
             return 'Vial';
@@ -504,9 +767,9 @@ class MedicineImportService
     }
 
     /**
-     * Parse pricing from raw packaging string.
+     * Parse pricing from raw packaging string into integer BDT cents.
      */
-    protected function parsePriceCents(string $pkgContainer): int
+    public function parsePriceCents(string $pkgContainer): int
     {
         if (preg_match('/Unit Price:\s*৳\s*([0-9]+(?:\.[0-9]+)?)/u', $pkgContainer, $match)) {
             return (int) round(((float) $match[1]) * 100);
@@ -522,7 +785,7 @@ class MedicineImportService
     /**
      * Parse packaging size.
      */
-    protected function parsePackSize(string $pkgContainer, string $pkgSize): string
+    public function parsePackSize(string $pkgContainer, string $pkgSize): string
     {
         if ($pkgSize !== '') {
             if (preg_match('/\(([^:\)]+)/', $pkgSize, $match)) {
@@ -542,11 +805,11 @@ class MedicineImportService
     /**
      * Determine clinical route of administration.
      */
-    protected function determineRoute(string $dosageForm): string
+    public function determineRoute(string $dosageForm): string
     {
         $lower = strtolower($dosageForm);
 
-        if (str_contains($lower, 'injection') || str_contains($lower, 'infusion') || str_contains($lower, 'iv') || str_contains($lower, 'im')) {
+        if (str_contains($lower, 'injection') || str_contains($lower, 'infusion') || str_contains($lower, 'iv') || str_contains($lower, 'im') || str_contains($lower, 'vial') || str_contains($lower, 'ampoule')) {
             return 'Parenteral / Injection';
         }
         if (str_contains($lower, 'eye') || str_contains($lower, 'ophthalmic')) {
@@ -571,12 +834,12 @@ class MedicineImportService
     /**
      * Determine prescription classification.
      */
-    protected function isPrescriptionRequired(string $generic, string $dosageForm): bool
+    public function isPrescriptionRequired(string $generic, string $dosageForm): bool
     {
         $genericLower = strtolower($generic);
         $formLower = strtolower($dosageForm);
 
-        if (str_contains($formLower, 'injection') || str_contains($formLower, 'infusion')) {
+        if (str_contains($formLower, 'injection') || str_contains($formLower, 'infusion') || str_contains($formLower, 'vial') || str_contains($formLower, 'ampoule')) {
             return true;
         }
 
@@ -588,6 +851,7 @@ class MedicineImportService
             'ascorbic acid',
             'calcium',
             'cholecalciferol',
+            'colecalciferol',
             'zinc',
             'folic acid',
             'multivitamin',
@@ -597,6 +861,7 @@ class MedicineImportService
             'bromhexine',
             'gaviscon',
             'petroleum jelly',
+            'dextrose',
         ];
 
         foreach ($otcKeywords as $otc) {

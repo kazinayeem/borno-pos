@@ -5,7 +5,7 @@ import { useT } from '../i18n';
 import { useDeleteProductMutation, useGetProductsQuery } from '../services/bornoposApi';
 import { useUrlQueryState } from '../hooks/useUrlQueryState';
 import { Pagination } from '../components/ui/Pagination';
-import { Modal, ConfirmModal } from '../components/ui';
+import { Modal, ConfirmModal, ProductImage } from '../components/ui';
 
 export default function Products() {
     const t = useT();
@@ -150,7 +150,7 @@ export default function Products() {
                         {data.length ? data.map((row, index) => (
                             <tr key={row.id}>
                                 <td>{(meta.from || 1) + index}</td>
-                                <td>{row.image ? <img className="thumb-sm" src={row.image} alt="" /> : <span className="thumb-sm ph" />}</td>
+                                <td><ProductImage product={row} size="sm" /></td>
                                 <td>{row.name}</td>
                                 <td>{row.code}</td>
                                 <td>{row.brand || '—'}</td>
@@ -209,15 +209,14 @@ export default function Products() {
             >
                 {viewingProduct && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        {viewingProduct.image && (
-                            <div style={{ textAlign: 'center', background: 'var(--bg, #f8fafc)', padding: '12px', borderRadius: '8px' }}>
-                                <img
-                                    src={viewingProduct.image}
-                                    alt={viewingProduct.name}
-                                    style={{ maxHeight: '180px', objectFit: 'contain', borderRadius: '6px' }}
-                                />
-                            </div>
-                        )}
+                        <div style={{ textAlign: 'center', background: 'var(--card-head, #f8fafc)', padding: '16px', borderRadius: '10px' }}>
+                            <ProductImage
+                                product={viewingProduct}
+                                size="lg"
+                                style={{ maxHeight: '180px', margin: '0 auto' }}
+                                showFallbackBadge={true}
+                            />
+                        </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
                             <div style={{ padding: '8px 12px', background: 'var(--bg, #f8fafc)', borderRadius: '6px' }}>
                                 <div style={{ color: 'var(--muted, #64748b)', fontSize: '11px' }}>{t('Category')}</div>

@@ -3,8 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\Batch;
+use App\Models\Category;
 use App\Models\Product;
+use App\Models\Purchase;
+use App\Models\PurchaseItem;
+use App\Models\Sale;
+use App\Models\SaleItem;
 use App\Models\Store;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\MedicineImportService;
@@ -118,17 +125,141 @@ class BangladeshMedicineImportTest extends TestCase
         $this->assertNotEmpty($sample->generic_name);
         $this->assertNotEmpty($sample->dosage_form);
         $this->assertNotEmpty($sample->route);
-        $this->assertNotEmpty($sample->dar_no);
+        // DAR number is not fabricated if not verified in source
+        $this->assertNull($sample->dar_no);
+        $this->assertNull($sample->barcode);
         $this->assertNotNull($sample->brand_id);
         $this->assertNotNull($sample->category_id);
         $this->assertNotNull($sample->unit_id);
+        $this->assertNotEmpty($sample->therapeutic_class);
 
-        // Catalog master records should have stock_qty between 20 and 100 and featured_in_pos enabled for pharmacy
-        $this->assertGreaterThanOrEqual(20, $sample->stock_qty);
-        $this->assertLessThanOrEqual(100, $sample->stock_qty);
+        // Catalog master records should default to 0 stock (no fake batches)
+        $this->assertSame(0, $sample->stock_qty);
         $this->assertTrue($sample->featured_in_pos);
         $this->assertTrue($sample->has_batch);
         $this->assertTrue($sample->is_active);
+    }
+
+    public function test_catalog_replacement_preserves_transaction_linked_products_and_cleans_seed_data(): void
+    {
+        [$store, $user] = $this->createPharmacyShop();
+
+        $supplier = Supplier::create([
+            'store_id' => $store->id,
+            'name' => 'Demo Pharma Supplier',
+        ]);
+
+        $cat = Category::create([
+            'store_id' => $store->id,
+            'name' => 'Old Demo Category',
+        ]);
+
+        // Product A: linked to a real SaleItem (MUST BE PRESERVED)
+        $productWithSale = Product::create([
+            'store_id' => $store->id,
+            'category_id' => $cat->id,
+            'name' => 'Paracetamol 500mg (Sold)',
+            'code' => 'PARA-HIST-01',
+            'stock_qty' => 15,
+            'price_cents' => 500,
+            'cost_cents' => 400,
+        ]);
+
+        $batchA = Batch::create([
+            'store_id' => $store->id,
+            'product_id' => $productWithSale->id,
+            'batch_no' => 'B-HIST-01',
+            'qty' => 15,
+            'cost_cents' => 400,
+        ]);
+
+        $sale = Sale::create([
+            'store_id' => $store->id,
+            'user_id' => $user->id,
+            'customer_id' => null,
+            'invoice_no' => 'INV-TEST-001',
+            'sold_at' => now(),
+            'status' => 'completed',
+            'subtotal_cents' => 1000,
+            'grand_cents' => 1000,
+            'paid_cents' => 1000,
+            'payment_method' => 'cash',
+        ]);
+
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'product_id' => $productWithSale->id,
+            'batch_id' => $batchA->id,
+            'qty' => 2,
+            'price_cents' => 500,
+            'cost_cents' => 400,
+            'subtotal_cents' => 1000,
+        ]);
+
+        // Product B: linked to a PurchaseItem (MUST BE PRESERVED)
+        $productWithPurchase = Product::create([
+            'store_id' => $store->id,
+            'category_id' => $cat->id,
+            'name' => 'Amoxicillin 500mg (Purchased)',
+            'code' => 'AMOX-HIST-02',
+            'stock_qty' => 50,
+            'price_cents' => 700,
+            'cost_cents' => 600,
+        ]);
+
+        $purchase = Purchase::create([
+            'store_id' => $store->id,
+            'supplier_id' => $supplier->id,
+            'reference' => 'PO-TEST-001',
+            'purchased_on' => now(),
+            'status' => 'received',
+            'grand_cents' => 30000,
+            'paid_cents' => 30000,
+            'payment_method' => 'cash',
+        ]);
+
+        PurchaseItem::create([
+            'purchase_id' => $purchase->id,
+            'product_id' => $productWithPurchase->id,
+            'qty' => 50,
+            'cost_cents' => 600,
+            'subtotal_cents' => 30000,
+        ]);
+
+        // Product C: Pure disposable seed product without transactions (MUST BE DELETED ON REPLACE)
+        $disposableProduct = Product::create([
+            'store_id' => $store->id,
+            'category_id' => $cat->id,
+            'name' => 'Unused Seed Drug 123',
+            'code' => 'SEED-UNUSED-999',
+            'stock_qty' => 0,
+            'price_cents' => 100,
+            'cost_cents' => 80,
+        ]);
+
+        Batch::create([
+            'store_id' => $store->id,
+            'product_id' => $disposableProduct->id,
+            'batch_no' => 'B-UNUSED-999',
+            'qty' => 0,
+            'cost_cents' => 80,
+        ]);
+
+        $service = app(MedicineImportService::class);
+        $repStats = $service->replaceCatalog($store->id, dryRun: false);
+
+        $this->assertSame(2, $repStats['preserved_count']);
+        $this->assertSame(1, $repStats['products_deleted']);
+
+        // Assert preserved products still exist with intact transaction relations
+        $this->assertDatabaseHas('products', ['id' => $productWithSale->id]);
+        $this->assertDatabaseHas('products', ['id' => $productWithPurchase->id]);
+        $this->assertDatabaseHas('sale_items', ['product_id' => $productWithSale->id]);
+        $this->assertDatabaseHas('purchase_items', ['product_id' => $productWithPurchase->id]);
+
+        // Assert disposable product and its batch are safely deleted
+        $this->assertDatabaseMissing('products', ['id' => $disposableProduct->id]);
+        $this->assertDatabaseMissing('batches', ['batch_no' => 'B-UNUSED-999']);
     }
 
     public function test_medicine_import_is_strictly_idempotent(): void
@@ -204,7 +335,11 @@ class BangladeshMedicineImportTest extends TestCase
         $this->assertArrayHasKey('generic_name', $firstMatch);
         $this->assertArrayHasKey('dosage_form', $firstMatch);
         $this->assertArrayHasKey('strength', $firstMatch);
-        $this->assertArrayHasKey('dar_no', $firstMatch);
         $this->assertArrayHasKey('prescription_required', $firstMatch);
+
+        // 3. Search in inventory product list API by generic name
+        $invResponse = $this->actingAs($user)->getJson('/products?q='.urlencode($genericFragment));
+        $invResponse->assertOk();
+        $this->assertNotEmpty($invResponse->json('data'));
     }
 }

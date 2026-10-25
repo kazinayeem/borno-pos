@@ -23,4 +23,19 @@ class Batch extends Model
     {
         return $this->belongsTo(Product::class);
     }
+
+    public function purchaseItem()
+    {
+        return $this->belongsTo(PurchaseItem::class);
+    }
+
+    public function saleItems()
+    {
+        return $this->hasMany(SaleItem::class);
+    }
+
+    public function saleItemBatches()
+    {
+        return $this->hasMany(SaleItemBatch::class);
+    }
 }

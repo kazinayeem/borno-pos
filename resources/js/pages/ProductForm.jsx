@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { money } from '../api';
 import { useT } from '../i18n';
 import { useGetProductFormQuery, useSaveProductMutation } from '../services/bornoposApi';
+import { ProductImage } from '../components/ui';
 
 const blankDetails = {
     generic_name: '', strength: '', dosage_form: '', manufacturer: '', prescription_required: false,
@@ -34,6 +35,7 @@ export default function ProductForm({ readOnly = false }) {
     const [ingredients, setIngredients] = useState([]);
     const [image, setImage] = useState(null);
     const [preview, setPreview] = useState('');
+    const [removeImage, setRemoveImage] = useState(false);
     const [message, setMessage] = useState('');
     const [tab, setTab] = useState('general');
 
@@ -111,6 +113,7 @@ export default function ProductForm({ readOnly = false }) {
             body.append(`details[${key}]`, value === true ? '1' : value === false ? '0' : (value ?? ''));
         });
         if (image) body.append('image', image);
+        if (removeImage) body.append('remove_image', '1');
         variants.forEach((variant, index) => {
             if (variant.id) body.append(`variants[${index}][id]`, variant.id);
             ['name', 'sku', 'barcode', 'price', 'stock_qty', 'size', 'color', 'style'].forEach((key) => {
@@ -197,16 +200,61 @@ export default function ProductForm({ readOnly = false }) {
                         </label>
                         <label className="wide">Description<textarea disabled={readOnly} value={form.description || ''} onChange={(event) => set('description', event.target.value)} /></label>
                         <label className="check"><input disabled={readOnly} type="checkbox" checked={!!form.is_active} onChange={(event) => set('is_active', event.target.checked)} /> Active</label>
-                        {!readOnly && (
-                            <label>Image
-                                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => {
-                                    const file = event.target.files?.[0] || null;
-                                    setImage(file);
-                                    setPreview(file ? URL.createObjectURL(file) : (data?.product?.image || ''));
-                                }} />
-                            </label>
-                        )}
-                        {preview && <img className="product-photo" src={preview} alt="" />}
+                        <div className="wide" style={{ display: 'flex', gap: '20px', alignItems: 'center', margin: '16px 0', padding: '16px', background: 'var(--card-head, #f8fafc)', borderRadius: '12px', border: '1px solid var(--line, #e2e8f0)' }}>
+                            <div style={{ width: '120px', height: '120px', flexShrink: 0 }}>
+                                <ProductImage
+                                    src={preview}
+                                    dosageForm={form.details?.dosage_form}
+                                    name={form.name}
+                                    category={lookups.categories?.find((c) => String(c.id) === String(form.category_id))?.name}
+                                    size="auto"
+                                    style={{ width: '120px', height: '120px', borderRadius: '10px' }}
+                                    showFallbackBadge={!preview}
+                                />
+                            </div>
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <strong style={{ fontSize: '14px' }}>Product Image</strong>
+                                <p className="muted" style={{ margin: 0, fontSize: '12px' }}>
+                                    {preview
+                                        ? 'Custom product image active. You can replace it or remove it to return to the automatic dosage-form illustration.'
+                                        : 'No image uploaded. An intelligent medical illustration is automatically assigned based on the dosage form.'}
+                                </p>
+                                {!readOnly && (
+                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
+                                        <label className="btn" style={{ margin: 0, cursor: 'pointer', padding: '6px 14px' }}>
+                                            📁 {preview ? 'Replace Image' : 'Upload Image'}
+                                            <input
+                                                type="file"
+                                                accept="image/png,image/jpeg,image/webp"
+                                                style={{ display: 'none' }}
+                                                onChange={(event) => {
+                                                    const file = event.target.files?.[0] || null;
+                                                    if (file) {
+                                                        setImage(file);
+                                                        setPreview(URL.createObjectURL(file));
+                                                        setRemoveImage(false);
+                                                    }
+                                                }}
+                                            />
+                                        </label>
+                                        {preview && (
+                                            <button
+                                                type="button"
+                                                className="btn danger"
+                                                style={{ padding: '6px 14px' }}
+                                                onClick={() => {
+                                                    setImage(null);
+                                                    setPreview('');
+                                                    setRemoveImage(true);
+                                                }}
+                                            >
+                                                🗑️ Remove Image
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </>
                 )}
 

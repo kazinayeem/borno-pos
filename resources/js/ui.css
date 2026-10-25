@@ -2649,3 +2649,27 @@ html.dark .pos-scanner-manual-row input {
   color: #e5e7eb;
 }
 
+/* ==========================================================================
+   Product Image & Dosage Fallback System
+   ========================================================================== */
+.bp-product-image-container {
+  background-color: var(--card-head, #f8fafc);
+  border: 1px solid var(--line, #e2e8f0);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bp-product-image-container:hover {
+  border-color: var(--blue, #2f80ed);
+}
+
+html.dark .bp-product-image-container {
+  background-color: #162033;
+  border-color: #2a3548;
+}
+
+@keyframes bp-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+

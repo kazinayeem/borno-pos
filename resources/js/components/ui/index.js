@@ -18,5 +18,6 @@ export {
 
 export { Modal, ConfirmModal } from './Modal';
 export { Pagination } from './Pagination';
+export { ProductImage, resolveDosageFallbackUrl } from './ProductImage';
 export { useUrlQueryState } from '../../hooks/useUrlQueryState';
 export { normalizePagination } from '../../utils/pagination';
