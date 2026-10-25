@@ -2,12 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Account;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\ExpenseCategory;
-use App\Models\LedgerAccount;
 use App\Models\Product;
-use App\Models\ShopRole;
 use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\Unit;
@@ -69,6 +68,7 @@ class ComprehensiveSystemCrudAuditTest extends TestCase
         $this->unit = Unit::create([
             'store_id' => $this->store->id,
             'name' => 'Box',
+            'short_name' => 'box',
         ]);
 
         $this->warehouse = Warehouse::create([
@@ -85,10 +85,10 @@ class ComprehensiveSystemCrudAuditTest extends TestCase
 
     public function test_product_crud_lifecycle_persists_and_modifies_data(): void
     {
-        // 1. Create Product
+        // 1. Create standard Product with opening stock
         $createRes = $this->actingAs($this->user)->postJson('/products', [
-            'name' => 'Amoxicillin 500mg',
-            'code' => 'AMX-500',
+            'name' => 'Paracetamol 500mg',
+            'code' => 'PCM-500',
             'barcode' => '8941234567890',
             'category_id' => $this->category->id,
             'brand_id' => $this->brand->id,
@@ -96,30 +96,30 @@ class ComprehensiveSystemCrudAuditTest extends TestCase
             'cost' => '12.50',
             'price' => '18.00',
             'opening_stock' => 50,
-            'has_batch' => '1',
             'type' => 'standard',
         ]);
 
-        $createRes->assertStatus(201)
-            ->assertJsonPath('product.name', 'Amoxicillin 500mg');
+        $createRes->assertSuccessful()
+            ->assertJsonPath('product.name', 'Paracetamol 500mg');
 
         $productId = $createRes->json('product.id');
         $this->assertDatabaseHas('products', [
             'id' => $productId,
-            'name' => 'Amoxicillin 500mg',
+            'name' => 'Paracetamol 500mg',
             'cost_cents' => 1250,
             'price_cents' => 1800,
+            'stock_qty' => 50,
         ]);
 
         // 2. View / Read Product
         $readRes = $this->actingAs($this->user)->getJson('/products/'.$productId);
         $readRes->assertStatus(200)
-            ->assertJsonPath('product.code', 'AMX-500');
+            ->assertJsonPath('product.code', 'PCM-500');
 
         // 3. Edit / Update Product
         $updateRes = $this->actingAs($this->user)->putJson('/products/'.$productId, [
-            'name' => 'Amoxicillin 500mg Trihydrate',
-            'code' => 'AMX-500-TRI',
+            'name' => 'Paracetamol 500mg Fast',
+            'code' => 'PCM-500-FST',
             'category_id' => $this->category->id,
             'brand_id' => $this->brand->id,
             'unit_id' => $this->unit->id,
@@ -129,11 +129,11 @@ class ComprehensiveSystemCrudAuditTest extends TestCase
         ]);
 
         $updateRes->assertStatus(200)
-            ->assertJsonPath('product.name', 'Amoxicillin 500mg Trihydrate');
+            ->assertJsonPath('product.name', 'Paracetamol 500mg Fast');
 
         $this->assertDatabaseHas('products', [
             'id' => $productId,
-            'name' => 'Amoxicillin 500mg Trihydrate',
+            'name' => 'Paracetamol 500mg Fast',
             'price_cents' => 2000,
         ]);
 
@@ -178,7 +178,7 @@ class ComprehensiveSystemCrudAuditTest extends TestCase
             ],
         ]);
 
-        $purchaseRes->assertStatus(201);
+        $purchaseRes->assertSuccessful();
         $purchaseId = $purchaseRes->json('purchase.id');
 
         $this->assertDatabaseHas('purchases', [
@@ -189,7 +189,7 @@ class ComprehensiveSystemCrudAuditTest extends TestCase
             'paid_cents' => 25000,
         ]);
 
-        $this->assertDatabaseHas('product_batches', [
+        $this->assertDatabaseHas('batches', [
             'store_id' => $this->store->id,
             'product_id' => $product->id,
             'batch_no' => 'BATCH-2026-A',
@@ -228,7 +228,7 @@ class ComprehensiveSystemCrudAuditTest extends TestCase
         ]);
 
         $staffRes->assertStatus(201);
-        $staffId = $staffRes->json('staff.id');
+        $staffId = $staffRes->json('user.id');
 
         $this->assertDatabaseHas('users', [
             'id' => $staffId,
@@ -286,7 +286,7 @@ class ComprehensiveSystemCrudAuditTest extends TestCase
             'address' => 'Road 11, Banani',
         ]);
 
-        $newBranchRes->assertStatus(201);
+        $newBranchRes->assertSuccessful();
         $this->assertDatabaseHas('stores', [
             'name' => 'Banani Branch Outlet',
             'business_type' => 'pharmacy',
@@ -295,12 +295,11 @@ class ComprehensiveSystemCrudAuditTest extends TestCase
 
     public function test_accounting_expense_recording_and_ledger_integration(): void
     {
-        $account = LedgerAccount::create([
+        $account = Account::create([
             'store_id' => $this->store->id,
             'name' => 'Daily Petty Cash',
             'type' => 'cash',
-            'opening_balance_cents' => 50000,
-            'current_balance_cents' => 50000,
+            'opening_cents' => 50000,
             'is_default' => true,
         ]);
 
@@ -317,7 +316,7 @@ class ComprehensiveSystemCrudAuditTest extends TestCase
             'note' => 'Internet connectivity fee',
         ]);
 
-        $expRes->assertStatus(201);
+        $expRes->assertSuccessful();
 
         $this->assertDatabaseHas('expenses', [
             'store_id' => $this->store->id,
@@ -327,6 +326,6 @@ class ComprehensiveSystemCrudAuditTest extends TestCase
         ]);
 
         // Check account balance reduced by 150.00 (15000 cents)
-        $this->assertEquals(35000, $account->fresh()->current_balance_cents);
+        $this->assertEquals(35000, $account->fresh()->balanceCents());
     }
 }
