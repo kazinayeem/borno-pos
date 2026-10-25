@@ -74,7 +74,7 @@ export default function StaffManagement() {
             if (params.per_page) qp.set('per_page', params.per_page);
 
             const res = await api(`/api/staff?${qp.toString()}`);
-            setStaff(res.staff || []);
+            setStaff(res.staff || res.data || []);
             setRoles(res.roles || []);
             setMeta(res.meta || { current_page: 1, last_page: 1, total: 0 });
         } catch (err) {

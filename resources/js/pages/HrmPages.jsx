@@ -49,7 +49,7 @@ export function AttendancePage() {
 
         api(`/attendance?${qp.toString()}`)
             .then((res) => {
-                setRows(res.rows || []);
+                setRows(res.rows || res.data || []);
                 setEmployees(res.employees || []);
                 setMeta(res.meta || null);
                 if (res.employees?.length && !targetEmp) {
@@ -401,7 +401,7 @@ export function PayrollsPage() {
 
         api(`/payrolls?${qp.toString()}`)
             .then((res) => {
-                setRows(res.rows || []);
+                setRows(res.rows || res.data || []);
                 setEmployees(res.employees || []);
                 setMeta(res.meta || null);
                 if (res.employees?.length && !targetEmp) {

@@ -19,3 +19,4 @@ export {
 export { Modal, ConfirmModal } from './Modal';
 export { Pagination } from './Pagination';
 export { useUrlQueryState } from '../../hooks/useUrlQueryState';
+export { normalizePagination } from '../../utils/pagination';

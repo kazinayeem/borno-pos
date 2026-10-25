@@ -27,7 +27,7 @@ export function PaymentVerificationPage() {
         per_page: 15,
     });
 
-    const { data, isLoading, refetch } = useGetAdminPaymentsQuery({
+    const { data, isLoading, isError, refetch } = useGetAdminPaymentsQuery({
         search: queryState.search,
         status: queryState.status,
         payment_method: queryState.payment_method,
@@ -44,7 +44,7 @@ export function PaymentVerificationPage() {
     const [rejectionReason, setRejectionReason] = useState('');
     const [feedback, setFeedback] = useState({ type: '', message: '' });
 
-    const payments = data?.payments || [];
+    const payments = data?.payments || data?.data || [];
     const meta = data?.meta || {};
 
     const handleApprove = async (payment) => {
@@ -133,9 +133,16 @@ export function PaymentVerificationPage() {
                 </select>
             </div>
 
+            {isError && (
+                <div style={{ padding: '16px 20px', background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', borderRadius: '10px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span><strong>⚠️ {t('Error')}:</strong> {t('Failed to load payment verification queue.')}</span>
+                    <button type="button" className="btn small" onClick={() => refetch()} style={{ borderColor: '#fca5a5' }}>🔄 {t('Retry')}</button>
+                </div>
+            )}
+
             {isLoading ? (
                 <div style={{ padding: '32px', textAlign: 'center' }} className="muted">{t('Loading payment queue...')}</div>
-            ) : payments.length === 0 ? (
+            ) : !isError && payments.length === 0 ? (
                 <div style={{ padding: '48px', textAlign: 'center' }} className="muted">
                     <div style={{ fontSize: '32px', marginBottom: '12px' }}>✓</div>
                     <div style={{ fontWeight: 600 }}>{t('No payment requests found.')}</div>
@@ -719,7 +726,7 @@ export function SubscriptionInvoicesPage() {
         per_page: 15,
     });
 
-    const { data, isLoading } = useGetAdminInvoicesQuery({
+    const { data, isLoading, isError, refetch } = useGetAdminInvoicesQuery({
         search: queryState.search,
         status: queryState.status,
         page: queryState.page,
@@ -731,7 +738,7 @@ export function SubscriptionInvoicesPage() {
         skip: !selectedInvoiceId,
     });
 
-    const invoices = data?.invoices || [];
+    const invoices = data?.invoices || data?.data || [];
     const meta = data?.meta || {};
     const invoice = singleInvoiceData?.invoice;
 
@@ -768,9 +775,16 @@ export function SubscriptionInvoicesPage() {
                 />
             </div>
 
+            {isError && (
+                <div style={{ padding: '16px 20px', background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', borderRadius: '10px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span><strong>⚠️ {t('Error')}:</strong> {t('Failed to load subscription invoices.')}</span>
+                    <button type="button" className="btn small" onClick={() => refetch()} style={{ borderColor: '#fca5a5' }}>🔄 {t('Retry')}</button>
+                </div>
+            )}
+
             {isLoading ? (
                 <div style={{ padding: '32px', textAlign: 'center' }} className="muted">{t('Loading invoices...')}</div>
-            ) : invoices.length === 0 ? (
+            ) : !isError && invoices.length === 0 ? (
                 <div style={{ padding: '48px', textAlign: 'center' }} className="muted">
                     {t('No subscription invoices found.')}
                 </div>

@@ -86,6 +86,11 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/api/admin/subscription-invoices', [SuperAdminSubscriptionController::class, 'invoices'])->name('admin.invoices.index');
         Route::get('/api/admin/subscription-invoices/{invoice}', [SuperAdminSubscriptionController::class, 'showInvoice'])->name('admin.invoices.show');
+
+        // SPA Views for Super Admin
+        Route::get('/subscription-plans', fn () => view('spa'))->name('admin.plans.view');
+        Route::get('/payment-verifications', fn () => view('spa'))->name('admin.payments.view');
+        Route::get('/subscription-invoices', fn () => view('spa'))->name('admin.invoices.view');
     });
 
     Route::middleware('shop')->group(function () {

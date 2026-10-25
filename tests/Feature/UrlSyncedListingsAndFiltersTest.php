@@ -3,11 +3,16 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\Attendance;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\Installment;
+use App\Models\InstallmentPlan;
+use App\Models\Payroll;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
@@ -272,5 +277,118 @@ class UrlSyncedListingsAndFiltersTest extends TestCase
             ->assertJsonPath('expenses.0.note', 'Electricity bill')
             ->assertJsonPath('expenses.0.category', 'Utility Bills')
             ->assertJsonPath('expenses.0.account', 'Petty Cash');
+    }
+
+    public function test_invalid_or_out_of_range_page_numbers_are_handled_safely(): void
+    {
+        // Negative page number should be coerced safely by Laravel/controller
+        $responseNegative = $this->actingAs($this->owner)
+            ->getJson('/products?page=-5&per_page=10');
+
+        $responseNegative->assertOk()
+            ->assertJsonStructure(['data', 'meta' => ['current_page', 'last_page', 'total', 'per_page']])
+            ->assertJsonPath('meta.current_page', 1);
+
+        // Huge page number beyond available records should return empty data without errors
+        $responseHuge = $this->actingAs($this->owner)
+            ->getJson('/products?page=9999&per_page=10');
+
+        $responseHuge->assertOk()
+            ->assertJsonPath('data', []);
+    }
+
+    public function test_empty_paginated_listings_return_valid_meta_structure(): void
+    {
+        $response = $this->actingAs($this->owner)
+            ->getJson('/products?search=NonExistentKeywordXYZ&per_page=10');
+
+        $response->assertOk()
+            ->assertJsonPath('data', [])
+            ->assertJsonPath('meta.total', 0)
+            ->assertJsonPath('meta.last_page', 1);
+    }
+
+    public function test_installments_endpoint_supports_url_search_filtering_and_pagination(): void
+    {
+        $sale = Sale::create([
+            'store_id' => $this->store->id,
+            'user_id' => $this->owner->id,
+            'customer_id' => $this->customer->id,
+            'warehouse_id' => $this->warehouse->id,
+            'invoice_no' => 'INV-INST-1001',
+            'sold_at' => now(),
+            'grand_cents' => 30000,
+            'paid_cents' => 10000,
+            'status' => 'completed',
+            'payment_status' => 'partial',
+        ]);
+
+        $plan = InstallmentPlan::create([
+            'store_id' => $this->store->id,
+            'sale_id' => $sale->id,
+            'customer_id' => $this->customer->id,
+            'principal_cents' => 20000,
+            'financed_cents' => 20000,
+            'fee_cents' => 0,
+        ]);
+
+        Installment::create([
+            'store_id' => $this->store->id,
+            'installment_plan_id' => $plan->id,
+            'sequence' => 1,
+            'due_on' => now()->addMonth(),
+            'amount_cents' => 10000,
+            'paid_cents' => 0,
+            'status' => 'due',
+        ]);
+
+        $response = $this->actingAs($this->owner)
+            ->getJson('/report/installments?search=INST-1001&page=1&per_page=10');
+
+        $response->assertOk()
+            ->assertJsonStructure(['data', 'meta' => ['current_page', 'last_page', 'total', 'per_page']])
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.invoice_no', 'INV-INST-1001')
+            ->assertJsonPath('data.0.due_cents', 10000);
+    }
+
+    public function test_attendance_and_payroll_endpoints_return_data_keys_and_meta(): void
+    {
+        $emp = Employee::create([
+            'store_id' => $this->store->id,
+            'name' => 'Tariq Hasan',
+            'email' => 'tariq@bornopos.test',
+            'salary_cents' => 2500000,
+        ]);
+
+        Attendance::create([
+            'store_id' => $this->store->id,
+            'employee_id' => $emp->id,
+            'attended_on' => now()->toDateString(),
+            'status' => 'present',
+            'check_in' => '09:00',
+        ]);
+
+        Payroll::create([
+            'store_id' => $this->store->id,
+            'employee_id' => $emp->id,
+            'month' => now()->format('Y-m'),
+            'amount_cents' => 2500000,
+            'paid_on' => now()->toDateString(),
+        ]);
+
+        $resAttendance = $this->actingAs($this->owner)
+            ->getJson('/attendance?page=1&per_page=10');
+
+        $resAttendance->assertOk()
+            ->assertJsonStructure(['data', 'rows', 'meta' => ['current_page', 'last_page', 'total']])
+            ->assertJsonPath('meta.total', 1);
+
+        $resPayroll = $this->actingAs($this->owner)
+            ->getJson('/payrolls?page=1&per_page=10');
+
+        $resPayroll->assertOk()
+            ->assertJsonStructure(['data', 'rows', 'meta' => ['current_page', 'last_page', 'total']])
+            ->assertJsonPath('meta.total', 1);
     }
 }

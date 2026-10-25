@@ -1277,43 +1277,126 @@ html.dark .pos-filter.on { background: #1e3a5f; color: #93c5fd; }
 }
 
 .pos-qty-stepper {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
-  background: var(--card);
-  border: 1px solid var(--line);
+  justify-content: center;
+  gap: 1px;
+  background: var(--card, #ffffff);
+  border: 1px solid var(--line, #e2e8f0);
   border-radius: 8px;
   padding: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: border-color 0.15s ease;
+}
+
+.pos-qty-stepper:focus-within {
+  border-color: var(--blue, #2f80ed);
+  box-shadow: 0 0 0 2px var(--blue-glow, rgba(47, 128, 237, 0.18));
 }
 
 .pos-qty-btn {
-  width: 24px;
-  height: 24px;
-  display: flex;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 0;
   background: transparent;
   cursor: pointer;
   font-weight: 800;
-  font-size: 14px;
-  border-radius: 4px;
-  color: var(--text);
-}
-
-.pos-qty-btn:hover {
-  background: var(--line);
-}
-
-.pos-qty-input {
-  width: 32px;
-  text-align: center;
-  border: 0;
-  background: transparent;
-  font-weight: 700;
-  font-size: 13px;
+  font-size: 15px;
+  line-height: 1;
+  border-radius: 5px;
+  color: var(--text-heading, #0f172a);
+  transition: all 0.15s ease;
+  user-select: none;
   padding: 0;
-  color: var(--text);
+}
+
+.pos-qty-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: var(--blue, #2f80ed);
+}
+
+.pos-qty-btn:active:not(:disabled) {
+  background: #e2e8f0;
+  transform: scale(0.95);
+}
+
+.pos-qty-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Chrome/Safari spin button removal */
+.pos-qty-input::-webkit-outer-spin-button,
+.pos-qty-input::-webkit-inner-spin-button,
+.pos-qty-stepper input::-webkit-outer-spin-button,
+.pos-qty-stepper input::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+
+/* Explicit high specificity for quantity text & input */
+.pos-qty-stepper input.pos-qty-input,
+input.pos-qty-input[type="number"],
+input.pos-qty-input,
+.pos-qty-input {
+  width: 36px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+  padding: 0 2px !important;
+  margin: 0 !important;
+  text-align: center !important;
+  border: 0 !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+  font-family: var(--font) !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  line-height: 26px !important;
+  color: #0f172a !important; /* High-contrast dark bold text */
+  opacity: 1 !important;
+  display: inline-block !important;
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}
+
+.pos-qty-stepper input.pos-qty-input:focus,
+input.pos-qty-input:focus {
+  background: rgba(47, 128, 237, 0.08) !important;
+  color: var(--blue, #2f80ed) !important;
+}
+
+html.dark .pos-qty-stepper {
+  background: #162033;
+  border-color: #2a3548;
+}
+
+html.dark .pos-qty-btn {
+  color: #e2e8f0;
+}
+
+html.dark .pos-qty-btn:hover:not(:disabled) {
+  background: #243044;
+  color: #60a5fa;
+}
+
+html.dark .pos-qty-stepper input.pos-qty-input,
+html.dark input.pos-qty-input[type="number"],
+html.dark input.pos-qty-input,
+html.dark .pos-qty-input {
+  color: #f8fafc !important; /* High-contrast white text in dark mode */
+  background: transparent !important;
+}
+
+html.dark .pos-qty-stepper input.pos-qty-input:focus,
+html.dark input.pos-qty-input:focus {
+  background: rgba(59, 130, 246, 0.2) !important;
+  color: #60a5fa !important;
 }
 
 .pos-line-price {
@@ -2470,18 +2553,33 @@ html.dark .pos-mobile-floating-cart-bar {
     display: flex;
   }
   .pos-qty-stepper {
-    padding: 2px;
-    gap: 4px;
+    padding: 3px;
+    gap: 2px;
   }
   .pos-qty-btn {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
     font-size: 18px;
+    border-radius: 6px;
   }
+  .pos-qty-stepper input.pos-qty-input,
+  input.pos-qty-input,
   .pos-qty-input {
-    width: 40px;
-    height: 38px;
-    font-size: 16px;
+    width: 44px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    font-size: 16px !important;
+    line-height: 36px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: #0f172a !important;
+  }
+  html.dark .pos-qty-stepper input.pos-qty-input,
+  html.dark input.pos-qty-input,
+  html.dark .pos-qty-input {
+    color: #f8fafc !important;
   }
   .pos-del-btn {
     min-width: 38px;

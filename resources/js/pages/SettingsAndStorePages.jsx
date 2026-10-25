@@ -625,10 +625,12 @@ export function StoresPage() {
 
         api(`/stores?${params.toString()}`)
             .then((data) => {
-                setStores(data.stores || []);
+                setStores(data.stores || data.data || []);
                 setMeta(data.meta || null);
             })
-            .catch(() => {})
+            .catch((err) => {
+                setErrorMsg(err.message || 'Failed to load stores.');
+            })
             .finally(() => setLoading(false));
     };
 
@@ -1402,10 +1404,13 @@ export function SubscriptionReportPage() {
 
         api(`/subscription/report?${params.toString()}`)
             .then((data) => {
-                setRows(data.rows || []);
+                setRows(data.rows || data.data || []);
                 setMeta(data.meta || null);
             })
-            .catch(() => {})
+            .catch((err) => {
+                setRows([]);
+                setMeta(null);
+            })
             .finally(() => setLoading(false));
     };
 

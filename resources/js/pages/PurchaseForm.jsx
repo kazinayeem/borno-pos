@@ -770,7 +770,7 @@ export function PurchaseForm() {
                                                                     min="1"
                                                                     value={line.qty}
                                                                     onChange={(e) => updateLine(idx, 'qty', e.target.value)}
-                                                                    style={{ width: '45px', height: '34px', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', fontWeight: 700, fontSize: '13px', color: 'var(--text)' }}
+                                                                    style={{ width: '45px', height: '34px', padding: '0', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', fontWeight: 700, fontSize: '13px', color: 'var(--text)' }}
                                                                 />
                                                                 <button
                                                                     type="button"

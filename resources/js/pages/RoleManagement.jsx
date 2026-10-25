@@ -49,7 +49,7 @@ export default function RoleManagement() {
             const qp = new URLSearchParams();
             if (params.search) qp.set('search', params.search);
             const res = await api(`/api/roles?${qp.toString()}`);
-            setRoles(res.roles || []);
+            setRoles(res.roles || res.data || []);
             setModules(res.modules || []);
             setAllPermissionSlugs(res.all_permissions || []);
         } catch (err) {

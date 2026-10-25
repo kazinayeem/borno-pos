@@ -298,7 +298,7 @@ export function MoneyTransfersPage() {
 
         api(`/money-transfers?${qp.toString()}`)
             .then((res) => {
-                setTransfers(res.transfers || []);
+                setTransfers(res.transfers || res.data || []);
                 setAccounts(res.accounts || []);
                 setMeta(res.meta || null);
                 if (res.accounts?.length > 1 && !fromAccount) {
@@ -619,7 +619,7 @@ export function TransactionsPage() {
 
         api(`/account/transactions?${qp.toString()}`)
             .then((res) => {
-                setTransactions(res.transactions || []);
+                setTransactions(res.transactions || res.data || []);
                 setAccounts(res.accounts || []);
                 setTotalDebit(res.total_debit_cents || 0);
                 setTotalCredit(res.total_credit_cents || 0);
@@ -768,7 +768,7 @@ export function ExpensesPage() {
 
         api(`/expense?${qp.toString()}`)
             .then((res) => {
-                setExpenses(res.expenses || []);
+                setExpenses(res.expenses || res.data || []);
                 setCategories(res.categories || []);
                 setAccounts(res.accounts || []);
                 setMeta(res.meta || null);

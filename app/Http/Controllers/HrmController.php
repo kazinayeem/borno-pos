@@ -56,6 +56,7 @@ class HrmController extends Controller
 
             return response()->json([
                 'rows' => $attendanceRows,
+                'data' => $attendanceRows,
                 'attendance' => $attendanceRows,
                 'summary' => [
                     'total' => $rows->total(),
@@ -145,6 +146,7 @@ class HrmController extends Controller
 
             return response()->json([
                 'rows' => $payrollRows,
+                'data' => $payrollRows,
                 'payrolls' => $payrollRows,
                 'meta' => [
                     'current_page' => $rows->currentPage(),

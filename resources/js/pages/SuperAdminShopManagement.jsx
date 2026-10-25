@@ -24,7 +24,7 @@ export default function SuperAdminShopManagement() {
         per_page: 15,
     });
 
-    const { data, isLoading, refetch } = useGetAdminShopsQuery({
+    const { data, isLoading, isError, refetch } = useGetAdminShopsQuery({
         search: queryState.search,
         status: queryState.status,
         plan_id: queryState.plan_id,
@@ -79,7 +79,7 @@ export default function SuperAdminShopManagement() {
 
     const [feedback, setFeedback] = useState({ type: '', message: '' });
 
-    const shops = data?.shops || [];
+    const shops = data?.shops || data?.data || [];
     const meta = data?.meta || {};
     const shopDetail = detailData?.shop;
 
@@ -271,9 +271,16 @@ export default function SuperAdminShopManagement() {
                 </div>
             </div>
 
+            {isError && (
+                <div style={{ padding: '16px 20px', background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', borderRadius: '10px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span><strong>⚠️ {t('Error')}:</strong> {t('Failed to load shop records.')}</span>
+                    <button type="button" className="btn small" onClick={() => refetch()} style={{ borderColor: '#fca5a5' }}>🔄 {t('Retry')}</button>
+                </div>
+            )}
+
             {isLoading ? (
                 <div style={{ padding: '32px', textAlign: 'center' }} className="muted">{t('Loading shops...')}</div>
-            ) : shops.length === 0 ? (
+            ) : !isError && shops.length === 0 ? (
                 <div style={{ padding: '48px', textAlign: 'center' }} className="muted">
                     {t('No shops found matching your search or filters.')}
                 </div>

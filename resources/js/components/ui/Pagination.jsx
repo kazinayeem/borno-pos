@@ -2,27 +2,65 @@ import React from 'react';
 import { useT } from '../../i18n';
 
 /**
- * Reusable URL-synced Pagination Component
+ * Universal, resilient URL-synced Pagination Component.
+ * Supports:
+ * - `<Pagination meta={data.meta} onPageChange={setPage} onPerPageChange={setPerPage} />`
+ * - `<Pagination currentPage={meta.current_page} lastPage={meta.last_page} total={meta.total} ... />`
+ * - `<Pagination page={query.page} perPage={query.per_page} ... />`
  */
-export function Pagination({
-    currentPage = 1,
-    lastPage = 1,
-    total = 0,
-    from = 0,
-    to = 0,
-    perPage = 10,
-    onPageChange,
-    onPerPageChange,
-    perPageOptions = [10, 25, 50, 100],
-    showPerPage = true,
-}) {
+export function Pagination(props) {
     const t = useT();
 
+    const meta = props.meta || {};
+
+    const currentPage = Math.max(
+        1,
+        Number(props.currentPage ?? props.page ?? meta.current_page ?? meta.currentPage ?? meta.page ?? 1) || 1
+    );
+    const lastPage = Math.max(
+        1,
+        Number(props.lastPage ?? meta.last_page ?? meta.lastPage ?? 1) || 1
+    );
+    const total = Math.max(
+        0,
+        Number(props.total ?? meta.total ?? 0) || 0
+    );
+    const perPage = Math.max(
+        1,
+        Number(props.perPage ?? props.per_page ?? meta.per_page ?? meta.perPage ?? 10) || 10
+    );
+    const from = Number(
+        props.from ?? meta.from ?? (total > 0 ? (currentPage - 1) * perPage + 1 : 0)
+    ) || 0;
+    const to = Number(
+        props.to ?? meta.to ?? Math.min(currentPage * perPage, total)
+    ) || 0;
+
+    const onPageChange = props.onPageChange;
+    const onPerPageChange = props.onPerPageChange;
+    const perPageOptions = props.perPageOptions || [10, 15, 25, 50, 100];
+    const showPerPage = props.showPerPage ?? true;
+
+    // Do not render empty pagination if there are 0 records and no subsequent pages
     if (total <= 0 && lastPage <= 1) {
         return null;
     }
 
-    // Generate smart pagination page numbers
+    const handlePageChange = (targetPage) => {
+        const p = Math.max(1, Math.min(lastPage, targetPage));
+        if (typeof onPageChange === 'function') {
+            onPageChange(p);
+        }
+    };
+
+    const handlePerPageChange = (targetPerPage) => {
+        const pp = Math.max(1, Math.min(100, targetPerPage));
+        if (typeof onPerPageChange === 'function') {
+            onPerPageChange(pp);
+        }
+    };
+
+    // Generate smart pagination page numbers with ellipsis
     const getPageNumbers = () => {
         const delta = 2;
         const range = [];
@@ -74,7 +112,7 @@ export function Pagination({
                         <span>{t('Rows per page:')}</span>
                         <select
                             value={perPage}
-                            onChange={(e) => onPerPageChange(Number(e.target.value))}
+                            onChange={(e) => handlePerPageChange(Number(e.target.value))}
                             style={{
                                 height: '32px',
                                 padding: '0 24px 0 8px',
@@ -92,11 +130,15 @@ export function Pagination({
                     </div>
                 )}
                 <span>
-                    {t('Showing {from} to {to} of {total} entries', {
-                        from: from || (currentPage - 1) * perPage + 1,
-                        to: to || Math.min(currentPage * perPage, total),
-                        total,
-                    })}
+                    {total > 0 ? (
+                        t('Showing {from} to {to} of {total} entries', {
+                            from,
+                            to,
+                            total,
+                        })
+                    ) : (
+                        t('No entries to display')
+                    )}
                 </span>
             </div>
 
@@ -109,7 +151,7 @@ export function Pagination({
                             type="button"
                             className="btn"
                             disabled={currentPage <= 1}
-                            onClick={() => onPageChange(currentPage - 1)}
+                            onClick={() => handlePageChange(currentPage - 1)}
                             style={{ height: '32px', padding: '0 10px', fontSize: '12px' }}
                         >
                             {t('Previous')}
@@ -130,7 +172,7 @@ export function Pagination({
                                     key={`page-${p}`}
                                     type="button"
                                     className={`btn ${isCurrent ? 'primary' : ''}`}
-                                    onClick={() => onPageChange(p)}
+                                    onClick={() => handlePageChange(p)}
                                     style={{
                                         height: '32px',
                                         minWidth: '32px',
@@ -148,7 +190,7 @@ export function Pagination({
                             type="button"
                             className="btn"
                             disabled={currentPage >= lastPage}
-                            onClick={() => onPageChange(currentPage + 1)}
+                            onClick={() => handlePageChange(currentPage + 1)}
                             style={{ height: '32px', padding: '0 10px', fontSize: '12px' }}
                         >
                             {t('Next')}
@@ -161,7 +203,7 @@ export function Pagination({
                             type="button"
                             className="btn"
                             disabled={currentPage <= 1}
-                            onClick={() => onPageChange(currentPage - 1)}
+                            onClick={() => handlePageChange(currentPage - 1)}
                             style={{ height: '36px', padding: '0 12px', fontSize: '13px' }}
                         >
                             ← {t('Prev')}
@@ -173,7 +215,7 @@ export function Pagination({
                             type="button"
                             className="btn"
                             disabled={currentPage >= lastPage}
-                            onClick={() => onPageChange(currentPage + 1)}
+                            onClick={() => handlePageChange(currentPage + 1)}
                             style={{ height: '36px', padding: '0 12px', fontSize: '13px' }}
                         >
                             {t('Next')} →
@@ -184,3 +226,4 @@ export function Pagination({
         </div>
     );
 }
+export default Pagination;

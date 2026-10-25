@@ -237,7 +237,7 @@ export function SaleReturnsPage() {
         if (params.search) qp.set('search', params.search);
         api(`/sale-returns?${qp.toString()}`)
             .then((res) => {
-                setReturns(res.returns || []);
+                setReturns(res.returns || res.data || []);
                 setMeta(res.meta || null);
             })
             .catch(() => {})
