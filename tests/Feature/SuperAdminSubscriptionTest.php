@@ -2,9 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\AuditLog;
 use App\Models\Plan;
-use App\Models\Setting;
 use App\Models\Store;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
@@ -19,11 +17,17 @@ class SuperAdminSubscriptionTest extends TestCase
     use RefreshDatabase;
 
     private User $superAdmin;
+
     private User $shopOwner1;
+
     private Store $shop1;
+
     private User $shopOwner2;
+
     private Store $shop2;
+
     private Plan $starterPlan;
+
     private Plan $proPlan;
 
     protected function setUp(): void

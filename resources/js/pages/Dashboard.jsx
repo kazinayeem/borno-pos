@@ -6,6 +6,7 @@ import { money } from '../api';
 import { motion } from '../motion';
 import { useT } from '../i18n';
 import { useGetDashboardQuery } from '../services/bornoposApi';
+import PlatformDashboard from './PlatformDashboard';
 
 const cards = [
     ['total_sales', 'Total Sales', '#e8f1ff', '#2f80ed', '🛒'],
@@ -135,26 +136,7 @@ export default function Dashboard({ platform = false }) {
     }
 
     if (platform) {
-        const kpis = data?.kpis || {};
-        return (
-            <>
-                <div className="page-title">
-                    <div>
-                        <h1>{t('Welcome back, {name}', { name: user?.name })}</h1>
-                        <div className="muted">{t('Platform overview.')}</div>
-                    </div>
-                </div>
-                <div className="kpis">
-                    {[['Total Subscription Sale', kpis.subscription_sale, true], ['Total Subscriber', kpis.subscribers], ['Total Main Shop', kpis.shops], ['Total Store', kpis.stores]].map(([label, value, cash], index) => (
-                        <motion.article className="kpi" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: index * 0.06 }} whileHover={{ y: -3 }} key={label}>
-                            <div className="label">{t(label)}</div>
-                            <strong>{cash ? money(value || 0) : (value || 0)}</strong>
-                            <em>{data?.label}</em>
-                        </motion.article>
-                    ))}
-                </div>
-            </>
-        );
+        return <PlatformDashboard user={user} />;
     }
 
     const lookups = data?.filter_lookups || {};

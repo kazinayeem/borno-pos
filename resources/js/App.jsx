@@ -44,6 +44,11 @@ import {
     SubscriptionPurchasePage,
     SubscriptionReportPage,
 } from './pages/SettingsAndStorePages';
+import {
+    PaymentVerificationPage,
+    SubscriptionPlansPage,
+    SubscriptionInvoicesPage,
+} from './pages/SaaSManagementPages';
 import TourCenterPage from './pages/TourCenterPage';
 import { TourProvider } from './tour/TourContext';
 import BornoPosGuidedTour from './tour/BornoPosGuidedTour';
@@ -165,6 +170,9 @@ export default function App() {
                 <Route path="/stores/create" element={<Guard ability="settings.view"><StoreCreatePage /></Guard>} />
                 <Route path="/subscription-purchase" element={<Guard ability="settings.view"><SubscriptionPurchasePage /></Guard>} />
                 <Route path="/subscription/report" element={<Guard ability="settings.view"><SubscriptionReportPage /></Guard>} />
+                <Route path="/subscription-plans" element={<Guard><SubscriptionPlansPage /></Guard>} />
+                <Route path="/payment-verifications" element={<Guard><PaymentVerificationPage /></Guard>} />
+                <Route path="/subscription-invoices" element={<Guard><SubscriptionInvoicesPage /></Guard>} />
                 {catalogs.map((path) => (
                     <Route key={path} path={path} element={<Guard><CatalogPage endpoint={path} /></Guard>} />
                 ))}
