@@ -75,6 +75,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/api/admin/plans', [SuperAdminSubscriptionController::class, 'storePlan'])->name('admin.plans.store');
         Route::put('/api/admin/plans/{plan}', [SuperAdminSubscriptionController::class, 'updatePlan'])->name('admin.plans.update');
         Route::post('/api/admin/plans/{plan}/toggle', [SuperAdminSubscriptionController::class, 'togglePlan'])->name('admin.plans.toggle');
+        Route::get('/api/admin/plans/{plan}/subscribers', [SuperAdminSubscriptionController::class, 'planSubscribers'])->name('admin.plans.subscribers');
 
         Route::get('/api/admin/payment-settings', [SuperAdminSubscriptionController::class, 'getPaymentSettings'])->name('admin.payments.settings');
         Route::post('/api/admin/payment-settings', [SuperAdminSubscriptionController::class, 'updatePaymentSettings'])->name('admin.payments.settings.update');
@@ -211,6 +212,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/subscription-purchase', [ShopController::class, 'plans'])->name('subscriptions.purchase');
             Route::post('/subscription-purchase', [ShopController::class, 'buy'])->name('subscriptions.buy');
             Route::get('/api/subscription/checkout-info', [ShopController::class, 'plans'])->name('subscriptions.checkout-info');
+            Route::get('/api/subscription/calculate-summary', [ShopController::class, 'calculateSummary'])->name('subscriptions.calculate-summary');
             Route::post('/api/subscription/submit-payment', [ShopController::class, 'submitPayment'])->name('subscriptions.submit-payment');
             Route::get('/api/subscription/my-history', [ShopController::class, 'myHistory'])->name('subscriptions.my-history');
 

@@ -12,6 +12,7 @@ import {
     useToggleAdminPlanMutation,
     useGetAdminInvoicesQuery,
     useGetAdminInvoiceQuery,
+    useGetAdminPlanSubscribersQuery,
 } from '../services/bornoposApi';
 
 /**
@@ -405,10 +406,15 @@ export function SubscriptionPlansPage() {
 
     const [modalOpen, setModalOpen] = useState(false);
     const [editingPlan, setEditingPlan] = useState(null);
+    const [viewingSubscribersPlan, setViewingSubscribersPlan] = useState(null);
+    const [previewingPlan, setPreviewingPlan] = useState(null);
     const [feedback, setFeedback] = useState({ type: '', message: '' });
 
     const [form, setForm] = useState({
         name: '',
+        slug: '',
+        description: '',
+        currency: 'BDT',
         price_cents: 0,
         interval: 'month',
         duration_days: 30,
@@ -417,6 +423,8 @@ export function SubscriptionPlansPage() {
         max_stores: 1,
         max_products: 500,
         features: '',
+        is_featured: false,
+        sort_order: 0,
         is_active: true,
     });
 
@@ -426,6 +434,9 @@ export function SubscriptionPlansPage() {
         setEditingPlan(null);
         setForm({
             name: '',
+            slug: '',
+            description: '',
+            currency: 'BDT',
             price_cents: 290000,
             interval: 'month',
             duration_days: 30,
@@ -434,6 +445,8 @@ export function SubscriptionPlansPage() {
             max_stores: 1,
             max_products: 500,
             features: 'POS Terminal, Inventory Tracking, Standard Reports',
+            is_featured: false,
+            sort_order: 0,
             is_active: true,
         });
         setModalOpen(true);
@@ -442,8 +455,11 @@ export function SubscriptionPlansPage() {
     const openEdit = (plan) => {
         setEditingPlan(plan);
         setForm({
-            name: plan.name,
-            price_cents: plan.price_cents,
+            name: plan.name || '',
+            slug: plan.slug || '',
+            description: plan.description || '',
+            currency: plan.currency || 'BDT',
+            price_cents: plan.price_cents ?? 0,
             interval: plan.interval || 'month',
             duration_days: plan.duration_days || 30,
             trial_days: plan.trial_days || 0,
@@ -451,6 +467,8 @@ export function SubscriptionPlansPage() {
             max_stores: plan.max_stores || 1,
             max_products: plan.max_products || 500,
             features: typeof plan.features === 'string' ? plan.features : (Array.isArray(plan.features) ? plan.features.join(', ') : ''),
+            is_featured: Boolean(plan.is_featured),
+            sort_order: plan.sort_order ?? 0,
             is_active: plan.is_active,
         });
         setModalOpen(true);
@@ -469,6 +487,8 @@ export function SubscriptionPlansPage() {
                 max_users: parseInt(form.max_users, 10),
                 max_stores: parseInt(form.max_stores, 10),
                 max_products: parseInt(form.max_products, 10),
+                sort_order: parseInt(form.sort_order || 0, 10),
+                is_featured: Boolean(form.is_featured),
             }).unwrap();
             setFeedback({ type: 'success', message: res.message || t('Plan saved successfully.') });
             setModalOpen(false);
@@ -515,12 +535,12 @@ export function SubscriptionPlansPage() {
             {isLoading ? (
                 <div style={{ padding: '32px', textAlign: 'center' }} className="muted">{t('Loading plans...')}</div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginTop: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginTop: '16px' }}>
                     {plans.map((p) => (
                         <div
                             key={p.id}
                             style={{
-                                border: `1px solid ${p.is_active ? 'var(--border)' : '#e5e7eb'}`,
+                                border: `1px solid ${p.is_featured ? 'var(--primary, #4f46e5)' : p.is_active ? 'var(--border)' : '#e5e7eb'}`,
                                 borderRadius: '12px',
                                 padding: '24px',
                                 background: p.is_active ? 'var(--card-bg, #fff)' : '#f9fafb',
@@ -528,22 +548,56 @@ export function SubscriptionPlansPage() {
                                 display: 'flex',
                                 flexDirection: 'column',
                                 justifyContent: 'space-between',
+                                position: 'relative',
                             }}
                         >
                             <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                    <h3 style={{ fontSize: '18px', fontWeight: 800 }}>{p.name}</h3>
-                                    <span className={`badge ${p.is_active ? 'success' : 'secondary'}`}>
-                                        {p.is_active ? t('Active') : t('Inactive')}
-                                    </span>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '8px', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>{p.name}</h3>
+                                        {p.is_featured && (
+                                            <span style={{ fontSize: '10px', background: 'var(--primary, #4f46e5)', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                                {t('Featured')}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '11px', color: '#6b7280' }}>#{p.sort_order ?? 0}</span>
+                                        <span className={`badge ${p.is_active ? 'success' : 'secondary'}`}>
+                                            {p.is_active ? t('Active') : t('Inactive')}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div style={{ fontSize: '28px', fontWeight: 900, color: 'var(--primary, #4f46e5)', marginBottom: '8px' }}>
+
+                                {p.description && (
+                                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 10px 0' }}>{p.description}</p>
+                                )}
+
+                                <div style={{ fontSize: '26px', fontWeight: 900, color: 'var(--primary, #4f46e5)', marginBottom: '8px' }}>
                                     {money(p.price_cents)}
-                                    <span style={{ fontSize: '13px', fontWeight: 500, color: '#6b7280' }}> / {p.duration_days} {t('days')}</span>
+                                    <span style={{ fontSize: '13px', fontWeight: 500, color: '#6b7280' }}> / {p.duration_days} {t('days')} ({p.currency || 'BDT'})</span>
                                 </div>
-                                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '16px' }}>
-                                    👥 {p.subscribers_count} {t('Active Subscribers')}
-                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setViewingSubscribersPlan(p)}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        fontSize: '12px',
+                                        color: '#2563eb',
+                                        background: 'none',
+                                        border: 'none',
+                                        padding: 0,
+                                        cursor: 'pointer',
+                                        marginBottom: '16px',
+                                        fontWeight: 600,
+                                        textDecoration: 'underline',
+                                    }}
+                                >
+                                    👥 {p.subscribers_count} {t('Active Subscribers')} →
+                                </button>
 
                                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', marginBottom: '16px', fontSize: '13px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
@@ -568,12 +622,15 @@ export function SubscriptionPlansPage() {
 
                                 {p.features && (
                                     <div style={{ fontSize: '12px', color: '#4b5563', marginBottom: '16px', lineHeight: 1.5 }}>
-                                        {p.features}
+                                        {typeof p.features === 'string' ? p.features : (Array.isArray(p.features) ? p.features.join(', ') : '')}
                                     </div>
                                 )}
                             </div>
 
-                            <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+                            <div style={{ display: 'flex', gap: '6px', borderTop: '1px solid var(--border)', paddingTop: '14px', flexWrap: 'wrap' }}>
+                                <button type="button" className="btn sm secondary" style={{ flex: 1 }} onClick={() => setPreviewingPlan(p)}>
+                                    👁️ {t('Preview')}
+                                </button>
                                 <button type="button" className="btn sm" style={{ flex: 1 }} onClick={() => openEdit(p)}>
                                     {t('Edit')}
                                 </button>
@@ -611,6 +668,28 @@ export function SubscriptionPlansPage() {
                             />
                         </div>
                         <div className="field">
+                            <label>{t('Slug / Identifier')}</label>
+                            <input
+                                type="text"
+                                value={form.slug}
+                                onChange={(e) => setForm({ ...form, slug: e.target.value })}
+                                placeholder={t('e.g. pro-pharmacy (optional)')}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="field">
+                        <label>{t('Short Description')}</label>
+                        <input
+                            type="text"
+                            value={form.description}
+                            onChange={(e) => setForm({ ...form, description: e.target.value })}
+                            placeholder={t('e.g. Perfect for multi-store pharmacy chains')}
+                        />
+                    </div>
+
+                    <div className="grid grid-3" style={{ gap: '12px' }}>
+                        <div className="field">
                             <label>{t('Price (in Cents / Paisa)')} *</label>
                             <input
                                 type="number"
@@ -624,9 +703,16 @@ export function SubscriptionPlansPage() {
                                 {t('Preview')}: {money(parseInt(form.price_cents || 0, 10))}
                             </div>
                         </div>
-                    </div>
-
-                    <div className="grid grid-3" style={{ gap: '12px' }}>
+                        <div className="field">
+                            <label>{t('Currency')} *</label>
+                            <input
+                                type="text"
+                                required
+                                value={form.currency}
+                                onChange={(e) => setForm({ ...form, currency: e.target.value })}
+                                placeholder="BDT"
+                            />
+                        </div>
                         <div className="field">
                             <label>{t('Billing Period')} *</label>
                             <select value={form.interval} onChange={(e) => setForm({ ...form, interval: e.target.value })}>
@@ -636,6 +722,9 @@ export function SubscriptionPlansPage() {
                                 <option value="custom">{t('Custom')}</option>
                             </select>
                         </div>
+                    </div>
+
+                    <div className="grid grid-3" style={{ gap: '12px' }}>
                         <div className="field">
                             <label>{t('Duration (Days)')} *</label>
                             <input
@@ -653,6 +742,15 @@ export function SubscriptionPlansPage() {
                                 min="0"
                                 value={form.trial_days}
                                 onChange={(e) => setForm({ ...form, trial_days: e.target.value })}
+                            />
+                        </div>
+                        <div className="field">
+                            <label>{t('Sort Order')}</label>
+                            <input
+                                type="number"
+                                value={form.sort_order}
+                                onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
+                                placeholder="0"
                             />
                         </div>
                     </div>
@@ -700,6 +798,25 @@ export function SubscriptionPlansPage() {
                         />
                     </div>
 
+                    <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                            <input
+                                type="checkbox"
+                                checked={form.is_featured}
+                                onChange={(e) => setForm({ ...form, is_featured: e.target.checked })}
+                            />
+                            <strong>{t('Mark as Featured / Most Popular')}</strong>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                            <input
+                                type="checkbox"
+                                checked={form.is_active}
+                                onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+                            />
+                            <span>{t('Active & Published')}</span>
+                        </label>
+                    </div>
+
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
                         <button type="button" className="btn" onClick={() => setModalOpen(false)}>
                             {t('Cancel')}
@@ -710,7 +827,174 @@ export function SubscriptionPlansPage() {
                     </div>
                 </form>
             </Modal>
+
+            {/* Subscribers Modal */}
+            <PlanSubscribersModal
+                plan={viewingSubscribersPlan}
+                onClose={() => setViewingSubscribersPlan(null)}
+            />
+
+            {/* Plan Preview Modal */}
+            <PlanPreviewModal
+                plan={previewingPlan}
+                onClose={() => setPreviewingPlan(null)}
+            />
         </section>
+    );
+}
+
+function PlanSubscribersModal({ plan, onClose }) {
+    const { t } = useTranslation();
+    const { data, isLoading } = useGetAdminPlanSubscribersQuery(plan?.id, { skip: !plan?.id });
+    const subscribers = data?.subscribers || [];
+
+    return (
+        <Modal
+            isOpen={Boolean(plan)}
+            onClose={onClose}
+            title={`${t('Subscribers for')} "${plan?.name}"`}
+            subtitle={t('List of shops and businesses currently or previously subscribed to this plan.')}
+            size="lg"
+        >
+            {isLoading ? (
+                <div style={{ padding: '32px', textAlign: 'center' }} className="muted">{t('Loading subscribers...')}</div>
+            ) : subscribers.length === 0 ? (
+                <div style={{ padding: '32px', textAlign: 'center' }} className="muted">{t('No shops subscribed to this plan yet.')}</div>
+            ) : (
+                <div style={{ overflowX: 'auto', maxHeight: '450px' }}>
+                    <table className="table" style={{ width: '100%', fontSize: '13px' }}>
+                        <thead>
+                            <tr>
+                                <th>{t('Shop')}</th>
+                                <th>{t('Owner')}</th>
+                                <th>{t('Status')}</th>
+                                <th>{t('Stores / Products')}</th>
+                                <th>{t('Period')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {subscribers.map((sub) => (
+                                <tr key={sub.id}>
+                                    <td>
+                                        <strong>{sub.shop_name}</strong>
+                                        <div style={{ fontSize: '11px', color: '#6b7280' }}>ID: {sub.shop_id}</div>
+                                    </td>
+                                    <td>
+                                        <div>{sub.owner_name}</div>
+                                        <div style={{ fontSize: '11px', color: '#6b7280' }}>{sub.owner_email}</div>
+                                    </td>
+                                    <td>
+                                        <span className={`badge ${sub.status === 'active' ? 'success' : sub.status === 'expired' ? 'danger' : 'warning'}`}>
+                                            {sub.status}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div>{sub.stores_count} {t('stores')}</div>
+                                        <div style={{ fontSize: '11px', color: '#6b7280' }}>{sub.products_count} {t('products')}</div>
+                                    </td>
+                                    <td>
+                                        <div style={{ fontSize: '12px' }}>{sub.starts_at ? new Date(sub.starts_at).toLocaleDateString() : '—'}</div>
+                                        <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                                            {t('to')} {sub.ends_at ? new Date(sub.ends_at).toLocaleDateString() : '—'}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button type="button" className="btn" onClick={onClose}>{t('Close')}</button>
+            </div>
+        </Modal>
+    );
+}
+
+function PlanPreviewModal({ plan, onClose }) {
+    const { t } = useTranslation();
+    if (!plan) return null;
+
+    const featureList = typeof plan.features === 'string'
+        ? plan.features.split(',').map((f) => f.trim()).filter(Boolean)
+        : (Array.isArray(plan.features) ? plan.features : []);
+
+    return (
+        <Modal
+            isOpen={Boolean(plan)}
+            onClose={onClose}
+            title={`${t('Shop Owner Preview')}: ${plan.name}`}
+            subtitle={t('This is how the subscription card appears to shop owners on the purchase page.')}
+            size="md"
+        >
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
+                <div style={{
+                    width: '320px',
+                    borderRadius: '16px',
+                    border: plan.is_featured ? '2px solid var(--primary, #4f46e5)' : '1px solid var(--border, #e5e7eb)',
+                    background: '#fff',
+                    boxShadow: plan.is_featured ? '0 10px 25px -5px rgba(79, 70, 229, 0.15)' : '0 2px 8px rgba(0,0,0,0.04)',
+                    padding: '24px',
+                    position: 'relative',
+                }}>
+                    {plan.is_featured && (
+                        <div style={{
+                            position: 'absolute',
+                            top: '-12px',
+                            right: '20px',
+                            background: 'var(--primary, #4f46e5)',
+                            color: '#fff',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '3px 10px',
+                            borderRadius: '999px',
+                            textTransform: 'uppercase',
+                        }}>
+                            {t('Most Popular')}
+                        </div>
+                    )}
+                    <h3 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px 0' }}>{plan.name}</h3>
+                    {plan.description && <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 14px 0' }}>{plan.description}</p>}
+
+                    <div style={{ fontSize: '30px', fontWeight: 900, color: 'var(--primary, #4f46e5)', marginBottom: '16px' }}>
+                        {money(plan.price_cents)}
+                        <span style={{ fontSize: '13px', fontWeight: 500, color: '#6b7280' }}> / {plan.duration_days} {t('days')}</span>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: '12px', marginBottom: '16px', fontSize: '13px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <span style={{ color: '#6b7280' }}>🏪 {t('Max Stores')}:</span>
+                            <strong>{plan.max_stores}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <span style={{ color: '#6b7280' }}>👥 {t('Max Staff')}:</span>
+                            <strong>{plan.max_users}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <span style={{ color: '#6b7280' }}>📦 {t('Max Products')}:</span>
+                            <strong>{plan.max_products}</strong>
+                        </div>
+                    </div>
+
+                    {featureList.length > 0 && (
+                        <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 20px 0', fontSize: '12px' }}>
+                            {featureList.map((f, i) => (
+                                <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', color: '#374151' }}>
+                                    <span style={{ color: '#10b981', fontWeight: 800 }}>✓</span> {f}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+
+                    <button type="button" className="btn primary" style={{ width: '100%', pointerEvents: 'none' }}>
+                        {plan.price_cents === 0 ? t('Activate Free Plan') : t('Select Plan & Pay')}
+                    </button>
+                </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button type="button" className="btn" onClick={onClose}>{t('Close')}</button>
+            </div>
+        </Modal>
     );
 }
 

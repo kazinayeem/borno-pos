@@ -120,9 +120,17 @@ class ShopController extends Controller
 
     public function plans(Request $request)
     {
-        $plans = Plan::where('is_active', true)->orderBy('price_cents')->get();
+        $plans = Plan::where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('price_cents')
+            ->get();
+
         $user = $request->user();
-        $store = $user->store_id ? Store::withoutGlobalScopes()->find($user->store_id) : null;
+        $storeId = $user->store_id;
+        if (! $storeId && $user->isSuperAdmin() && $request->filled('store_id')) {
+            $storeId = (int) $request->input('store_id');
+        }
+        $store = $storeId ? Store::withoutGlobalScopes()->find($storeId) : null;
 
         $invoices = $store ? SubscriptionInvoice::withoutGlobalScopes()
             ->where('store_id', $store->id)
@@ -143,7 +151,7 @@ class ShopController extends Controller
                 'enabled' => true,
                 'account_number' => '01712345678',
                 'account_type' => 'Merchant',
-                'instructions' => "1. Go to your bKash app or dial *247#.\n2. Choose 'Make Payment'.\n3. Enter our bKash Number: 01712345678.\n4. Enter the bill amount.\n5. Use your Shop Name as Reference.\n6. Confirm with PIN.\n7. Copy the TrxID and submit it below.",
+                'instructions' => "1. Go to your bKash app or dial *247#.\n2. Choose 'Make Payment'.\n3. Enter our bKash Number: 01712345678.\n4. Enter the exact bill amount.\n5. Use your Shop Name as Reference.\n6. Confirm with PIN.\n7. Copy the TrxID and submit it below.",
             ],
             'nagad' => [
                 'enabled' => true,
@@ -169,7 +177,10 @@ class ShopController extends Controller
                 'plans' => $plans->map(fn ($p) => [
                     'id' => $p->id,
                     'name' => $p->name,
+                    'slug' => $p->slug ?: Str::slug($p->name),
+                    'description' => $p->description,
                     'price_cents' => (int) $p->price_cents,
+                    'currency' => $p->currency ?: 'BDT',
                     'interval' => $p->interval,
                     'billing_interval' => $p->interval,
                     'duration_days' => $p->duration_days ?: 30,
@@ -177,7 +188,10 @@ class ShopController extends Controller
                     'max_users' => $p->max_users ?: 5,
                     'max_stores' => $p->max_stores ?: 1,
                     'max_products' => $p->max_products ?: 500,
-                    'features' => is_array($p->features) ? $p->features : (is_string($p->features) ? array_map('trim', explode(',', $p->features)) : []),
+                    'allowed_modules' => $p->allowed_modules ?? [],
+                    'features' => is_array($p->features) ? $p->features : (is_string($p->features) ? array_values(array_filter(array_map('trim', explode(',', $p->features)))) : []),
+                    'is_featured' => (bool) $p->is_featured,
+                    'sort_order' => (int) $p->sort_order,
                 ]),
                 'gateways' => $publicGateways,
                 'shop' => $store ? [
@@ -225,17 +239,110 @@ class ShopController extends Controller
         return view('spa');
     }
 
+    public function calculateSummary(Request $request)
+    {
+        $validated = $request->validate([
+            'plan_id' => ['required', 'integer', 'exists:plans,id'],
+        ]);
+
+        $plan = Plan::where('is_active', true)->findOrFail($validated['plan_id']);
+
+        $subtotal = (int) $plan->price_cents;
+        $tax = 0; // Tax is inclusive in BDT pricing
+        $total = $subtotal + $tax;
+
+        return response()->json([
+            'plan' => [
+                'id' => $plan->id,
+                'name' => $plan->name,
+                'slug' => $plan->slug ?: Str::slug($plan->name),
+                'description' => $plan->description,
+                'price_cents' => $subtotal,
+                'currency' => $plan->currency ?: 'BDT',
+                'duration_days' => $plan->duration_days ?: 30,
+                'interval' => $plan->interval,
+                'max_stores' => $plan->max_stores,
+                'max_users' => $plan->max_users,
+                'max_products' => $plan->max_products,
+            ],
+            'subtotal_cents' => $subtotal,
+            'tax_cents' => $tax,
+            'total_cents' => $total,
+            'currency' => $plan->currency ?: 'BDT',
+        ]);
+    }
+
     public function buy(Request $request)
     {
         $data = $request->validate([
             'plan_id' => ['required', 'integer', 'exists:plans,id'],
+            'store_id' => ['nullable', 'integer', 'exists:stores,id'],
         ]);
-        $plan = Plan::findOrFail($data['plan_id']);
-        $storeId = $request->user()->store_id;
+        $plan = Plan::where('is_active', true)->findOrFail($data['plan_id']);
+        $user = $request->user();
+        $storeId = $user->store_id;
+
+        if (! $storeId && $user->isSuperAdmin() && ! empty($data['store_id'])) {
+            $storeId = (int) $data['store_id'];
+        }
+
+        if (! $storeId) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'No active shop associated with your account.'], 422);
+            }
+
+            return back()->with('error', 'No active shop associated with your account.');
+        }
+
+        $store = Store::withoutGlobalScopes()->findOrFail($storeId);
+
+        // Immediate activation for free tiers (e.g. Starter 0 BDT)
+        if ($plan->price_cents === 0) {
+            $invoice = SubscriptionInvoice::create([
+                'invoice_no' => SubscriptionInvoice::generateInvoiceNo(),
+                'store_id' => $store->id,
+                'plan_id' => $plan->id,
+                'billing_period' => $plan->interval,
+                'subtotal_cents' => 0,
+                'total_cents' => 0,
+                'due_cents' => 0,
+                'paid_cents' => 0,
+                'status' => 'paid',
+                'due_date' => now()->toDateString(),
+            ]);
+
+            Subscription::create([
+                'store_id' => $store->id,
+                'plan_id' => $plan->id,
+                'status' => 'active',
+                'gateway' => 'free',
+                'payment_status' => 'paid',
+                'starts_on' => now()->toDateString(),
+                'ends_on' => now()->addDays($plan->duration_days ?: 30)->toDateString(),
+                'amount_cents' => 0,
+            ]);
+
+            $store->update([
+                'active_plan_id' => $plan->id,
+                'subscription_status' => 'active',
+                'subscription_expires_at' => now()->addDays($plan->duration_days ?: 30)->endOfDay(),
+                'is_active' => true,
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Free plan activated successfully!',
+                    'invoice' => $invoice,
+                    'shop' => $store->fresh(),
+                ]);
+            }
+
+            return back()->with('status', 'Free plan activated successfully!');
+        }
 
         $invoice = SubscriptionInvoice::create([
             'invoice_no' => SubscriptionInvoice::generateInvoiceNo(),
-            'store_id' => $storeId,
+            'store_id' => $store->id,
             'plan_id' => $plan->id,
             'billing_period' => $plan->interval,
             'subtotal_cents' => $plan->price_cents,
@@ -247,7 +354,7 @@ class ShopController extends Controller
         ]);
 
         Subscription::create([
-            'store_id' => $storeId,
+            'store_id' => $store->id,
             'plan_id' => $plan->id,
             'status' => 'pending',
             'gateway' => 'manual',
@@ -268,14 +375,19 @@ class ShopController extends Controller
     public function submitPayment(Request $request)
     {
         $user = $request->user();
-        if (! $user->store_id) {
-            return response()->json(['message' => 'No active shop associated with your account.'], 403);
+        $storeId = $user->store_id;
+        if (! $storeId && $user->isSuperAdmin() && $request->filled('store_id')) {
+            $storeId = (int) $request->input('store_id');
+        }
+
+        if (! $storeId) {
+            return response()->json(['message' => 'No active shop associated with your account.'], 422);
         }
 
         $validated = $request->validate([
             'plan_id' => ['required', 'integer', 'exists:plans,id'],
-            'payment_method' => ['required', 'string', Rule::in(['bkash', 'nagad', 'bank', 'manual'])],
-            'amount_cents' => ['required', 'integer', 'min:1'],
+            'payment_method' => ['required', 'string', Rule::in(['bkash', 'nagad', 'bank', 'manual', 'free'])],
+            'amount_cents' => ['required', 'integer', 'min:0'],
             'transaction_id' => ['required', 'string', 'max:100'],
             'sender_phone' => ['nullable', 'string', 'max:40'],
             'payment_date' => ['nullable', 'date'],
@@ -297,8 +409,15 @@ class ShopController extends Controller
             ], 422);
         }
 
-        $store = Store::withoutGlobalScopes()->findOrFail($user->store_id);
-        $plan = Plan::findOrFail($validated['plan_id']);
+        $store = Store::withoutGlobalScopes()->findOrFail($storeId);
+        $plan = Plan::where('is_active', true)->findOrFail($validated['plan_id']);
+
+        if ((int) $validated['amount_cents'] !== (int) $plan->price_cents) {
+            return response()->json([
+                'message' => 'The payment amount must match the published plan price exactly.',
+                'errors' => ['amount_cents' => ['Amount mismatch against plan price.']],
+            ], 422);
+        }
 
         $screenshotPath = null;
         if ($request->hasFile('screenshot') && $request->file('screenshot')->isValid()) {

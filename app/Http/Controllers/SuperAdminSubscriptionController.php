@@ -524,6 +524,7 @@ class SuperAdminSubscriptionController extends Controller
     public function plans(Request $request)
     {
         $plans = Plan::withCount(['stores as subscribers_count'])
+            ->orderBy('sort_order')
             ->orderBy('price_cents')
             ->get();
 
@@ -531,7 +532,10 @@ class SuperAdminSubscriptionController extends Controller
             'plans' => $plans->map(fn ($p) => [
                 'id' => $p->id,
                 'name' => $p->name,
-                'price_cents' => $p->price_cents,
+                'slug' => $p->slug ?: Str::slug($p->name),
+                'description' => $p->description,
+                'price_cents' => (int) $p->price_cents,
+                'currency' => $p->currency ?: 'BDT',
                 'interval' => $p->interval,
                 'duration_days' => $p->duration_days ?: 30,
                 'trial_days' => $p->trial_days ?: 0,
@@ -541,6 +545,8 @@ class SuperAdminSubscriptionController extends Controller
                 'allowed_modules' => $p->allowed_modules ?? [],
                 'features' => $p->features,
                 'is_active' => (bool) $p->is_active,
+                'is_featured' => (bool) $p->is_featured,
+                'sort_order' => (int) $p->sort_order,
                 'subscribers_count' => $p->subscribers_count,
             ]),
         ]);
@@ -550,7 +556,10 @@ class SuperAdminSubscriptionController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
+            'slug' => ['nullable', 'string', 'max:100', 'unique:plans,slug'],
+            'description' => ['nullable', 'string', 'max:1000'],
             'price_cents' => ['required', 'integer', 'min:0'],
+            'currency' => ['nullable', 'string', 'max:10'],
             'interval' => ['required', 'string', Rule::in(['month', 'quarter', 'year', 'custom'])],
             'duration_days' => ['required', 'integer', 'min:1', 'max:3650'],
             'trial_days' => ['nullable', 'integer', 'min:0', 'max:365'],
@@ -560,7 +569,23 @@ class SuperAdminSubscriptionController extends Controller
             'allowed_modules' => ['nullable', 'array'],
             'features' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['boolean'],
+            'is_featured' => ['boolean'],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        if (empty($validated['slug'])) {
+            $baseSlug = Str::slug($validated['name']);
+            $slug = $baseSlug;
+            $counter = 1;
+            while (Plan::where('slug', $slug)->exists()) {
+                $slug = "{$baseSlug}-{$counter}";
+                $counter++;
+            }
+            $validated['slug'] = $slug;
+        }
+
+        $validated['currency'] = $validated['currency'] ?? 'BDT';
+        $validated['sort_order'] = $validated['sort_order'] ?? 0;
 
         $plan = Plan::create($validated);
 
@@ -574,7 +599,10 @@ class SuperAdminSubscriptionController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
+            'slug' => ['nullable', 'string', 'max:100', Rule::unique('plans', 'slug')->ignore($plan->id)],
+            'description' => ['nullable', 'string', 'max:1000'],
             'price_cents' => ['required', 'integer', 'min:0'],
+            'currency' => ['nullable', 'string', 'max:10'],
             'interval' => ['required', 'string', Rule::in(['month', 'quarter', 'year', 'custom'])],
             'duration_days' => ['required', 'integer', 'min:1', 'max:3650'],
             'trial_days' => ['nullable', 'integer', 'min:0', 'max:365'],
@@ -584,7 +612,13 @@ class SuperAdminSubscriptionController extends Controller
             'allowed_modules' => ['nullable', 'array'],
             'features' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['boolean'],
+            'is_featured' => ['boolean'],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        if (empty($validated['slug'])) {
+            $validated['slug'] = Str::slug($validated['name']);
+        }
 
         $plan->update($validated);
 
@@ -601,6 +635,59 @@ class SuperAdminSubscriptionController extends Controller
         return response()->json([
             'message' => $plan->is_active ? 'Plan activated.' : 'Plan deactivated.',
             'plan' => $plan,
+        ]);
+    }
+
+    public function planSubscribers(Plan $plan)
+    {
+        $stores = Store::withoutGlobalScopes()
+            ->where('active_plan_id', $plan->id)
+            ->with(['owner'])
+            ->latest()
+            ->paginate(15);
+
+        $recentInvoices = SubscriptionInvoice::withoutGlobalScopes()
+            ->where('plan_id', $plan->id)
+            ->with('store')
+            ->latest()
+            ->limit(10)
+            ->get();
+
+        return response()->json([
+            'plan' => [
+                'id' => $plan->id,
+                'name' => $plan->name,
+                'price_cents' => $plan->price_cents,
+                'currency' => $plan->currency ?: 'BDT',
+            ],
+            'total_subscribers' => $stores->total(),
+            'subscribers' => $stores->getCollection()->map(fn ($s) => [
+                'id' => $s->id,
+                'shop_id' => $s->id,
+                'name' => $s->name,
+                'shop_name' => $s->name,
+                'business_type' => $s->business_type,
+                'owner_name' => $s->owner?->name ?? '—',
+                'owner_email' => $s->owner?->email ?? '—',
+                'owner_phone' => $s->phone ?? $s->owner?->phone ?? '—',
+                'status' => $s->subscription_status,
+                'subscription_status' => $s->subscription_status,
+                'subscription_expires_at' => optional($s->subscription_expires_at)->format('Y-m-d H:i'),
+                'is_expired' => $s->isExpired(),
+            ]),
+            'meta' => [
+                'current_page' => $stores->currentPage(),
+                'last_page' => $stores->lastPage(),
+                'total' => $stores->total(),
+            ],
+            'recent_invoices' => $recentInvoices->map(fn ($inv) => [
+                'id' => $inv->id,
+                'invoice_no' => $inv->invoice_no,
+                'store_name' => $inv->store?->name ?? '—',
+                'total_cents' => $inv->total_cents,
+                'status' => $inv->status,
+                'created_at' => $inv->created_at->format('Y-m-d'),
+            ]),
         ]);
     }
 

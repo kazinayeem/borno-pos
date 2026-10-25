@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, money } from '../api';
@@ -923,12 +923,14 @@ export function StoreCreatePage() {
 
 export function SubscriptionPurchasePage() {
     const { t } = useTranslation();
+    const user = useSelector((state) => state.session.user);
     const [plans, setPlans] = useState([]);
     const [gateways, setGateways] = useState({});
     const [shop, setShop] = useState(null);
     const [payments, setPayments] = useState([]);
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState(null);
 
     const [selectedPlan, setSelectedPlan] = useState(null);
     const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -947,6 +949,7 @@ export function SubscriptionPurchasePage() {
 
     const loadData = () => {
         setLoading(true);
+        setFetchError(null);
         api('/api/subscription/checkout-info')
             .then((data) => {
                 setPlans(data.plans || []);
@@ -955,13 +958,51 @@ export function SubscriptionPurchasePage() {
                 setPayments(data.payments || []);
                 setInvoices(data.invoices || []);
             })
-            .catch((err) => setErrorMsg(err.message || t('Failed to load subscription info.')))
+            .catch((err) => {
+                const msg = err.payload?.message || err.message || t('Failed to load subscription information.');
+                setFetchError(msg);
+                setErrorMsg(msg);
+            })
             .finally(() => setLoading(false));
     };
 
     useEffect(() => { loadData(); }, [t]);
 
+    const handleActivateFreePlan = async (plan) => {
+        if (!shop && user?.role !== 'super_admin') {
+            setErrorMsg(t('No active shop associated with your account.'));
+            return;
+        }
+
+        setSubmitting(true);
+        setStatusMsg(null);
+        setErrorMsg(null);
+
+        try {
+            const data = await api('/subscription-purchase', {
+                method: 'POST',
+                body: { plan_id: plan.id, store_id: shop?.id },
+            });
+            setStatusMsg(data.message || t('Free plan activated successfully!'));
+            loadData();
+        } catch (err) {
+            setErrorMsg(err.payload?.message || err.message || t('Failed to activate free plan.'));
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const handleSelectPlan = (plan) => {
+        if (plan.price_cents === 0) {
+            handleActivateFreePlan(plan);
+            return;
+        }
+
+        if (!shop) {
+            setStatusMsg(t('Administrator Preview Mode: As a Super Admin, manage or assign plans directly in Subscription Plans.'));
+            return;
+        }
+
         setSelectedPlan(plan);
         setStatusMsg(null);
         setErrorMsg(null);
@@ -970,7 +1011,6 @@ export function SubscriptionPurchasePage() {
         setScreenshotFile(null);
         setNotes('');
 
-        // Default to first active gateway
         const availableGws = Object.keys(gateways);
         if (availableGws.length > 0 && !gateways[selectedGateway]) {
             setSelectedGateway(availableGws[0]);
@@ -992,7 +1032,7 @@ export function SubscriptionPurchasePage() {
         setErrorMsg(null);
 
         if (!trxId.trim()) {
-            setErrorMsg(t('Please enter the Transaction ID (TrxID) from your payment SMS or app.'));
+            setErrorMsg(t('Please enter the Transaction ID (TrxID) from your payment SMS or mobile banking app.'));
             setSubmitting(false);
             return;
         }
@@ -1006,6 +1046,7 @@ export function SubscriptionPurchasePage() {
         formData.append('payment_date', paymentDate);
         if (notes.trim()) formData.append('notes', notes.trim());
         if (screenshotFile) formData.append('screenshot', screenshotFile);
+        if (shop?.id) formData.append('store_id', shop.id);
 
         try {
             const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -1021,10 +1062,11 @@ export function SubscriptionPurchasePage() {
 
             const data = await res.json();
             if (!res.ok) {
-                throw new Error(data.message || t('Failed to submit payment request.'));
+                const firstErr = data.errors ? Object.values(data.errors)[0]?.[0] : null;
+                throw new Error(firstErr || data.message || t('Failed to submit payment request.'));
             }
 
-            setStatusMsg(data.message || t('Payment submitted successfully! Our team will verify it shortly.'));
+            setStatusMsg(data.message || t('Payment request submitted successfully! Your account will be activated once our team verifies the transaction.'));
             setPaymentModalOpen(false);
             loadData();
         } catch (err) {
@@ -1035,22 +1077,99 @@ export function SubscriptionPurchasePage() {
     };
 
     const activeGatewayInfo = gateways[selectedGateway] || {};
+    const currentPlan = plans.find((p) => p.id === shop?.active_plan_id);
 
     return (
-        <section className="card">
-            <div className="section-title">
-                <h2>{t('Subscription Renewal & Plans')}</h2>
-                <p className="muted">{t('Select your preferred plan, pay via bKash or Nagad, and submit for verification.')}</p>
+        <section className="card" style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 28px' }}>
+            {/* Page Header */}
+            <div className="section-title" style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '28px' }}>💳</span>
+                    <div>
+                        <h2 style={{ fontSize: '22px', fontWeight: 800, margin: 0 }}>{t('Subscription Plans & Billing')}</h2>
+                        <p className="muted" style={{ margin: '4px 0 0 0', fontSize: '13px' }}>
+                            {t('Choose a tier tailored to your pharmacy scale. Transparent pricing with automated renewal and instant manual bKash/Nagad verification.')}
+                        </p>
+                    </div>
+                </div>
             </div>
 
+            {/* Notification Alerts */}
             {statusMsg && (
-                <div style={{ background: '#dcfce7', border: '1px solid #86efac', color: '#166534', padding: '14px 18px', borderRadius: '8px', marginBottom: '16px', fontWeight: 600 }}>
-                    ✓ {statusMsg}
+                <div style={{
+                    background: '#f0fdf4',
+                    border: '1px solid #86efac',
+                    color: '#166534',
+                    padding: '14px 18px',
+                    borderRadius: '10px',
+                    marginBottom: '20px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                }}>
+                    <span style={{ fontSize: '18px' }}>✓</span>
+                    <span>{statusMsg}</span>
                 </div>
             )}
             {errorMsg && (
-                <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '14px 18px', borderRadius: '8px', marginBottom: '16px', fontWeight: 600 }}>
-                    ⚠️ {errorMsg}
+                <div style={{
+                    background: '#fef2f2',
+                    border: '1px solid #fca5a5',
+                    color: '#991b1b',
+                    padding: '14px 18px',
+                    borderRadius: '10px',
+                    marginBottom: '20px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '10px',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '18px' }}>⚠️</span>
+                        <span>{errorMsg}</span>
+                    </div>
+                    {fetchError && (
+                        <button type="button" className="btn sm" onClick={loadData}>
+                            ↺ {t('Retry Loading')}
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {/* Super Admin Preview Notice */}
+            {!shop && (
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    color: '#1e40af',
+                    padding: '16px 20px',
+                    borderRadius: '12px',
+                    marginBottom: '24px',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                }}>
+                    <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 800, color: '#1e40af' }}>
+                            🛡️ {t('System Administrator Preview')}
+                        </div>
+                        <div style={{ fontSize: '13px', marginTop: '4px', color: '#1d4ed8' }}>
+                            {t('You are previewing subscription pricing and manual payment workflows as a Super Admin. To manage pricing tiers, quotas, or verify incoming tenant payments, use the SaaS admin consoles.')}
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <Link to="/subscription-plans" className="btn sm primary">
+                            {t('Manage Plans')}
+                        </Link>
+                        <Link to="/payment-verifications" className="btn sm">
+                            {t('Verify Payments')}
+                        </Link>
+                    </div>
                 </div>
             )}
 
@@ -1062,118 +1181,282 @@ export function SubscriptionPurchasePage() {
                     alignItems: 'center',
                     background: shop.is_expired ? '#fef2f2' : shop.is_suspended ? '#fff1f2' : shop.subscription_status === 'payment_pending' ? '#fffbeb' : '#f0fdf4',
                     border: `1px solid ${shop.is_expired ? '#fecaca' : shop.is_suspended ? '#fecdd3' : shop.subscription_status === 'payment_pending' ? '#fde68a' : '#bbf7d0'}`,
-                    padding: '16px 20px',
+                    padding: '18px 22px',
                     borderRadius: '12px',
-                    marginBottom: '24px',
+                    marginBottom: '28px',
                     flexWrap: 'wrap',
-                    gap: '12px',
+                    gap: '14px',
                 }}>
                     <div>
-                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 800, color: '#4b5563' }}>
-                            {t('Current Status for {name}', { name: shop.name })}
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 800, color: '#4b5563', letterSpacing: '0.5px' }}>
+                            {t('Current Subscription for {name}', { name: shop.name })}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                            <span className={`badge ${shop.is_suspended ? 'danger' : shop.is_expired ? 'danger' : shop.subscription_status === 'payment_pending' ? 'warning' : 'success'}`} style={{ fontSize: '13px', padding: '4px 10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
+                            <span className={`badge ${shop.is_suspended ? 'danger' : shop.is_expired ? 'danger' : shop.subscription_status === 'payment_pending' ? 'warning' : 'success'}`} style={{ fontSize: '13px', padding: '4px 12px', textTransform: 'uppercase', fontWeight: 800 }}>
                                 {shop.subscription_status?.replace('_', ' ').toUpperCase()}
                             </span>
+                            {currentPlan && (
+                                <span style={{ fontSize: '14px', fontWeight: 700, color: '#1f2937' }}>
+                                    {currentPlan.name}
+                                </span>
+                            )}
                             {shop.subscription_expires_at && (
-                                <span style={{ fontSize: '13px', color: '#374151' }}>
-                                    {shop.is_expired ? t('Expired on') : t('Valid until')}: <strong>{shop.subscription_expires_at}</strong>
+                                <span style={{ fontSize: '13px', color: '#4b5563' }}>
+                                    · {shop.is_expired ? t('Expired on') : t('Valid until')}: <strong>{shop.subscription_expires_at}</strong>
                                 </span>
                             )}
                         </div>
                     </div>
                     {shop.is_expired && (
                         <div style={{ fontSize: '13px', color: '#991b1b', fontWeight: 600 }}>
-                            {t('Please select a plan below to renew your platform access.')}
+                            ⚠️ {t('Your subscription has expired. Please select a plan below to renew your access.')}
                         </div>
                     )}
                     {shop.subscription_status === 'payment_pending' && (
                         <div style={{ fontSize: '13px', color: '#92400e', fontWeight: 600 }}>
-                            ℹ️ {t('A payment request is currently pending admin review.')}
+                            ⏳ {t('A payment verification request is pending administrative review.')}
                         </div>
                     )}
                 </div>
             )}
 
-            {/* Plans Comparison Grid */}
+            {/* Plan Display States: Loading Skeleton, Empty State, or Loaded Grid */}
             {loading ? (
-                <div style={{ padding: '32px', textAlign: 'center' }} className="muted">{t('Loading available plans...')}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '24px', margin: '20px 0' }}>
+                    {[1, 2, 3].map((skeleton) => (
+                        <div
+                            key={skeleton}
+                            style={{
+                                border: '1px solid var(--border, #e5e7eb)',
+                                borderRadius: '16px',
+                                padding: '24px',
+                                background: 'var(--card-bg, #fff)',
+                                minHeight: '380px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                            }}
+                        >
+                            <div>
+                                <div style={{ height: '24px', width: '55%', background: '#e5e7eb', borderRadius: '6px', marginBottom: '12px' }} />
+                                <div style={{ height: '14px', width: '85%', background: '#f3f4f6', borderRadius: '4px', marginBottom: '18px' }} />
+                                <div style={{ height: '36px', width: '45%', background: '#e5e7eb', borderRadius: '8px', marginBottom: '20px' }} />
+                                <div style={{ height: '70px', background: '#f9fafb', borderRadius: '8px', marginBottom: '18px' }} />
+                                <div style={{ height: '14px', width: '90%', background: '#f3f4f6', borderRadius: '4px', marginBottom: '8px' }} />
+                                <div style={{ height: '14px', width: '80%', background: '#f3f4f6', borderRadius: '4px' }} />
+                            </div>
+                            <div style={{ height: '42px', background: '#e5e7eb', borderRadius: '8px' }} />
+                        </div>
+                    ))}
+                </div>
+            ) : plans.length === 0 ? (
+                <div style={{
+                    padding: '64px 24px',
+                    textAlign: 'center',
+                    background: '#f9fafb',
+                    borderRadius: '16px',
+                    border: '1px dashed #d1d5db',
+                    margin: '24px 0',
+                }}>
+                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>📦</div>
+                    <h3 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '6px' }}>
+                        {t('No Subscription Plans Available')}
+                    </h3>
+                    <p className="muted" style={{ maxWidth: '440px', margin: '0 auto 20px auto', fontSize: '14px' }}>
+                        {t('There are currently no active subscription plans published by the platform. Please check back shortly or contact customer support.')}
+                    </p>
+                    <button type="button" className="btn" onClick={loadData}>
+                        ↺ {t('Refresh Plans')}
+                    </button>
+                </div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', margin: '24px 0' }} data-tour="subscription-plans">
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))',
+                        gap: '24px',
+                        margin: '24px 0',
+                        alignItems: 'stretch',
+                    }}
+                    data-tour="subscription-plans"
+                >
                     {plans.map((p) => {
                         const isCurrent = shop?.active_plan_id === p.id && !shop?.is_expired;
+                        const isFeatured = p.is_featured;
+                        const currentPrice = currentPlan?.price_cents || 0;
+                        const isUpgrade = currentPlan && p.price_cents > currentPrice;
+
                         return (
                             <div
                                 key={p.id}
                                 style={{
-                                    border: `2px solid ${isCurrent ? 'var(--primary, #4f46e5)' : 'var(--border)'}`,
-                                    borderRadius: '14px',
-                                    padding: '24px',
+                                    border: isCurrent
+                                        ? '2px solid var(--primary, #4f46e5)'
+                                        : isFeatured
+                                            ? '2px solid #6366f1'
+                                            : '1px solid var(--border, #e5e7eb)',
+                                    borderRadius: '16px',
+                                    padding: '26px 24px',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     justifyContent: 'space-between',
-                                    background: isCurrent ? 'rgba(79, 70, 229, 0.02)' : 'var(--card-bg, #fff)',
+                                    background: isCurrent
+                                        ? 'rgba(79, 70, 229, 0.03)'
+                                        : isFeatured
+                                            ? 'linear-gradient(180deg, rgba(99, 102, 241, 0.02) 0%, #ffffff 100%)'
+                                            : 'var(--card-bg, #fff)',
+                                    boxShadow: isFeatured ? '0 10px 25px -5px rgba(99, 102, 241, 0.1)' : '0 1px 3px rgba(0,0,0,0.05)',
                                     position: 'relative',
+                                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                                 }}
                             >
-                                {isCurrent && (
+                                {/* Featured / Active Top Ribbon */}
+                                {isCurrent ? (
                                     <div style={{
                                         position: 'absolute',
                                         top: '-12px',
-                                        right: '16px',
+                                        right: '20px',
                                         background: 'var(--primary, #4f46e5)',
                                         color: '#fff',
                                         fontSize: '11px',
                                         fontWeight: 800,
-                                        padding: '2px 8px',
+                                        padding: '3px 10px',
                                         borderRadius: '10px',
                                         textTransform: 'uppercase',
+                                        letterSpacing: '0.5px',
                                     }}>
-                                        {t('Active Plan')}
+                                        ✓ {t('Active Plan')}
                                     </div>
-                                )}
+                                ) : isFeatured ? (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '-12px',
+                                        right: '20px',
+                                        background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                                        color: '#fff',
+                                        fontSize: '11px',
+                                        fontWeight: 800,
+                                        padding: '3px 10px',
+                                        borderRadius: '10px',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.5px',
+                                        boxShadow: '0 2px 4px rgba(79, 70, 229, 0.3)',
+                                    }}>
+                                        ★ {t('Most Popular')}
+                                    </div>
+                                ) : null}
+
                                 <div>
-                                    <h3 style={{ fontSize: '19px', fontWeight: 800, marginBottom: '6px' }}>{p.name}</h3>
-                                    <div style={{ fontSize: '30px', fontWeight: 900, color: 'var(--primary, #4f46e5)', marginBottom: '14px' }}>
-                                        {money(p.price_cents)}
-                                        <span style={{ fontSize: '13px', fontWeight: 500, color: '#6b7280' }}> / {p.duration_days} {t('days')}</span>
+                                    {/* Plan Title & Description */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                        <div>
+                                            <h3 style={{ fontSize: '20px', fontWeight: 800, margin: 0, color: '#111827' }}>
+                                                {p.name}
+                                            </h3>
+                                            {p.slug && (
+                                                <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#6b7280', textTransform: 'uppercase' }}>
+                                                    {p.slug}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
 
-                                    {/* Limits Quotas */}
-                                    <div style={{ background: '#f9fafb', padding: '12px', borderRadius: '8px', fontSize: '12px', marginBottom: '16px', border: '1px solid #f3f4f6' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                            <span className="muted">{t('Max Stores')}:</span>
-                                            <strong>{p.max_stores}</strong>
+                                    {p.description && (
+                                        <p style={{ fontSize: '13px', color: '#4b5563', margin: '6px 0 16px 0', lineHeight: 1.5, minHeight: '38px' }}>
+                                            {p.description}
+                                        </p>
+                                    )}
+
+                                    {/* Price Header */}
+                                    <div style={{ margin: '14px 0 18px 0' }}>
+                                        <div style={{ fontSize: '32px', fontWeight: 900, color: 'var(--primary, #4f46e5)', lineHeight: 1 }}>
+                                            {money(p.price_cents)}
+                                            <span style={{ fontSize: '13px', fontWeight: 500, color: '#6b7280', marginLeft: '6px' }}>
+                                                / {p.duration_days} {t('days')}
+                                            </span>
                                         </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                            <span className="muted">{t('Max Staff')}:</span>
-                                            <strong>{p.max_users}</strong>
+                                        {p.trial_days > 0 && (
+                                            <div style={{ fontSize: '12px', color: '#2563eb', fontWeight: 700, marginTop: '6px' }}>
+                                                🎁 {p.trial_days} {t('Days Free Trial Included')}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Limits Quotas Box */}
+                                    <div style={{
+                                        background: '#f9fafb',
+                                        border: '1px solid #f3f4f6',
+                                        borderRadius: '10px',
+                                        padding: '14px 16px',
+                                        fontSize: '12px',
+                                        marginBottom: '20px',
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                            <span style={{ color: '#4b5563', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                🏬 {t('Max Stores')}:
+                                            </span>
+                                            <strong style={{ color: '#111827' }}>{p.max_stores}</strong>
                                         </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span className="muted">{t('Max Products')}:</span>
-                                            <strong>{p.max_products}</strong>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                            <span style={{ color: '#4b5563', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                👥 {t('Max Staff / Users')}:
+                                            </span>
+                                            <strong style={{ color: '#111827' }}>{p.max_users}</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ color: '#4b5563', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                💊 {t('Max Products')}:
+                                            </span>
+                                            <strong style={{ color: '#111827' }}>{p.max_products?.toLocaleString()}</strong>
                                         </div>
                                     </div>
 
                                     {/* Features Checklist */}
-                                    <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', fontSize: '13px' }}>
-                                        {(p.features || []).map((f, i) => (
-                                            <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                                                <span style={{ color: '#16a34a', fontWeight: 'bold' }}>✓</span> {f}
-                                            </li>
-                                        ))}
-                                    </ul>
+                                    <div style={{ marginBottom: '24px' }}>
+                                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 800, color: '#6b7280', marginBottom: '10px', letterSpacing: '0.5px' }}>
+                                            {t('Included Features')}
+                                        </div>
+                                        <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '13px' }}>
+                                            {(p.features || []).map((feature, i) => (
+                                                <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '8px', color: '#374151', lineHeight: 1.4 }}>
+                                                    <span style={{ color: '#16a34a', fontWeight: 'bold', flexShrink: 0 }}>✓</span>
+                                                    <span>{feature}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
                                 </div>
 
-                                <button
-                                    type="button"
-                                    className="btn primary"
-                                    style={{ width: '100%', padding: '12px' }}
-                                    onClick={() => handleSelectPlan(p)}
-                                >
-                                    {isCurrent ? t('Renew Plan') : t('Select & Pay')}
-                                </button>
+                                {/* Action Button */}
+                                <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border, #f3f4f6)' }}>
+                                    <button
+                                        type="button"
+                                        className={`btn ${isCurrent ? 'secondary' : 'primary'}`}
+                                        style={{
+                                            width: '100%',
+                                            padding: '12px 16px',
+                                            fontWeight: 700,
+                                            fontSize: '14px',
+                                            borderRadius: '8px',
+                                        }}
+                                        disabled={isCurrent || submitting}
+                                        onClick={() => {
+                                            if (p.price_cents === 0) {
+                                                handleActivateFreePlan(p);
+                                            } else {
+                                                handleSelectPlan(p);
+                                            }
+                                        }}
+                                    >
+                                        {isCurrent
+                                            ? t('Current Active Plan')
+                                            : p.price_cents === 0
+                                                ? t('Activate Free Plan')
+                                                : isUpgrade
+                                                    ? t('Upgrade to {name} →', { name: p.name })
+                                                    : t('Select Plan & Pay →')}
+                                    </button>
+                                </div>
                             </div>
                         );
                     })}
@@ -1185,44 +1468,79 @@ export function SubscriptionPurchasePage() {
                 <Modal
                     isOpen={paymentModalOpen}
                     onClose={() => setPaymentModalOpen(false)}
-                    title={t('Complete Payment — {name}', { name: selectedPlan.name })}
-                    subtitle={`${money(selectedPlan.price_cents)} · ${selectedPlan.duration_days} ${t('Days Subscription')}`}
+                    title={t('Purchase Subscription — {name}', { name: selectedPlan.name })}
+                    subtitle={`${money(selectedPlan.price_cents)} · ${selectedPlan.duration_days} ${t('Days Access')}`}
                     size="md"
                 >
                     <form onSubmit={handleSubmitPayment} className="grid" style={{ gap: '16px' }}>
+                        {/* Server Validated Purchase Summary */}
+                        <div style={{
+                            background: '#f8fafc',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '10px',
+                            padding: '16px',
+                        }}>
+                            <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 800, color: '#64748b', marginBottom: '8px' }}>
+                                {t('Purchase Summary')}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '13px' }}>
+                                <span className="muted">{t('Selected Tier')}:</span>
+                                <strong>{selectedPlan.name}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '13px' }}>
+                                <span className="muted">{t('Validity Duration')}:</span>
+                                <span>{selectedPlan.duration_days} {t('Days')}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '13px' }}>
+                                <span className="muted">{t('Taxes & Fees')}:</span>
+                                <span>{t('0% (Included)')}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #cbd5e1' }}>
+                                <span style={{ fontWeight: 800, fontSize: '14px' }}>{t('Total Payable Amount')}:</span>
+                                <strong style={{ fontSize: '20px', color: '#16a34a' }}>
+                                    {money(selectedPlan.price_cents)}
+                                </strong>
+                            </div>
+                        </div>
+
                         {/* Gateway Selector */}
                         <div>
                             <label style={{ fontSize: '13px', fontWeight: 700, marginBottom: '8px', display: 'block' }}>
                                 {t('Choose Payment Method')} *
                             </label>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                                {['bkash', 'nagad'].map((gw) => {
-                                    const isAvailable = gateways[gw] && gateways[gw].account_number;
-                                    const isSelected = selectedGateway === gw;
-                                    return (
-                                        <div
-                                            key={gw}
-                                            onClick={() => isAvailable && setSelectedGateway(gw)}
-                                            style={{
-                                                border: `2px solid ${isSelected ? (gw === 'bkash' ? '#d11e5f' : '#f7931e') : 'var(--border)'}`,
-                                                borderRadius: '10px',
-                                                padding: '14px',
-                                                cursor: isAvailable ? 'pointer' : 'not-allowed',
-                                                opacity: isAvailable ? 1 : 0.4,
-                                                background: isSelected ? (gw === 'bkash' ? '#fdf2f8' : '#fff7ed') : 'transparent',
-                                                textAlign: 'center',
-                                            }}
-                                        >
-                                            <div style={{ fontSize: '20px', marginBottom: '4px' }}>{gw === 'bkash' ? '📱' : '📲'}</div>
-                                            <div style={{ fontWeight: 800, textTransform: 'uppercase', color: gw === 'bkash' ? '#d11e5f' : '#f7931e' }}>
-                                                {gw}
+                                {Object.keys(gateways).length > 0 ? (
+                                    Object.keys(gateways).map((gw) => {
+                                        const isAvailable = gateways[gw] && gateways[gw].account_number;
+                                        const isSelected = selectedGateway === gw;
+                                        return (
+                                            <div
+                                                key={gw}
+                                                onClick={() => isAvailable && setSelectedGateway(gw)}
+                                                style={{
+                                                    border: `2px solid ${isSelected ? (gw === 'bkash' ? '#d11e5f' : '#f7931e') : 'var(--border)'}`,
+                                                    borderRadius: '10px',
+                                                    padding: '14px',
+                                                    cursor: isAvailable ? 'pointer' : 'not-allowed',
+                                                    opacity: isAvailable ? 1 : 0.4,
+                                                    background: isSelected ? (gw === 'bkash' ? '#fdf2f8' : '#fff7ed') : 'transparent',
+                                                    textAlign: 'center',
+                                                    transition: 'all 0.15s ease',
+                                                }}
+                                            >
+                                                <div style={{ fontSize: '20px', marginBottom: '4px' }}>{gw === 'bkash' ? '📱' : '📲'}</div>
+                                                <div style={{ fontWeight: 800, textTransform: 'uppercase', color: gw === 'bkash' ? '#d11e5f' : '#f7931e' }}>
+                                                    {gw}
+                                                </div>
+                                                <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                                                    {gateways[gw]?.account_type || t('Merchant Payment')}
+                                                </div>
                                             </div>
-                                            <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                                                {gateways[gw]?.account_type || t('Manual Transfer')}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })
+                                ) : (
+                                    <div className="muted">{t('No payment gateways currently configured.')}</div>
+                                )}
                             </div>
                         </div>
 
@@ -1329,7 +1647,7 @@ export function SubscriptionPurchasePage() {
                                 {t('Cancel')}
                             </button>
                             <button type="submit" className="btn primary" disabled={submitting}>
-                                {submitting ? t('Submitting Request...') : t('Submit Payment for Verification')}
+                                {submitting ? t('Submitting Payment...') : t('Submit Payment for Verification')}
                             </button>
                         </div>
                     </form>
@@ -1338,10 +1656,15 @@ export function SubscriptionPurchasePage() {
 
             {/* My Payment Verification Submissions Table */}
             {payments.length > 0 && (
-                <div style={{ marginTop: '36px' }}>
-                    <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '14px' }}>
-                        📋 {t('My Payment Verification History')}
-                    </h3>
+                <div style={{ marginTop: '48px', paddingTop: '28px', borderTop: '1px solid var(--border, #e5e7eb)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h3 style={{ fontSize: '17px', fontWeight: 800, margin: 0 }}>
+                            📋 {t('My Payment Verification History')}
+                        </h3>
+                        <span className="muted" style={{ fontSize: '12px' }}>
+                            {t('{count} submissions recorded', { count: payments.length })}
+                        </span>
+                    </div>
                     <div className="table-responsive">
                         <table className="table">
                             <thead>
@@ -1351,7 +1674,7 @@ export function SubscriptionPurchasePage() {
                                     <th>{t('Amount')}</th>
                                     <th>{t('Sender Phone')}</th>
                                     <th>{t('Submitted At')}</th>
-                                    <th>{t('Status')}</th>
+                                    <th>{t('Verification Status')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1363,8 +1686,8 @@ export function SubscriptionPurchasePage() {
                                         <td>{p.sender_phone || '—'}</td>
                                         <td style={{ fontSize: '12px' }}>{p.created_at}</td>
                                         <td>
-                                            <span className={`badge ${p.status === 'approved' ? 'success' : p.status === 'rejected' ? 'danger' : 'warning'}`}>
-                                                {p.status === 'pending' ? t('Pending Verification') : p.status}
+                                            <span className={`badge ${p.status === 'approved' ? 'success' : p.status === 'rejected' ? 'danger' : 'warning'}`} style={{ padding: '4px 10px', fontSize: '12px' }}>
+                                                {p.status === 'pending' ? t('Pending Review') : p.status === 'approved' ? t('Approved') : t('Rejected')}
                                             </span>
                                             {p.rejection_reason && (
                                                 <div style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px' }}>

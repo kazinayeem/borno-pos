@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 
 export const languages = [
@@ -497,12 +498,12 @@ export function translate(locale, key, vars = {}) {
 export function useT() {
     const locale = useSelector((state) => state.ui.locale);
 
-    return (key, vars) => translate(locale, key, vars);
+    return useCallback((key, vars) => translate(locale, key, vars), [locale]);
 }
 
 export function useTranslation() {
     const t = useT();
 
-    return { t };
+    return useMemo(() => ({ t }), [t]);
 }
 

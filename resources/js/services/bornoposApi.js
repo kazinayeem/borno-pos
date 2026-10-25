@@ -234,6 +234,10 @@ export const bornoposApi = createApi({
             query: (id) => ({ url: `/api/admin/plans/${id}/toggle`, method: 'POST' }),
             invalidatesTags: ['Plans'],
         }),
+        getAdminPlanSubscribers: builder.query({
+            query: (id) => `/api/admin/plans/${id}/subscribers`,
+            providesTags: (result, error, id) => [{ type: 'Plans', id: `subscribers-${id}` }],
+        }),
         getAdminPayments: builder.query({
             query: (params) => `/api/admin/subscription-payments${queryString(params || {})}`,
             providesTags: ['Payments'],
@@ -324,6 +328,7 @@ export const {
     useCreateAdminShopMutation,
     useNotifyShopOwnerMutation,
     useGetAdminPlansQuery,
+    useGetAdminPlanSubscribersQuery,
     useSaveAdminPlanMutation,
     useToggleAdminPlanMutation,
     useGetAdminPaymentsQuery,

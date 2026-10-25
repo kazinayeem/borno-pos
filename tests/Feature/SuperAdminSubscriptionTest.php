@@ -504,4 +504,188 @@ class SuperAdminSubscriptionTest extends TestCase
         $this->assertNotEmpty($results);
         $this->assertStringContainsString('SEARCH_TRX_XYZ', $results[0]['title']);
     }
+
+    public function test_super_admin_can_access_subscription_purchase_page_and_checkout_info(): void
+    {
+        $res = $this->actingAs($this->superAdmin)->get('/subscription-purchase');
+        $res->assertOk();
+
+        $jsonRes = $this->actingAs($this->superAdmin)->getJson('/api/subscription/checkout-info');
+        $jsonRes->assertOk();
+        $jsonRes->assertJsonStructure(['plans', 'gateways', 'shop']);
+        $this->assertNull($jsonRes->json('shop'));
+    }
+
+    public function test_free_starter_plan_activation_workflow(): void
+    {
+        $freePlan = Plan::create([
+            'name' => 'Free Community Tier',
+            'slug' => 'free-community',
+            'price_cents' => 0,
+            'interval' => 'month',
+            'duration_days' => 30,
+            'is_active' => true,
+        ]);
+
+        $res = $this->actingAs($this->shopOwner1)->postJson('/subscription-purchase', [
+            'plan_id' => $freePlan->id,
+        ]);
+
+        $res->assertOk();
+        $res->assertJsonPath('message', 'Free plan activated successfully!');
+
+        $this->shop1->refresh();
+        $this->assertEquals($freePlan->id, $this->shop1->active_plan_id);
+        $this->assertEquals('active', $this->shop1->subscription_status);
+        $this->assertNotNull($this->shop1->subscription_expires_at);
+
+        $this->assertDatabaseHas('subscriptions', [
+            'store_id' => $this->shop1->id,
+            'plan_id' => $freePlan->id,
+            'status' => 'active',
+            'gateway' => 'free',
+            'payment_status' => 'paid',
+            'amount_cents' => 0,
+        ]);
+    }
+
+    public function test_plan_crud_supports_slug_description_currency_featured_and_sorting(): void
+    {
+        // 1. Create plan as super admin
+        $createRes = $this->actingAs($this->superAdmin)->postJson('/api/admin/plans', [
+            'name' => 'Enterprise Pharmacy Chain',
+            'slug' => 'enterprise-pharmacy',
+            'description' => 'Unlimited multi-store solution with high limits',
+            'currency' => 'BDT',
+            'price_cents' => 990000,
+            'interval' => 'year',
+            'duration_days' => 365,
+            'trial_days' => 7,
+            'max_users' => 50,
+            'max_stores' => 10,
+            'max_products' => 25000,
+            'features' => 'All modules included, VIP SLA, Dedicated Account Rep',
+            'is_featured' => true,
+            'sort_order' => 5,
+            'is_active' => true,
+        ]);
+
+        $createRes->assertOk();
+        $planId = $createRes->json('plan.id');
+        $this->assertNotNull($planId);
+
+        $this->assertDatabaseHas('plans', [
+            'id' => $planId,
+            'slug' => 'enterprise-pharmacy',
+            'description' => 'Unlimited multi-store solution with high limits',
+            'currency' => 'BDT',
+            'is_featured' => true,
+            'sort_order' => 5,
+        ]);
+
+        // 2. Update plan
+        $updateRes = $this->actingAs($this->superAdmin)->putJson("/api/admin/plans/{$planId}", [
+            'name' => 'Enterprise Pharmacy Chain V2',
+            'slug' => 'enterprise-pharmacy-v2',
+            'description' => 'Updated description for multi-store pharmacy',
+            'currency' => 'BDT',
+            'price_cents' => 1200000,
+            'interval' => 'year',
+            'duration_days' => 365,
+            'trial_days' => 14,
+            'max_users' => 100,
+            'max_stores' => 20,
+            'max_products' => 50000,
+            'features' => 'All modules, 24/7 Phone Support',
+            'is_featured' => false,
+            'sort_order' => 10,
+            'is_active' => true,
+        ]);
+
+        $updateRes->assertOk();
+        $this->assertDatabaseHas('plans', [
+            'id' => $planId,
+            'name' => 'Enterprise Pharmacy Chain V2',
+            'slug' => 'enterprise-pharmacy-v2',
+            'price_cents' => 1200000,
+            'is_featured' => false,
+            'sort_order' => 10,
+        ]);
+    }
+
+    public function test_super_admin_can_view_plan_subscribers(): void
+    {
+        // Create an active subscription for shop1 on proPlan
+        Subscription::create([
+            'store_id' => $this->shop1->id,
+            'plan_id' => $this->proPlan->id,
+            'status' => 'active',
+            'gateway' => 'bkash',
+            'payment_status' => 'paid',
+            'amount_cents' => 450000,
+            'currency' => 'BDT',
+            'starts_at' => now()->subDays(5),
+            'ends_at' => now()->addDays(25),
+        ]);
+
+        $res = $this->actingAs($this->superAdmin)->getJson("/api/admin/plans/{$this->proPlan->id}/subscribers");
+        $res->assertOk();
+        $res->assertJsonStructure([
+            'plan' => ['id', 'name'],
+            'total_subscribers',
+            'subscribers' => [
+                '*' => ['shop_id', 'shop_name', 'owner_name', 'owner_email', 'status'],
+            ],
+        ]);
+
+        $this->assertEquals(1, $res->json('total_subscribers'));
+        $this->assertEquals($this->shop1->name, $res->json('subscribers.0.shop_name'));
+    }
+
+    public function test_calculate_summary_endpoint_validates_and_returns_server_price(): void
+    {
+        $res = $this->actingAs($this->shopOwner1)->getJson("/api/subscription/calculate-summary?plan_id={$this->proPlan->id}");
+        $res->assertOk();
+        $res->assertJson([
+            'plan' => [
+                'id' => $this->proPlan->id,
+                'name' => $this->proPlan->name,
+                'price_cents' => 450000,
+                'currency' => 'BDT',
+                'duration_days' => 30,
+            ],
+            'subtotal_cents' => 450000,
+            'tax_cents' => 0,
+            'total_cents' => 450000,
+            'currency' => 'BDT',
+        ]);
+
+        // Attempting with non-existent plan returns 422 validation error
+        $invalidRes = $this->actingAs($this->shopOwner1)->getJson('/api/subscription/calculate-summary?plan_id=99999');
+        $invalidRes->assertUnprocessable();
+
+        // Attempting with an inactive plan returns 404
+        $inactivePlan = Plan::create([
+            'name' => 'Legacy Inactive',
+            'price_cents' => 10000,
+            'is_active' => false,
+        ]);
+        $notFoundRes = $this->actingAs($this->shopOwner1)->getJson("/api/subscription/calculate-summary?plan_id={$inactivePlan->id}");
+        $notFoundRes->assertNotFound();
+    }
+
+    public function test_shop_owner_cannot_access_super_admin_plan_management_or_subscribers(): void
+    {
+        $res = $this->actingAs($this->shopOwner1)->getJson('/api/admin/plans');
+        $res->assertForbidden();
+
+        $subRes = $this->actingAs($this->shopOwner1)->getJson("/api/admin/plans/{$this->proPlan->id}/subscribers");
+        $subRes->assertForbidden();
+
+        $postRes = $this->actingAs($this->shopOwner1)->postJson('/api/admin/plans', [
+            'name' => 'Hacker Plan',
+            'price_cents' => 0,
+        ]);
+        $postRes->assertForbidden();
+    }
 }

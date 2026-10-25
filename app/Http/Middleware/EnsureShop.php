@@ -10,7 +10,9 @@ class EnsureShop
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (! $request->user()?->store_id) {
+        $user = $request->user();
+
+        if (! $user?->store_id && ! $user?->isSuperAdmin()) {
             abort(403, 'This area is available to shop accounts.');
         }
 
