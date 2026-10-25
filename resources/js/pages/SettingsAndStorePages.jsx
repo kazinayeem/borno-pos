@@ -947,7 +947,7 @@ export function SubscriptionPurchasePage() {
     const [statusMsg, setStatusMsg] = useState(null);
     const [errorMsg, setErrorMsg] = useState(null);
 
-    const loadData = () => {
+    const loadData = useCallback(() => {
         setLoading(true);
         setFetchError(null);
         api('/api/subscription/checkout-info')
@@ -959,14 +959,16 @@ export function SubscriptionPurchasePage() {
                 setInvoices(data.invoices || []);
             })
             .catch((err) => {
-                const msg = err.payload?.message || err.message || t('Failed to load subscription information.');
+                const msg = err.payload?.message || err.message || 'Failed to load subscription information.';
                 setFetchError(msg);
                 setErrorMsg(msg);
             })
             .finally(() => setLoading(false));
-    };
+    }, []);
 
-    useEffect(() => { loadData(); }, [t]);
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     const handleActivateFreePlan = async (plan) => {
         if (!shop && user?.role !== 'super_admin') {
