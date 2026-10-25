@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { money } from '../api';
 import { useT } from '../i18n';
+import { useUrlQueryState } from '../hooks/useUrlQueryState';
 import {
     useCancelPurchaseMutation,
     useGetPurchaseHistoryQuery,
@@ -17,50 +18,87 @@ export default function PurchaseList() {
     const navigate = useNavigate();
     const currentUser = useSelector((state) => state.session.user);
 
-    // Main views: 'all', 'due', 'suppliers'
-    const [activeTab, setActiveTab] = useState('all');
+    const defaultQuery = useMemo(() => ({
+        tab: 'all',
+        search: '',
+        date_preset: '',
+        from: '',
+        to: '',
+        supplier_id: '',
+        warehouse_id: '',
+        status: '',
+        payment_status: '',
+        min_amount: '',
+        max_amount: '',
+        min_due: '',
+        max_due: '',
+        page: 1,
+        per_page: 10,
+        sort_by: 'purchased_on',
+        sort_dir: 'desc',
+        supplier_search: '',
+        supplier_due_only: false,
+    }), []);
 
-    // Search and filter state
-    const [search, setSearch] = useState('');
-    const [debouncedSearch, setDebouncedSearch] = useState('');
-    const [datePreset, setDatePreset] = useState('');
-    const [from, setFrom] = useState('');
-    const [to, setTo] = useState('');
-    const [supplierId, setSupplierId] = useState('');
-    const [warehouseId, setWarehouseId] = useState('');
-    const [status, setStatus] = useState('');
-    const [paymentStatus, setPaymentStatus] = useState('');
-    const [minAmount, setMinAmount] = useState('');
-    const [maxAmount, setMaxAmount] = useState('');
-    const [minDue, setMinDue] = useState('');
-    const [maxDue, setMaxDue] = useState('');
+    const {
+        query,
+        searchValue: search,
+        onSearchChange,
+        clearSearch,
+        setQuery,
+        setPage,
+        setPerPage,
+        setSort,
+        resetFilters,
+    } = useUrlQueryState(defaultQuery, {
+        searchKey: 'search',
+        searchAlias: 'q',
+        sortByKey: 'sort_by',
+        sortDirKey: 'sort_dir',
+        sortDirAlias: 'sort_direction',
+    });
 
-    // Pagination & Sorting
-    const [page, setPage] = useState(1);
-    const [perPage, setPerPage] = useState(10);
-    const [sortBy, setSortBy] = useState('purchased_on');
-    const [sortDirection, setSortDirection] = useState('desc');
+    const activeTab = query.tab || 'all';
+    const datePreset = query.date_preset || '';
+    const from = query.from || query.from_date || '';
+    const to = query.to || query.to_date || '';
+    const supplierId = query.supplier_id || '';
+    const warehouseId = query.warehouse_id || '';
+    const status = query.status || '';
+    const paymentStatus = query.payment_status || '';
+    const minAmount = query.min_amount || '';
+    const maxAmount = query.max_amount || '';
+    const minDue = query.min_due || '';
+    const maxDue = query.max_due || '';
+    const page = query.page || 1;
+    const perPage = query.per_page || 10;
+    const sortBy = query.sort_by || 'purchased_on';
+    const sortDirection = query.sort_dir || 'desc';
+
+    const supplierSearch = query.supplier_search || '';
+    const supplierDueOnly = !!query.supplier_due_only;
 
     // UI state
-    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [isFilterOpen, setIsFilterOpen] = useState(() => {
+        return Boolean(
+            query.date_preset ||
+            query.from ||
+            query.to ||
+            query.supplier_id ||
+            query.warehouse_id ||
+            query.status ||
+            query.payment_status ||
+            query.min_amount ||
+            query.max_amount ||
+            query.min_due ||
+            query.max_due
+        );
+    });
     const [selectedPurchaseIdForDetail, setSelectedPurchaseIdForDetail] = useState(null);
     const [paymentModalPurchase, setPaymentModalPurchase] = useState(null);
     const [notification, setNotification] = useState({ type: '', text: '' });
 
-    // Supplier payable search
-    const [supplierSearch, setSupplierSearch] = useState('');
-    const [supplierDueOnly, setSupplierDueOnly] = useState(false);
-
-    // Debounce search
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedSearch(search);
-            setPage(1);
-        }, 350);
-        return () => clearTimeout(timer);
-    }, [search]);
-
-    // Active filter query params
+    // Active filter query params for API
     const queryParams = useMemo(() => {
         const params = {
             page,
@@ -68,7 +106,8 @@ export default function PurchaseList() {
             sort_by: sortBy,
             sort_direction: sortDirection,
         };
-        if (debouncedSearch) params.q = debouncedSearch;
+        const s = query.search || query.q;
+        if (s) params.q = s;
         if (activeTab === 'due') params.due_only = 1;
         if (datePreset) params.date_preset = datePreset;
         if (from) params.from = from;
@@ -87,7 +126,8 @@ export default function PurchaseList() {
         perPage,
         sortBy,
         sortDirection,
-        debouncedSearch,
+        query.search,
+        query.q,
         activeTab,
         datePreset,
         from,
@@ -133,7 +173,7 @@ export default function PurchaseList() {
     // Check count of active filters
     const activeFiltersCount = useMemo(() => {
         let count = 0;
-        if (debouncedSearch) count++;
+        if (query.search || query.q) count++;
         if (datePreset) count++;
         if (from || to) count++;
         if (supplierId) count++;
@@ -144,7 +184,8 @@ export default function PurchaseList() {
         if (minDue || maxDue) count++;
         return count;
     }, [
-        debouncedSearch,
+        query.search,
+        query.q,
         datePreset,
         from,
         to,
@@ -159,30 +200,11 @@ export default function PurchaseList() {
     ]);
 
     function handleResetFilters() {
-        setSearch('');
-        setDebouncedSearch('');
-        setDatePreset('');
-        setFrom('');
-        setTo('');
-        setSupplierId('');
-        setWarehouseId('');
-        setStatus('');
-        setPaymentStatus('');
-        setMinAmount('');
-        setMaxAmount('');
-        setMinDue('');
-        setMaxDue('');
-        setPage(1);
+        resetFilters(['tab']);
     }
 
     function handleSort(column) {
-        if (sortBy === column) {
-            setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-        } else {
-            setSortBy(column);
-            setSortDirection('desc');
-        }
-        setPage(1);
+        setSort(column, 'desc');
     }
 
     async function handleCancel(purchase) {
@@ -363,8 +385,7 @@ export default function PurchaseList() {
                 <button
                     type="button"
                     onClick={() => {
-                        setActiveTab('all');
-                        setPage(1);
+                        setQuery({ tab: 'all', page: 1 }, { replace: false });
                     }}
                     style={{
                         padding: '10px 18px',
@@ -397,8 +418,7 @@ export default function PurchaseList() {
                 <button
                     type="button"
                     onClick={() => {
-                        setActiveTab('due');
-                        setPage(1);
+                        setQuery({ tab: 'due', page: 1 }, { replace: false });
                     }}
                     style={{
                         padding: '10px 18px',
@@ -434,7 +454,7 @@ export default function PurchaseList() {
                 <button
                     type="button"
                     onClick={() => {
-                        setActiveTab('suppliers');
+                        setQuery({ tab: 'suppliers' }, { replace: false });
                     }}
                     style={{
                         padding: '10px 18px',
@@ -742,9 +762,7 @@ export default function PurchaseList() {
                                                     className="btn btn-sm"
                                                     type="button"
                                                     onClick={() => {
-                                                        setActiveTab('all');
-                                                        setSupplierId(String(supplier.id));
-                                                        setPage(1);
+                                                        setQuery({ tab: 'all', supplier_id: String(supplier.id), page: 1 }, { replace: false });
                                                     }}
                                                 >
                                                     {t('View Purchases')}
@@ -809,8 +827,7 @@ export default function PurchaseList() {
                                     <select
                                         value={datePreset}
                                         onChange={(e) => {
-                                            setDatePreset(e.target.value);
-                                            setPage(1);
+                                            setQuery({ date_preset: e.target.value });
                                         }}
                                         style={{ width: '100%' }}
                                     >
@@ -832,9 +849,7 @@ export default function PurchaseList() {
                                         type="date"
                                         value={from}
                                         onChange={(e) => {
-                                            setFrom(e.target.value);
-                                            setDatePreset('custom');
-                                            setPage(1);
+                                            setQuery({ from: e.target.value, date_preset: 'custom' });
                                         }}
                                         style={{ width: '100%' }}
                                     />
@@ -849,9 +864,7 @@ export default function PurchaseList() {
                                         type="date"
                                         value={to}
                                         onChange={(e) => {
-                                            setTo(e.target.value);
-                                            setDatePreset('custom');
-                                            setPage(1);
+                                            setQuery({ to: e.target.value, date_preset: 'custom' });
                                         }}
                                         style={{ width: '100%' }}
                                     />
@@ -865,8 +878,7 @@ export default function PurchaseList() {
                                     <select
                                         value={supplierId}
                                         onChange={(e) => {
-                                            setSupplierId(e.target.value);
-                                            setPage(1);
+                                            setQuery({ supplier_id: e.target.value });
                                         }}
                                         style={{ width: '100%' }}
                                     >
@@ -887,8 +899,7 @@ export default function PurchaseList() {
                                     <select
                                         value={warehouseId}
                                         onChange={(e) => {
-                                            setWarehouseId(e.target.value);
-                                            setPage(1);
+                                            setQuery({ warehouse_id: e.target.value });
                                         }}
                                         style={{ width: '100%' }}
                                     >
@@ -909,8 +920,7 @@ export default function PurchaseList() {
                                     <select
                                         value={status}
                                         onChange={(e) => {
-                                            setStatus(e.target.value);
-                                            setPage(1);
+                                            setQuery({ status: e.target.value });
                                         }}
                                         style={{ width: '100%' }}
                                     >
@@ -928,8 +938,7 @@ export default function PurchaseList() {
                                     <select
                                         value={paymentStatus}
                                         onChange={(e) => {
-                                            setPaymentStatus(e.target.value);
-                                            setPage(1);
+                                            setQuery({ payment_status: e.target.value });
                                         }}
                                         style={{ width: '100%' }}
                                     >
@@ -952,14 +961,14 @@ export default function PurchaseList() {
                                             type="number"
                                             placeholder={t('Min')}
                                             value={minAmount}
-                                            onChange={(e) => setMinAmount(e.target.value)}
+                                            onChange={(e) => setQuery({ min_amount: e.target.value })}
                                             style={{ width: '50%' }}
                                         />
                                         <input
                                             type="number"
                                             placeholder={t('Max')}
                                             value={maxAmount}
-                                            onChange={(e) => setMaxAmount(e.target.value)}
+                                            onChange={(e) => setQuery({ max_amount: e.target.value })}
                                             style={{ width: '50%' }}
                                         />
                                     </div>
@@ -975,14 +984,14 @@ export default function PurchaseList() {
                                             type="number"
                                             placeholder={t('Min Due')}
                                             value={minDue}
-                                            onChange={(e) => setMinDue(e.target.value)}
+                                            onChange={(e) => setQuery({ min_due: e.target.value })}
                                             style={{ width: '50%' }}
                                         />
                                         <input
                                             type="number"
                                             placeholder={t('Max Due')}
                                             value={maxDue}
-                                            onChange={(e) => setMaxDue(e.target.value)}
+                                            onChange={(e) => setQuery({ max_due: e.target.value })}
                                             style={{ width: '50%' }}
                                         />
                                     </div>
@@ -1011,13 +1020,13 @@ export default function PurchaseList() {
                                     type="text"
                                     placeholder={t('Search reference, supplier, product, batch, status...')}
                                     value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
+                                    onChange={(e) => onSearchChange(e.target.value)}
                                     style={{ paddingRight: search ? '32px' : '12px' }}
                                 />
                                 {search && (
                                     <button
                                         type="button"
-                                        onClick={() => setSearch('')}
+                                        onClick={clearSearch}
                                         style={{
                                             position: 'absolute',
                                             right: '8px',
@@ -1050,7 +1059,6 @@ export default function PurchaseList() {
                                     value={perPage}
                                     onChange={(e) => {
                                         setPerPage(Number(e.target.value));
-                                        setPage(1);
                                     }}
                                     style={{
                                         padding: '4px 8px',

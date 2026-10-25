@@ -1,18 +1,27 @@
 import { useEffect, useState } from 'react';
 import { api, money } from '../api';
 import { useT } from '../i18n';
+import { useUrlQueryState } from '../hooks/useUrlQueryState';
+import { Pagination, SearchInput } from '../components/ui';
 
 export function StockCountPage() {
     const t = useT();
+    const {
+        params,
+        setQuery,
+    } = useUrlQueryState({
+        search: '',
+        warehouse_id: '',
+    });
+
     const [products, setProducts] = useState([]);
     const [warehouses, setWarehouses] = useState([]);
     const [categories, setCategories] = useState([]);
     const [counts, setCounts] = useState([]);
-    const [warehouseId, setWarehouseId] = useState('');
+    const [warehouseId, setWarehouseId] = useState(params.warehouse_id || '');
     const [countedOn, setCountedOn] = useState(new Date().toISOString().slice(0, 10));
     const [counted, setCounted] = useState({});
     const [note, setNote] = useState('');
-    const [q, setQ] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState('');
@@ -20,23 +29,25 @@ export function StockCountPage() {
 
     function loadData() {
         setLoading(true);
-        const params = new URLSearchParams();
-        if (q) params.set('q', q);
-        api(`/stock/count?${params.toString()}`)
+        const qp = new URLSearchParams();
+        if (params.search) qp.set('q', params.search);
+        api(`/stock/count?${qp.toString()}`)
             .then((res) => {
                 setProducts(res.products || []);
                 setWarehouses(res.warehouses || []);
                 setCategories(res.categories || []);
                 setCounts(res.counts || []);
                 if (res.warehouses?.length && !warehouseId) {
-                    setWarehouseId(String(res.warehouses[0].id));
+                    const wid = params.warehouse_id || String(res.warehouses[0].id);
+                    setWarehouseId(wid);
+                    if (!params.warehouse_id) setQuery({ warehouse_id: wid }, { replace: true });
                 }
             })
             .catch((e) => setErr(e.message))
             .finally(() => setLoading(false));
     }
 
-    useEffect(() => { loadData(); }, []);
+    useEffect(() => { loadData(); }, [params.search]);
 
     function handleQtyChange(productId, val) {
         setCounted((prev) => ({
@@ -88,7 +99,7 @@ export function StockCountPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
                         <div className="field">
                             <label>{t('Audit Warehouse')}</label>
-                            <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} required>
+                            <select value={warehouseId} onChange={(e) => { setWarehouseId(e.target.value); setQuery({ warehouse_id: e.target.value }); }} required>
                                 {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
                             </select>
                         </div>
@@ -104,15 +115,14 @@ export function StockCountPage() {
                 </section>
 
                 <section className="card" style={{ marginBottom: '20px', padding: '16px' }}>
-                    <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
-                        <input
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'center' }}>
+                        <SearchInput
                             style={{ flex: 1 }}
                             placeholder={t('Search products by name, code, barcode...')}
-                            value={q}
-                            onChange={(e) => setQ(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), loadData())}
+                            value={params.search}
+                            onChange={(e) => setQuery({ search: e.target.value })}
+                            onClear={() => setQuery({ search: '' })}
                         />
-                        <button type="button" className="btn primary" onClick={loadData}>{t('Search')}</button>
                     </div>
 
                     <table className="grid">
@@ -203,14 +213,29 @@ export function StockCountPage() {
 
 export function SaleReturnsPage() {
     const t = useT();
+    const {
+        params,
+        setQuery,
+        setPage,
+        setPerPage,
+        resetFilters,
+    } = useUrlQueryState({
+        search: '',
+        page: 1,
+        per_page: 10,
+    });
+
     const [returns, setReturns] = useState([]);
-    const [page, setPage] = useState(1);
     const [meta, setMeta] = useState(null);
     const [loading, setLoading] = useState(true);
 
     function loadData() {
         setLoading(true);
-        api(`/sale-returns?page=${page}`)
+        const qp = new URLSearchParams();
+        if (params.page) qp.set('page', params.page);
+        if (params.per_page) qp.set('per_page', params.per_page);
+        if (params.search) qp.set('search', params.search);
+        api(`/sale-returns?${qp.toString()}`)
             .then((res) => {
                 setReturns(res.returns || []);
                 setMeta(res.meta || null);
@@ -219,7 +244,7 @@ export function SaleReturnsPage() {
             .finally(() => setLoading(false));
     }
 
-    useEffect(() => { loadData(); }, [page]);
+    useEffect(() => { loadData(); }, [params.page, params.per_page, params.search]);
 
     return (
         <div>
@@ -231,6 +256,20 @@ export function SaleReturnsPage() {
             </div>
 
             <section className="card">
+                <div className="toolbar" style={{ display: 'flex', gap: '8px', padding: '16px', borderBottom: '1px solid var(--border)' }}>
+                    <SearchInput
+                        value={params.search}
+                        placeholder={t('Search returns by invoice...')}
+                        onChange={(event) => setQuery({ search: event.target.value })}
+                        onClear={() => setQuery({ search: '' })}
+                        style={{ maxWidth: '360px' }}
+                    />
+                    {params.search && (
+                        <button className="btn" type="button" onClick={() => resetFilters()}>
+                            {t('Reset')}
+                        </button>
+                    )}
+                </div>
                 <table className="grid">
                     <thead>
                         <tr>
@@ -255,13 +294,17 @@ export function SaleReturnsPage() {
                 </table>
                 {loading && <p className="muted" style={{ padding: '16px' }}>{t('Loading sale returns…')}</p>}
                 {!loading && returns.length === 0 && <p className="empty">{t('No sale returns recorded.')}</p>}
-                {meta && meta.last_page > 1 && (
-                    <div className="actions" style={{ padding: '12px 16px' }}>
-                        <button type="button" className="btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{t('Previous')}</button>
-                        <span className="muted" style={{ alignSelf: 'center', fontSize: '13px' }}>Page {page} of {meta.last_page}</span>
-                        <button type="button" className="btn" disabled={page >= meta.last_page} onClick={() => setPage((p) => p + 1)}>{t('Next')}</button>
-                    </div>
-                )}
+                <Pagination
+                    currentPage={meta?.current_page || params.page}
+                    lastPage={meta?.last_page || 1}
+                    total={meta?.total || 0}
+                    from={meta?.from || 0}
+                    to={meta?.to || 0}
+                    perPage={params.per_page}
+                    onPageChange={setPage}
+                    onPerPageChange={setPerPage}
+                    perPageOptions={[10, 25, 50]}
+                />
             </section>
         </div>
     );

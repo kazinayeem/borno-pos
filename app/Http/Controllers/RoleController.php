@@ -16,10 +16,18 @@ class RoleController extends Controller
     {
         $storeId = (int) $request->user()->store_id;
 
-        $roles = ShopRole::query()
+        $query = ShopRole::query()
             ->withCount('users')
-            ->where('store_id', $storeId)
-            ->orderByDesc('is_system')
+            ->where('store_id', $storeId);
+
+        if ($search = trim((string) ($request->input('search') ?? $request->input('q')))) {
+            $query->where(function ($sub) use ($search) {
+                $sub->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        $roles = $query->orderByDesc('is_system')
             ->orderBy('name')
             ->get();
 

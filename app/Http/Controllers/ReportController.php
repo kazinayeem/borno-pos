@@ -56,7 +56,13 @@ class ReportController extends Controller
     public function purchases(Request $request)
     {
         [$from, $to, $label] = DateRange::fromRequest($request);
-        $rows = Purchase::with(['supplier', 'warehouse'])->whereBetween('purchased_on', [$from->toDateString(), $to->toDateString()])->latest('purchased_on')->latest('id')->paginate(15)->withQueryString();
+        $perPage = max(5, min(100, (int) $request->query('per_page', 15)));
+        $rows = Purchase::with(['supplier', 'warehouse'])
+            ->whereBetween('purchased_on', [$from->toDateString(), $to->toDateString()])
+            ->latest('purchased_on')
+            ->latest('id')
+            ->paginate($perPage)
+            ->withQueryString();
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -74,7 +80,10 @@ class ReportController extends Controller
                 'meta' => [
                     'current_page' => $rows->currentPage(),
                     'last_page' => $rows->lastPage(),
+                    'from' => $rows->firstItem(),
+                    'to' => $rows->lastItem(),
                     'total' => $rows->total(),
+                    'per_page' => $rows->perPage(),
                 ],
                 'from' => $from->toDateString(),
                 'to' => $to->toDateString(),
@@ -88,7 +97,13 @@ class ReportController extends Controller
     public function sales(Request $request)
     {
         [$from, $to, $label] = DateRange::fromRequest($request);
-        $rows = Sale::with(['customer', 'user'])->where('status', 'completed')->whereBetween('sold_at', [$from, $to])->latest('sold_at')->paginate(15)->withQueryString();
+        $perPage = max(5, min(100, (int) $request->query('per_page', 15)));
+        $rows = Sale::with(['customer', 'user'])
+            ->where('status', 'completed')
+            ->whereBetween('sold_at', [$from, $to])
+            ->latest('sold_at')
+            ->paginate($perPage)
+            ->withQueryString();
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -105,7 +120,10 @@ class ReportController extends Controller
                 'meta' => [
                     'current_page' => $rows->currentPage(),
                     'last_page' => $rows->lastPage(),
+                    'from' => $rows->firstItem(),
+                    'to' => $rows->lastItem(),
                     'total' => $rows->total(),
+                    'per_page' => $rows->perPage(),
                 ],
                 'from' => $from->toDateString(),
                 'to' => $to->toDateString(),
@@ -119,15 +137,16 @@ class ReportController extends Controller
     public function products(Request $request)
     {
         $query = Product::with(['category', 'brand', 'unit']);
-        if ($request->filled('q')) {
-            $term = $request->string('q');
+        if ($request->filled('q') || $request->filled('search')) {
+            $term = trim((string) ($request->input('search') ?? $request->input('q')));
             $query->where(function ($q) use ($term) {
                 $q->where('name', 'like', "%{$term}%")
                     ->orWhere('code', 'like', "%{$term}%")
                     ->orWhere('barcode', 'like', "%{$term}%");
             });
         }
-        $rows = $query->orderBy('stock_qty')->paginate(15)->withQueryString();
+        $perPage = max(5, min(100, (int) $request->query('per_page', 15)));
+        $rows = $query->orderBy('stock_qty')->paginate($perPage)->withQueryString();
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -147,7 +166,10 @@ class ReportController extends Controller
                 'meta' => [
                     'current_page' => $rows->currentPage(),
                     'last_page' => $rows->lastPage(),
+                    'from' => $rows->firstItem(),
+                    'to' => $rows->lastItem(),
                     'total' => $rows->total(),
+                    'per_page' => $rows->perPage(),
                 ],
                 'total_valuation_cents' => (int) Product::selectRaw('SUM(stock_qty * cost_cents) as total')->value('total'),
             ]);
@@ -159,7 +181,12 @@ class ReportController extends Controller
     public function expenses(Request $request)
     {
         [$from, $to, $label] = DateRange::fromRequest($request);
-        $rows = Expense::with('category')->whereBetween('spent_on', [$from->toDateString(), $to->toDateString()])->latest('spent_on')->paginate(15)->withQueryString();
+        $perPage = max(5, min(100, (int) $request->query('per_page', 15)));
+        $rows = Expense::with('category')
+            ->whereBetween('spent_on', [$from->toDateString(), $to->toDateString()])
+            ->latest('spent_on')
+            ->paginate($perPage)
+            ->withQueryString();
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -173,7 +200,10 @@ class ReportController extends Controller
                 'meta' => [
                     'current_page' => $rows->currentPage(),
                     'last_page' => $rows->lastPage(),
+                    'from' => $rows->firstItem(),
+                    'to' => $rows->lastItem(),
                     'total' => $rows->total(),
+                    'per_page' => $rows->perPage(),
                 ],
                 'from' => $from->toDateString(),
                 'to' => $to->toDateString(),
@@ -195,16 +225,17 @@ class ReportController extends Controller
                     ->whereDate('expiry_date', '>=', $today)
                     ->whereRaw("expiry_date <= date(?, '+' || coalesce((select near_expiry_days from products where products.id = batches.product_id), 30) || ' days')", [$today]);
             })
-            ->when($request->filled('q'), function ($q) use ($request) {
-                $term = $request->string('q');
+            ->when($request->filled('q') || $request->filled('search'), function ($q) use ($request) {
+                $term = trim((string) ($request->input('search') ?? $request->input('q')));
                 $q->where(function ($inner) use ($term) {
                     $inner->where('batch_no', 'like', "%{$term}%")
                         ->orWhereHas('product', fn ($pq) => $pq->where('name', 'like', "%{$term}%")->orWhere('code', 'like', "%{$term}%"));
                 });
             });
 
+        $perPage = max(1, min(100, $request->integer('per_page', 15)));
         $rows = $query->latest()
-            ->paginate(15)
+            ->paginate($perPage)
             ->withQueryString();
 
         if ($request->expectsJson()) {
@@ -236,7 +267,10 @@ class ReportController extends Controller
                 'meta' => [
                     'current_page' => $rows->currentPage(),
                     'last_page' => $rows->lastPage(),
+                    'from' => $rows->firstItem(),
+                    'to' => $rows->lastItem(),
                     'total' => $rows->total(),
+                    'per_page' => $rows->perPage(),
                 ],
             ]);
         }

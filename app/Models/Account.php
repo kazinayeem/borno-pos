@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Account extends Model
 {
@@ -16,9 +17,14 @@ class Account extends Model
         return ['is_default' => 'boolean'];
     }
 
-    public function transactions()
+    public function transactions(): HasMany
     {
         return $this->hasMany(AccountTransaction::class);
+    }
+
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class);
     }
 
     public function balanceCents(): int

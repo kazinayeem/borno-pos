@@ -99,7 +99,19 @@ class AccountingController extends Controller
 
     public function transfers(Request $request)
     {
-        $transfers = MoneyTransfer::with(['fromAccount', 'toAccount'])->latest('transferred_on')->latest('id')->paginate(15);
+        $query = MoneyTransfer::with(['fromAccount', 'toAccount']);
+
+        if ($request->filled('q') || $request->filled('search')) {
+            $term = trim((string) ($request->input('search') ?? $request->input('q')));
+            $query->where(function ($q) use ($term) {
+                $q->where('note', 'like', "%{$term}%")
+                    ->orWhereHas('fromAccount', fn ($aq) => $aq->where('name', 'like', "%{$term}%"))
+                    ->orWhereHas('toAccount', fn ($aq) => $aq->where('name', 'like', "%{$term}%"));
+            });
+        }
+
+        $perPage = max(1, min(100, $request->integer('per_page', 15)));
+        $transfers = $query->latest('transferred_on')->latest('id')->paginate($perPage)->withQueryString();
         $accounts = Account::orderBy('name')->get();
 
         if ($request->expectsJson()) {
@@ -115,7 +127,10 @@ class AccountingController extends Controller
                 'meta' => [
                     'current_page' => $transfers->currentPage(),
                     'last_page' => $transfers->lastPage(),
+                    'from' => $transfers->firstItem(),
+                    'to' => $transfers->lastItem(),
                     'total' => $transfers->total(),
+                    'per_page' => $transfers->perPage(),
                 ],
                 'accounts' => $accounts->map(fn ($acc) => [
                     'id' => $acc->id,
@@ -227,10 +242,19 @@ class AccountingController extends Controller
 
     public function expenses(Request $request)
     {
+        $hasFromDate = $request->filled('from_date') && ! $request->filled('from');
+        $hasToDate = $request->filled('to_date') && ! $request->filled('to');
+        if ($hasFromDate) {
+            $request->merge(['from' => $request->input('from_date')]);
+        }
+        if ($hasToDate) {
+            $request->merge(['to' => $request->input('to_date')]);
+        }
+
         [$from, $to] = DateRange::fromRequest($request);
         $query = Expense::with(['category', 'account']);
-        if ($request->filled('q')) {
-            $term = $request->string('q');
+        if ($request->filled('q') || $request->filled('search')) {
+            $term = trim((string) ($request->input('search') ?? $request->input('q')));
             $query->where(function ($q) use ($term) {
                 $q->where('note', 'like', "%{$term}%")
                     ->orWhereHas('category', fn ($cq) => $cq->where('name', 'like', "%{$term}%"));
@@ -239,11 +263,15 @@ class AccountingController extends Controller
         if ($request->filled('category_id')) {
             $query->where('expense_category_id', $request->integer('category_id'));
         }
+        if ($request->filled('account_id')) {
+            $query->where('account_id', $request->integer('account_id'));
+        }
         if ($request->filled('from') || $request->filled('to')) {
             $query->whereBetween('spent_on', [$from->toDateString(), $to->toDateString()]);
         }
 
-        $expenses = $query->latest('spent_on')->paginate(15)->withQueryString();
+        $perPage = max(1, min(100, $request->integer('per_page', 15)));
+        $expenses = $query->latest('spent_on')->paginate($perPage)->withQueryString();
         $categories = ExpenseCategory::orderBy('name')->get();
         $accounts = Account::orderBy('name')->get();
 
@@ -263,7 +291,10 @@ class AccountingController extends Controller
                 'meta' => [
                     'current_page' => $expenses->currentPage(),
                     'last_page' => $expenses->lastPage(),
+                    'from' => $expenses->firstItem(),
+                    'to' => $expenses->lastItem(),
                     'total' => $expenses->total(),
+                    'per_page' => $expenses->perPage(),
                 ],
                 'categories' => $categories,
                 'accounts' => $accounts->map(fn ($a) => ['id' => $a->id, 'name' => $a->name, 'balance_cents' => (int) $a->balanceCents()]),
@@ -331,10 +362,19 @@ class AccountingController extends Controller
 
     public function transactions(Request $request)
     {
+        $hasFromDate = $request->filled('from_date') && ! $request->filled('from');
+        $hasToDate = $request->filled('to_date') && ! $request->filled('to');
+        if ($hasFromDate) {
+            $request->merge(['from' => $request->input('from_date')]);
+        }
+        if ($hasToDate) {
+            $request->merge(['to' => $request->input('to_date')]);
+        }
+
         $query = AccountTransaction::with('account');
 
-        if ($request->filled('q')) {
-            $term = $request->string('q');
+        if ($request->filled('q') || $request->filled('search')) {
+            $term = trim((string) ($request->input('search') ?? $request->input('q')));
             $query->where(function ($q) use ($term) {
                 $q->where('description', 'like', "%{$term}%")
                     ->orWhere('source_key', 'like', "%{$term}%")
@@ -360,7 +400,8 @@ class AccountingController extends Controller
         $totalDebit = (int) (clone $query)->where('direction', 'debit')->sum('amount_cents');
         $totalCredit = (int) (clone $query)->where('direction', 'credit')->sum('amount_cents');
 
-        $transactions = $query->latest('transacted_on')->latest('id')->paginate(15)->withQueryString();
+        $perPage = max(1, min(100, $request->integer('per_page', 15)));
+        $transactions = $query->latest('transacted_on')->latest('id')->paginate($perPage)->withQueryString();
         $accounts = Account::orderBy('name')->get();
 
         if ($request->expectsJson()) {
@@ -379,7 +420,10 @@ class AccountingController extends Controller
                 'meta' => [
                     'current_page' => $transactions->currentPage(),
                     'last_page' => $transactions->lastPage(),
+                    'from' => $transactions->firstItem(),
+                    'to' => $transactions->lastItem(),
                     'total' => $transactions->total(),
+                    'per_page' => $transactions->perPage(),
                 ],
                 'accounts' => $accounts->map(fn ($a) => ['id' => $a->id, 'name' => $a->name]),
                 'total_debit_cents' => (int) $totalDebit,

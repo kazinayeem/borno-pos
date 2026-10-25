@@ -21,7 +21,8 @@ class StaffController extends Controller
             ->with('shopRole')
             ->where('store_id', $storeId);
 
-        if ($search = trim($request->string('q')->toString())) {
+        $search = trim((string) ($request->input('search') ?? $request->input('q')));
+        if ($search !== '') {
             $query->where(function ($sub) use ($search) {
                 $sub->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
@@ -48,7 +49,8 @@ class StaffController extends Controller
             $query->orderByDesc('id');
         }
 
-        $staff = $query->paginate(15)->withQueryString();
+        $perPage = max(1, min(100, $request->integer('per_page', 15)));
+        $staff = $query->paginate($perPage)->withQueryString();
 
         $roles = ShopRole::query()
             ->where('store_id', $storeId)
@@ -64,6 +66,7 @@ class StaffController extends Controller
                 'from' => $staff->firstItem(),
                 'to' => $staff->lastItem(),
                 'total' => $staff->total(),
+                'per_page' => $staff->perPage(),
             ],
         ]);
     }

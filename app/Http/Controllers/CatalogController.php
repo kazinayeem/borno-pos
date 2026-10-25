@@ -173,6 +173,7 @@ class CatalogController extends Controller
                 'from' => $rows->firstItem(),
                 'to' => $rows->lastItem(),
                 'total' => $rows->total(),
+                'per_page' => $rows->perPage(),
             ];
         }
 

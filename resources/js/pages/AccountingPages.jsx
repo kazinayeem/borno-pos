@@ -1,19 +1,26 @@
 import { useEffect, useState } from 'react';
 import { api, money } from '../api';
 import { useT } from '../i18n';
-import { Modal, PrimaryButton, SecondaryButton } from '../components/ui';
+import { Modal, ConfirmModal, PrimaryButton, SecondaryButton, Pagination, SearchInput } from '../components/ui';
+import { useUrlQueryState } from '../hooks/useUrlQueryState';
 
 export function AccountsPage() {
     const t = useT();
     const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [editingAccount, setEditingAccount] = useState(null);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+
     const [name, setName] = useState('');
     const [number, setNumber] = useState('');
     const [type, setType] = useState('cash');
     const [opening, setOpening] = useState('');
     const [msg, setMsg] = useState('');
     const [err, setErr] = useState('');
+    const [modalErr, setModalErr] = useState('');
 
     function loadAccounts() {
         setLoading(true);
@@ -29,34 +36,66 @@ export function AccountsPage() {
         loadAccounts();
     }, []);
 
-    async function handleCreate(e) {
+    function openAddModal() {
+        setEditingAccount(null);
+        setName('');
+        setNumber('');
+        setType('cash');
+        setOpening('');
+        setModalErr('');
+        setShowModal(true);
+    }
+
+    function openEditModal(acc) {
+        setEditingAccount(acc);
+        setName(acc.name || '');
+        setNumber(acc.number || '');
+        setType(acc.type || 'cash');
+        setOpening('');
+        setModalErr('');
+        setShowModal(true);
+    }
+
+    async function handleSave(e) {
         e.preventDefault();
         setMsg('');
-        setErr('');
+        setModalErr('');
+        setIsSaving(true);
         try {
-            await api('/accounts', {
-                method: 'POST',
-                body: { name, number, type, opening: opening ? parseFloat(opening) : 0 },
-            });
+            if (editingAccount) {
+                await api(`/accounts/${editingAccount.id}`, {
+                    method: 'PUT',
+                    body: { name, number, type },
+                });
+                setMsg(t('Account updated successfully.'));
+            } else {
+                await api('/accounts', {
+                    method: 'POST',
+                    body: { name, number, type, opening: opening ? parseFloat(opening) : 0 },
+                });
+                setMsg(t('Account created successfully.'));
+            }
             setShowModal(false);
-            setName('');
-            setNumber('');
-            setOpening('');
-            setMsg(t('Account created successfully.'));
             loadAccounts();
         } catch (e) {
-            setErr(e.message || t('Failed to create account.'));
+            setModalErr(e.message || t('Failed to save account.'));
+        } finally {
+            setIsSaving(false);
         }
     }
 
-    async function handleDelete(id) {
-        if (!window.confirm(t('Are you sure you want to delete this account?'))) return;
+    async function confirmDelete() {
+        if (!deleteTarget) return;
+        setIsDeleting(true);
         try {
-            await api(`/accounts/${id}`, { method: 'DELETE' });
+            await api(`/accounts/${deleteTarget.id}`, { method: 'DELETE' });
             setMsg(t('Account deleted.'));
+            setDeleteTarget(null);
             loadAccounts();
         } catch (e) {
             setErr(e.message || t('Failed to delete account.'));
+        } finally {
+            setIsDeleting(false);
         }
     }
 
@@ -67,7 +106,7 @@ export function AccountsPage() {
                     <h1>{t('Accounts')}</h1>
                     <div className="crumbs">{t('Manage bank accounts, cash registers, and mobile payment accounts')}</div>
                 </div>
-                <button type="button" className="btn primary" onClick={() => setShowModal(true)}>
+                <button type="button" className="btn primary" onClick={openAddModal}>
                     + {t('Add Account')}
                 </button>
             </div>
@@ -99,9 +138,24 @@ export function AccountsPage() {
                                 <td style={{ textAlign: 'center' }}>
                                     {acc.is_default ? <span className="chip active">Default</span> : '—'}
                                 </td>
-                                <td style={{ textAlign: 'right' }}>
+                                <td style={{ textAlign: 'right', display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                    <button
+                                        type="button"
+                                        className="icon-btn"
+                                        onClick={() => openEditModal(acc)}
+                                        title={t('Edit Account')}
+                                    >
+                                        ✏️
+                                    </button>
                                     {!acc.is_default && (
-                                        <button type="button" className="icon-btn" onClick={() => handleDelete(acc.id)} title={t('Delete')}>🗑</button>
+                                        <button
+                                            type="button"
+                                            className="icon-btn"
+                                            onClick={() => setDeleteTarget(acc)}
+                                            title={t('Delete')}
+                                        >
+                                            🗑
+                                        </button>
                                     )}
                                 </td>
                             </tr>
@@ -112,49 +166,119 @@ export function AccountsPage() {
                 {!loading && accounts.length === 0 && <p className="empty">{t('No accounts found.')}</p>}
             </section>
 
+            {/* Modal: Add or Edit Account */}
             <Modal
                 isOpen={showModal}
                 onClose={() => setShowModal(false)}
-                title={t('Create New Account')}
+                title={editingAccount ? t('Edit Account') : t('Create New Account')}
+                subtitle={editingAccount ? t('Update account details and classification.') : t('Add bank account, mobile money, or cash drawer.')}
                 icon="🏦"
+                size="md"
                 footer={
                     <>
                         <SecondaryButton type="button" onClick={() => setShowModal(false)}>{t('Cancel')}</SecondaryButton>
-                        <PrimaryButton type="submit" form="create-account-form">{t('Save Account')}</PrimaryButton>
+                        <PrimaryButton type="submit" form="account-modal-form" disabled={isSaving}>
+                            {isSaving ? t('Saving...') : (editingAccount ? t('Update Account') : t('Save Account'))}
+                        </PrimaryButton>
                     </>
                 }
             >
-                <form id="create-account-form" onSubmit={handleCreate}>
-                    <div className="field">
-                        <label>{t('Account Name')}</label>
-                        <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. City Bank" />
+                {modalErr && (
+                    <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
+                        {modalErr}
                     </div>
-                    <div className="field">
-                        <label>{t('Account Number')}</label>
-                        <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="e.g. 10203040" />
+                )}
+                <form id="account-modal-form" onSubmit={handleSave}>
+                    <div className="field" style={{ marginBottom: '14px' }}>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                            {t('Account Name')} *
+                        </label>
+                        <input
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            required
+                            placeholder="e.g. City Bank - Main Branch"
+                            style={{ width: '100%' }}
+                        />
                     </div>
-                    <div className="field">
-                        <label>{t('Account Type')}</label>
-                        <select value={type} onChange={(e) => setType(e.target.value)}>
+                    <div className="field" style={{ marginBottom: '14px' }}>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                            {t('Account Number')}
+                        </label>
+                        <input
+                            value={number}
+                            onChange={(e) => setNumber(e.target.value)}
+                            placeholder="e.g. 1020304050"
+                            style={{ width: '100%' }}
+                        />
+                    </div>
+                    <div className="field" style={{ marginBottom: '14px' }}>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                            {t('Account Type')} *
+                        </label>
+                        <select
+                            value={type}
+                            onChange={(e) => setType(e.target.value)}
+                            style={{ width: '100%' }}
+                        >
                             <option value="cash">{t('Cash')}</option>
                             <option value="bank">{t('Bank')}</option>
                             <option value="mobile">{t('Mobile Banking')}</option>
                         </select>
                     </div>
-                    <div className="field">
-                        <label>{t('Opening Balance')}</label>
-                        <input type="number" step="0.01" value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="0.00" />
-                    </div>
+                    {!editingAccount && (
+                        <div className="field">
+                            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                                {t('Opening Balance')}
+                            </label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                value={opening}
+                                onChange={(e) => setOpening(e.target.value)}
+                                placeholder="0.00"
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                    )}
                 </form>
             </Modal>
+
+            {/* Modal: Delete Confirmation */}
+            <ConfirmModal
+                isOpen={!!deleteTarget}
+                onClose={() => setDeleteTarget(null)}
+                onConfirm={confirmDelete}
+                title={t('Delete Account')}
+                message={t('Are you sure you want to delete the account "{name}"? Accounts with transaction history cannot be deleted.', {
+                    name: deleteTarget?.name || '',
+                })}
+                confirmText={t('Delete')}
+                cancelText={t('Cancel')}
+                variant="danger"
+                isLoading={isDeleting}
+            />
         </div>
     );
 }
 
 export function MoneyTransfersPage() {
     const t = useT();
+    const {
+        params,
+        setQuery,
+        setPage,
+        setPerPage,
+        resetFilters,
+    } = useUrlQueryState({
+        search: '',
+        page: 1,
+        per_page: 15,
+    });
+
     const [transfers, setTransfers] = useState([]);
     const [accounts, setAccounts] = useState([]);
+    const [meta, setMeta] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [fromAccount, setFromAccount] = useState('');
@@ -167,11 +291,17 @@ export function MoneyTransfersPage() {
 
     function loadData() {
         setLoading(true);
-        api('/money-transfers')
+        const qp = new URLSearchParams();
+        if (params.page) qp.set('page', params.page);
+        if (params.per_page) qp.set('per_page', params.per_page);
+        if (params.search) qp.set('search', params.search);
+
+        api(`/money-transfers?${qp.toString()}`)
             .then((res) => {
                 setTransfers(res.transfers || []);
                 setAccounts(res.accounts || []);
-                if (res.accounts?.length > 1) {
+                setMeta(res.meta || null);
+                if (res.accounts?.length > 1 && !fromAccount) {
                     setFromAccount(String(res.accounts[0].id));
                     setToAccount(String(res.accounts[1].id));
                 }
@@ -180,7 +310,7 @@ export function MoneyTransfersPage() {
             .finally(() => setLoading(false));
     }
 
-    useEffect(() => { loadData(); }, []);
+    useEffect(() => { loadData(); }, [params.page, params.per_page, params.search]);
 
     async function handleTransfer(e) {
         e.preventDefault();
@@ -207,14 +337,21 @@ export function MoneyTransfersPage() {
         }
     }
 
-    async function handleReverse(id) {
-        if (!window.confirm(t('Are you sure you want to reverse this money transfer?'))) return;
+    const [reverseTarget, setReverseTarget] = useState(null);
+    const [isReversing, setIsReversing] = useState(false);
+
+    async function confirmReverse() {
+        if (!reverseTarget) return;
+        setIsReversing(true);
         try {
-            await api(`/money-transfers/${id}/reverse`, { method: 'POST' });
-            setMsg(t('Transfer reversed successfully.'));
+            await api(`/money-transfers/${reverseTarget.id}/reverse`, { method: 'POST' });
+            setMsg(t('Transfer reversed successfully and account balances restored.'));
+            setReverseTarget(null);
             loadData();
         } catch (e) {
             setErr(e.message || t('Failed to reverse transfer.'));
+        } finally {
+            setIsReversing(false);
         }
     }
 
@@ -234,6 +371,20 @@ export function MoneyTransfersPage() {
             {err && <div className="errors note" style={{ marginBottom: '16px' }}>{err}</div>}
 
             <section className="card" data-tour="transfers-card">
+                <div className="toolbar" style={{ display: 'flex', gap: '8px', padding: '16px', borderBottom: '1px solid var(--border)' }}>
+                    <SearchInput
+                        value={params.search}
+                        placeholder={t('Search transfers by account, note...')}
+                        onChange={(e) => setQuery({ search: e.target.value })}
+                        onClear={() => setQuery({ search: '' })}
+                        style={{ maxWidth: '360px' }}
+                    />
+                    {params.search && (
+                        <button className="btn" type="button" onClick={() => resetFilters()}>
+                            {t('Reset')}
+                        </button>
+                    )}
+                </div>
                 <table className="grid">
                     <thead>
                         <tr>
@@ -256,7 +407,14 @@ export function MoneyTransfersPage() {
                                 </td>
                                 <td>{tx.note || '—'}</td>
                                 <td style={{ textAlign: 'right' }}>
-                                    <button type="button" className="btn danger small" onClick={() => handleReverse(tx.id)}>{t('Reverse')}</button>
+                                    <button
+                                        type="button"
+                                        className="btn small"
+                                        style={{ fontSize: '11px', padding: '3px 8px', color: '#ef4444' }}
+                                        onClick={() => setReverseTarget(tx)}
+                                    >
+                                        {t('Reverse')}
+                                    </button>
                                 </td>
                             </tr>
                         ))}
@@ -264,6 +422,17 @@ export function MoneyTransfersPage() {
                 </table>
                 {loading && <p className="muted" style={{ padding: '16px' }}>{t('Loading transfers…')}</p>}
                 {!loading && transfers.length === 0 && <p className="empty">{t('No money transfers recorded yet.')}</p>}
+                <Pagination
+                    currentPage={meta?.current_page || params.page}
+                    lastPage={meta?.last_page || 1}
+                    total={meta?.total || 0}
+                    from={meta?.from || 0}
+                    to={meta?.to || 0}
+                    perPage={params.per_page}
+                    onPageChange={setPage}
+                    onPerPageChange={setPerPage}
+                    perPageOptions={[10, 15, 25, 50]}
+                />
             </section>
 
             <Modal
@@ -307,6 +476,23 @@ export function MoneyTransfersPage() {
                     </div>
                 </form>
             </Modal>
+
+            {/* Modal: Reverse Transfer Confirmation */}
+            <ConfirmModal
+                isOpen={!!reverseTarget}
+                onClose={() => setReverseTarget(null)}
+                onConfirm={confirmReverse}
+                title={t('Reverse Money Transfer')}
+                message={t('Are you sure you want to reverse the transfer of {amount} from {from} to {to}? Corresponding ledger transactions will be reversed.', {
+                    amount: reverseTarget ? money(reverseTarget.amount_cents) : '',
+                    from: reverseTarget?.from_account || '',
+                    to: reverseTarget?.to_account || '',
+                })}
+                confirmText={t('Reverse Transfer')}
+                cancelText={t('Cancel')}
+                variant="danger"
+                isLoading={isReversing}
+            />
         </div>
     );
 }
@@ -402,25 +588,36 @@ export function BalanceSheetPage() {
 
 export function TransactionsPage() {
     const t = useT();
+    const {
+        params,
+        setQuery,
+        setPage,
+        setPerPage,
+        resetFilters,
+    } = useUrlQueryState({
+        search: '',
+        account_id: '',
+        direction: '',
+        page: 1,
+        per_page: 15,
+    });
+
     const [transactions, setTransactions] = useState([]);
     const [accounts, setAccounts] = useState([]);
     const [totalDebit, setTotalDebit] = useState(0);
     const [totalCredit, setTotalCredit] = useState(0);
-    const [page, setPage] = useState(1);
     const [meta, setMeta] = useState(null);
-    const [q, setQ] = useState('');
-    const [accountId, setAccountId] = useState('');
-    const [direction, setDirection] = useState('');
     const [loading, setLoading] = useState(true);
 
     function loadData() {
         setLoading(true);
-        const params = new URLSearchParams({ page: String(page) });
-        if (q) params.set('q', q);
-        if (accountId) params.set('account_id', accountId);
-        if (direction) params.set('direction', direction);
+        const qp = new URLSearchParams({ page: String(params.page) });
+        if (params.search) qp.set('search', params.search);
+        if (params.account_id) qp.set('account_id', params.account_id);
+        if (params.direction) qp.set('direction', params.direction);
+        if (params.per_page) qp.set('per_page', params.per_page);
 
-        api(`/account/transactions?${params.toString()}`)
+        api(`/account/transactions?${qp.toString()}`)
             .then((res) => {
                 setTransactions(res.transactions || []);
                 setAccounts(res.accounts || []);
@@ -432,7 +629,7 @@ export function TransactionsPage() {
             .finally(() => setLoading(false));
     }
 
-    useEffect(() => { loadData(); }, [page, accountId, direction]);
+    useEffect(() => { loadData(); }, [params.page, params.per_page, params.search, params.account_id, params.direction]);
 
     return (
         <div>
@@ -461,24 +658,26 @@ export function TransactionsPage() {
             </div>
 
             <section className="card" style={{ marginBottom: '16px', padding: '16px' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                    <input
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+                    <SearchInput
                         style={{ flex: 1, minWidth: '200px' }}
                         placeholder={t('Search description, reference...')}
-                        value={q}
-                        onChange={(e) => setQ(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && loadData()}
+                        value={params.search}
+                        onChange={(e) => setQuery({ search: e.target.value })}
+                        onClear={() => setQuery({ search: '' })}
                     />
-                    <select value={accountId} onChange={(e) => { setAccountId(e.target.value); setPage(1); }}>
+                    <select value={params.account_id} onChange={(e) => setQuery({ account_id: e.target.value })}>
                         <option value="">{t('All Accounts')}</option>
                         {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                     </select>
-                    <select value={direction} onChange={(e) => { setDirection(e.target.value); setPage(1); }}>
+                    <select value={params.direction} onChange={(e) => setQuery({ direction: e.target.value })}>
                         <option value="">{t('All Directions')}</option>
                         <option value="debit">{t('Inflow (Debit)')}</option>
                         <option value="credit">{t('Outflow (Credit)')}</option>
                     </select>
-                    <button type="button" className="btn primary" onClick={loadData}>{t('Filter')}</button>
+                    {(params.search || params.account_id || params.direction) && (
+                        <button type="button" className="btn" onClick={() => resetFilters()}>{t('Reset')}</button>
+                    )}
                 </div>
             </section>
 
@@ -513,13 +712,17 @@ export function TransactionsPage() {
                 </table>
                 {loading && <p className="muted" style={{ padding: '16px' }}>{t('Loading transactions…')}</p>}
                 {!loading && transactions.length === 0 && <p className="empty">{t('No transactions found.')}</p>}
-                {meta && meta.last_page > 1 && (
-                    <div className="actions" style={{ padding: '12px 16px' }}>
-                        <button type="button" className="btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{t('Previous')}</button>
-                        <span className="muted" style={{ alignSelf: 'center', fontSize: '13px' }}>Page {page} of {meta.last_page}</span>
-                        <button type="button" className="btn" disabled={page >= meta.last_page} onClick={() => setPage((p) => p + 1)}>{t('Next')}</button>
-                    </div>
-                )}
+                <Pagination
+                    currentPage={meta?.current_page || params.page}
+                    lastPage={meta?.last_page || 1}
+                    total={meta?.total || 0}
+                    from={meta?.from || 0}
+                    to={meta?.to || 0}
+                    perPage={params.per_page}
+                    onPageChange={setPage}
+                    onPerPageChange={setPerPage}
+                    perPageOptions={[10, 15, 25, 50]}
+                />
             </section>
         </div>
     );
@@ -527,6 +730,20 @@ export function TransactionsPage() {
 
 export function ExpensesPage() {
     const t = useT();
+    const {
+        params,
+        setQuery,
+        setPage,
+        setPerPage,
+        resetFilters,
+    } = useUrlQueryState({
+        search: '',
+        category_id: '',
+        account_id: '',
+        page: 1,
+        per_page: 15,
+    });
+
     const [expenses, setExpenses] = useState([]);
     const [categories, setCategories] = useState([]);
     const [accounts, setAccounts] = useState([]);
@@ -537,14 +754,19 @@ export function ExpensesPage() {
     const [amount, setAmount] = useState('');
     const [spentOn, setSpentOn] = useState(new Date().toISOString().slice(0, 10));
     const [note, setNote] = useState('');
-    const [page, setPage] = useState(1);
     const [meta, setMeta] = useState(null);
     const [msg, setMsg] = useState('');
     const [err, setErr] = useState('');
 
     function loadExpenses() {
         setLoading(true);
-        api(`/expense?page=${page}`)
+        const qp = new URLSearchParams({ page: String(params.page) });
+        if (params.search) qp.set('search', params.search);
+        if (params.category_id) qp.set('category_id', params.category_id);
+        if (params.account_id) qp.set('account_id', params.account_id);
+        if (params.per_page) qp.set('per_page', params.per_page);
+
+        api(`/expense?${qp.toString()}`)
             .then((res) => {
                 setExpenses(res.expenses || []);
                 setCategories(res.categories || []);
@@ -557,7 +779,7 @@ export function ExpensesPage() {
             .finally(() => setLoading(false));
     }
 
-    useEffect(() => { loadExpenses(); }, [page]);
+    useEffect(() => { loadExpenses(); }, [params.page, params.per_page, params.search, params.category_id, params.account_id]);
 
     async function handleCreate(e) {
         e.preventDefault();
@@ -584,14 +806,21 @@ export function ExpensesPage() {
         }
     }
 
-    async function handleDelete(id) {
-        if (!window.confirm(t('Are you sure you want to delete this expense? Account balance will be restored.'))) return;
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    async function confirmDelete() {
+        if (!deleteTarget) return;
+        setIsDeleting(true);
         try {
-            await api(`/expense/${id}`, { method: 'DELETE' });
-            setMsg(t('Expense deleted.'));
+            await api(`/expense/${deleteTarget.id}`, { method: 'DELETE' });
+            setMsg(t('Expense deleted and account balance restored.'));
+            setDeleteTarget(null);
             loadExpenses();
         } catch (e) {
             setErr(e.message || t('Failed to delete expense.'));
+        } finally {
+            setIsDeleting(false);
         }
     }
 
@@ -611,6 +840,28 @@ export function ExpensesPage() {
             {err && <div className="errors note" style={{ marginBottom: '16px' }}>{err}</div>}
 
             <section className="card" data-tour="expenses-table">
+                <div className="toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', padding: '16px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+                    <SearchInput
+                        value={params.search}
+                        placeholder={t('Search expenses by note, category...')}
+                        onChange={(e) => setQuery({ search: e.target.value })}
+                        onClear={() => setQuery({ search: '' })}
+                        style={{ flex: 1, minWidth: '220px' }}
+                    />
+                    <select value={params.category_id} onChange={(e) => setQuery({ category_id: e.target.value })}>
+                        <option value="">{t('All Categories')}</option>
+                        {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <select value={params.account_id} onChange={(e) => setQuery({ account_id: e.target.value })}>
+                        <option value="">{t('All Paid Accounts')}</option>
+                        {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                    {(params.search || params.category_id || params.account_id) && (
+                        <button type="button" className="btn" onClick={() => resetFilters()}>
+                            {t('Reset')}
+                        </button>
+                    )}
+                </div>
                 <table className="grid">
                     <thead>
                         <tr>
@@ -633,7 +884,14 @@ export function ExpensesPage() {
                                 </td>
                                 <td>{exp.note || '—'}</td>
                                 <td style={{ textAlign: 'right' }}>
-                                    <button type="button" className="icon-btn" onClick={() => handleDelete(exp.id)} title={t('Delete')}>🗑</button>
+                                    <button
+                                        type="button"
+                                        className="icon-btn"
+                                        onClick={() => setDeleteTarget(exp)}
+                                        title={t('Delete')}
+                                    >
+                                        🗑
+                                    </button>
                                 </td>
                             </tr>
                         ))}
@@ -641,13 +899,17 @@ export function ExpensesPage() {
                 </table>
                 {loading && <p className="muted" style={{ padding: '16px' }}>{t('Loading expenses…')}</p>}
                 {!loading && expenses.length === 0 && <p className="empty">{t('No expenses recorded yet.')}</p>}
-                {meta && meta.last_page > 1 && (
-                    <div className="actions" style={{ padding: '12px 16px' }}>
-                        <button type="button" className="btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{t('Previous')}</button>
-                        <span className="muted" style={{ alignSelf: 'center', fontSize: '13px' }}>Page {page} of {meta.last_page}</span>
-                        <button type="button" className="btn" disabled={page >= meta.last_page} onClick={() => setPage((p) => p + 1)}>{t('Next')}</button>
-                    </div>
-                )}
+                <Pagination
+                    currentPage={meta?.current_page || params.page}
+                    lastPage={meta?.last_page || 1}
+                    total={meta?.total || 0}
+                    from={meta?.from || 0}
+                    to={meta?.to || 0}
+                    perPage={params.per_page}
+                    onPageChange={setPage}
+                    onPerPageChange={setPerPage}
+                    perPageOptions={[10, 15, 25, 50]}
+                />
             </section>
 
             <Modal
@@ -689,6 +951,21 @@ export function ExpensesPage() {
                     </div>
                 </form>
             </Modal>
+            {/* Modal: Delete Confirmation */}
+            <ConfirmModal
+                isOpen={!!deleteTarget}
+                onClose={() => setDeleteTarget(null)}
+                onConfirm={confirmDelete}
+                title={t('Delete Expense')}
+                message={t('Are you sure you want to delete this expense of {amount} ({category})? The paid amount will be refunded to the account balance.', {
+                    amount: deleteTarget ? money(deleteTarget.amount_cents) : '',
+                    category: deleteTarget?.category || '',
+                })}
+                confirmText={t('Delete & Refund')}
+                cancelText={t('Cancel')}
+                variant="danger"
+                isLoading={isDeleting}
+            />
         </div>
     );
 }

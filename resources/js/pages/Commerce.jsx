@@ -17,13 +17,46 @@ import {
     useSavePurchaseMutation,
 } from '../services/bornoposApi';
 
+import { useUrlQueryState } from '../hooks/useUrlQueryState';
+import { Pagination, SearchInput, Modal, ConfirmModal } from '../components/ui';
+
 export function Records({ kind }) {
     const t = useT();
-    const [page, setPage] = useState(1);
-    const [q, setQ] = useState('');
+    const {
+        params,
+        setQuery,
+        setPage,
+        setPerPage,
+        setSort,
+        getSortIndicator,
+        resetFilters,
+    } = useUrlQueryState({
+        search: '',
+        page: 1,
+        per_page: 15,
+        sort_by: '',
+        sort_dir: 'desc',
+    });
+
     const [actionMsg, setActionMsg] = useState('');
-    const sales = useGetSalesQuery({ drafts: kind === 'drafts', page, q }, { skip: kind === 'purchases' });
-    const purchases = useGetPurchasesQuery({ page, q }, { skip: kind !== 'purchases' });
+    const [deletingDraftId, setDeletingDraftId] = useState(null);
+    const sales = useGetSalesQuery({
+        drafts: kind === 'drafts',
+        page: params.page,
+        q: params.search,
+        search: params.search,
+        per_page: params.per_page,
+        sort_by: params.sort_by,
+        sort_dir: params.sort_dir,
+    }, { skip: kind === 'purchases' });
+    const purchases = useGetPurchasesQuery({
+        page: params.page,
+        q: params.search,
+        search: params.search,
+        per_page: params.per_page,
+        sort_by: params.sort_by,
+        sort_dir: params.sort_dir,
+    }, { skip: kind !== 'purchases' });
     const [deleteSale, deleteSaleState] = useDeleteSaleMutation();
 
     const payload = kind === 'purchases' ? purchases.data : sales.data;
@@ -31,14 +64,15 @@ export function Records({ kind }) {
     const meta = payload?.meta || { last_page: 1, from: 0, to: 0, total: 0 };
     const title = kind === 'purchases' ? 'Purchases' : (payload?.title || (kind === 'drafts' ? 'Drafts' : 'Sales'));
 
-    async function handleDeleteDraft(id) {
-        if (!window.confirm(t('Are you sure you want to delete this draft?'))) return;
-        const res = await deleteSale(id);
+    async function handleConfirmDeleteDraft() {
+        if (!deletingDraftId) return;
+        const res = await deleteSale(deletingDraftId);
         if (res.error) {
             setActionMsg(res.error.data?.message || t('Failed to delete draft.'));
         } else {
             setActionMsg(t('Draft deleted successfully.'));
         }
+        setDeletingDraftId(null);
         setTimeout(() => setActionMsg(''), 3000);
     }
 
@@ -52,11 +86,36 @@ export function Records({ kind }) {
             </div>
             {actionMsg && <div className="status" style={{ marginBottom: '12px' }}>{actionMsg}</div>}
             <section className="card table-card" data-tour={kind === 'drafts' ? 'drafts-table' : (kind === 'purchases' ? 'purchases-table' : 'sales-table')}>
-                <div className="toolbar"><input value={q} placeholder="Search" onChange={(event) => { setQ(event.target.value); setPage(1); }} /></div>
+                <div className="toolbar" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <SearchInput
+                        value={params.search}
+                        placeholder={t('Search {item}...', { item: t(title) })}
+                        onChange={(event) => setQuery({ search: event.target.value })}
+                        onClear={() => setQuery({ search: '' })}
+                        style={{ maxWidth: '360px' }}
+                    />
+                    {params.search && (
+                        <button className="btn" type="button" onClick={() => resetFilters()}>
+                            {t('Reset')}
+                        </button>
+                    )}
+                </div>
                 <table className="grid">
                     <thead>
                         <tr>
-                            <th>SL</th><th>{kind === 'purchases' ? 'Reference' : 'Invoice'}</th><th>{kind === 'purchases' ? 'Supplier' : 'Customer'}</th><th>Status</th><th>Total</th><th>Paid</th><th>Action</th>
+                            <th>{t('SL')}</th>
+                            <th onClick={() => setSort(kind === 'purchases' ? 'reference' : 'invoice_no')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                                {kind === 'purchases' ? t('Reference') : t('Invoice')} {getSortIndicator(kind === 'purchases' ? 'reference' : 'invoice_no')}
+                            </th>
+                            <th>{kind === 'purchases' ? t('Supplier') : t('Customer')}</th>
+                            <th>{t('Status')}</th>
+                            <th onClick={() => setSort('grand_cents')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                                {t('Total')} {getSortIndicator('grand_cents')}
+                            </th>
+                            <th onClick={() => setSort('paid_cents')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                                {t('Paid')} {getSortIndicator('paid_cents')}
+                            </th>
+                            <th>{t('Action')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -83,8 +142,8 @@ export function Records({ kind }) {
                                 <td>
                                     {kind === 'drafts' ? (
                                         <div style={{ display: 'flex', gap: '6px' }}>
-                                            <a className="btn primary" href={`/pos?draft_id=${row.id}`}>{t('Resume')}</a>
-                                            <button type="button" className="btn" style={{ color: '#ef4444' }} onClick={() => handleDeleteDraft(row.id)}>
+                                             <a className="btn primary" href={`/pos?draft_id=${row.id}`}>{t('Resume')}</a>
+                                            <button type="button" className="btn" style={{ color: '#ef4444' }} onClick={() => setDeletingDraftId(row.id)}>
                                                 {t('Delete')}
                                             </button>
                                         </div>
@@ -96,26 +155,42 @@ export function Records({ kind }) {
                         )) : <tr><td className="empty" colSpan="7">{t('No data found')}</td></tr>}
                     </tbody>
                 </table>
-                <div className="pager">
-                    <span>{t('Showing {from} to {to} of {total} entries', { from: meta.from || 0, to: meta.to || 0, total: meta.total })}</span>
-                    <div className="pages">
-                        <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>‹</button>
-                        <button type="button" disabled={page >= meta.last_page} onClick={() => setPage(page + 1)}>›</button>
-                    </div>
-                </div>
+                <Pagination
+                    currentPage={meta.current_page || params.page}
+                    lastPage={meta.last_page || 1}
+                    total={meta.total || 0}
+                    from={meta.from || 0}
+                    to={meta.to || 0}
+                    perPage={params.per_page}
+                    onPageChange={setPage}
+                    onPerPageChange={setPerPage}
+                    perPageOptions={[10, 15, 25, 50, 100]}
+                />
             </section>
+
+            <ConfirmModal
+                isOpen={deletingDraftId !== null}
+                onClose={() => setDeletingDraftId(null)}
+                onConfirm={handleConfirmDeleteDraft}
+                title={t('Delete Draft Sale')}
+                message={t('Are you sure you want to permanently delete this draft sale?')}
+                confirmText={t('Delete Draft')}
+                isLoading={deleteSaleState.isLoading}
+            />
         </>
     );
 }
 
 export function SaleDetail() {
     const { id } = useParams();
+    const t = useT();
     const { data, isFetching } = useGetSaleQuery(id);
     const [refund, refundState] = useReturnSaleMutation();
     const [schedule, scheduleState] = useCreateInstallmentMutation();
     const [pay, payState] = usePayInstallmentMutation();
     const [service, serviceState] = useRecordServiceMutation();
     const [message, setMessage] = useState('');
+    const [showInstallmentModal, setShowInstallmentModal] = useState(false);
     const [count, setCount] = useState(3);
     const [firstDue, setFirstDue] = useState('');
     const [fee, setFee] = useState('');
@@ -134,7 +209,11 @@ export function SaleDetail() {
         event.preventDefault();
         const result = await schedule({ id, body: { count: Number(count), first_due: firstDue, fee: fee || 0 } });
         const bag = result.error?.data?.errors || {};
-        setMessage(result.error ? (Object.values(bag).flat().join(' ') || result.error.data?.message || 'The schedule could not be saved.') : result.data.message);
+        const errText = Object.values(bag).flat().join(' ') || result.error?.data?.message;
+        setMessage(result.error ? (errText || 'The schedule could not be saved.') : result.data.message);
+        if (!result.error) {
+            setShowInstallmentModal(false);
+        }
     }
 
     async function payRow(installment) {
@@ -199,15 +278,51 @@ export function SaleDetail() {
                 </section>
             )}
             {sale.status === 'completed' && !sale.installment_plan && sale.customer_id && sale.paid_cents < sale.grand_cents && (
-                <form className="card form-grid" onSubmit={saveSchedule}>
-                    <h2 className="wide">Installments</h2>
-                    <p className="muted wide">Split the remaining balance. A fee is added only when you enter one. BornoPos does not approve credit.</p>
-                    <label>Count<input type="number" min="1" max="24" value={count} onChange={(event) => setCount(event.target.value)} /></label>
-                    <label>First due date<input type="date" required value={firstDue} onChange={(event) => setFirstDue(event.target.value)} /></label>
-                    <label>Fee<input value={fee} placeholder="0.00" onChange={(event) => setFee(event.target.value)} /></label>
-                    <button className="btn primary" type="submit" disabled={scheduleState.isLoading}>Save schedule</button>
-                </form>
+                <section className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <h2 style={{ margin: 0, fontSize: '1.15rem' }}>{t('Installment Plan')}</h2>
+                        <p className="muted" style={{ margin: '4px 0 0' }}>{t('Split the remaining balance into scheduled customer installments.')}</p>
+                    </div>
+                    <button className="btn primary" type="button" onClick={() => setShowInstallmentModal(true)}>
+                        + {t('Create Installment Schedule')}
+                    </button>
+                </section>
             )}
+
+            <Modal
+                isOpen={showInstallmentModal}
+                onClose={() => setShowInstallmentModal(false)}
+                title={t('Create Installment Schedule')}
+                subtitle={`${t('Invoice')}: ${sale.invoice_no} · ${t('Balance')}: ${money(sale.grand_cents - sale.paid_cents)}`}
+                size="md"
+            >
+                <form className="grid" style={{ gap: '16px' }} onSubmit={saveSchedule}>
+                    <p className="muted" style={{ margin: 0, fontSize: '13px' }}>
+                        {t('Split the remaining balance. A fee is added only when you enter one. BornoPos does not approve credit.')}
+                    </p>
+                    <div className="field">
+                        <label>{t('Number of Installments')} *</label>
+                        <input type="number" min="1" max="24" required value={count} onChange={(event) => setCount(event.target.value)} />
+                    </div>
+                    <div className="field">
+                        <label>{t('First Due Date')} *</label>
+                        <input type="date" required value={firstDue} onChange={(event) => setFirstDue(event.target.value)} />
+                    </div>
+                    <div className="field">
+                        <label>{t('Processing Fee (Optional)')}</label>
+                        <input value={fee} placeholder="0.00" onChange={(event) => setFee(event.target.value)} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                        <button type="button" className="btn" onClick={() => setShowInstallmentModal(false)}>
+                            {t('Cancel')}
+                        </button>
+                        <button className="btn primary" type="submit" disabled={scheduleState.isLoading}>
+                            {scheduleState.isLoading ? t('Saving...') : t('Save Schedule')}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+
             {sale.items.some((item) => item.serial_unit) && (
                 <section className="card">
                     <h2>Warranty service</h2>
@@ -234,18 +349,19 @@ export function PurchaseDetail() {
     const { data, isFetching } = useGetPurchaseQuery(id);
     const [cancelPurchase, cancelState] = useCancelPurchaseMutation();
     const [message, setMessage] = useState('');
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [cancelReason, setCancelReason] = useState('Purchase cancelled by manager');
     const purchase = data?.purchase;
 
     if (!purchase) return <p className="muted">{isFetching ? 'Loading...' : 'Purchase not found'}</p>;
 
-    async function handleCancel() {
-        const reason = window.prompt(t('Enter reason for cancelling / reversing this purchase:'), 'Purchase cancelled by manager');
-        if (reason === null) return;
-        const res = await cancelPurchase({ id: purchase.id, reason: reason || 'Purchase cancelled' });
+    async function confirmCancelPurchase() {
+        const res = await cancelPurchase({ id: purchase.id, reason: cancelReason || 'Purchase cancelled' });
         if (res.error) {
             setMessage(res.error.data?.message || t('Could not cancel purchase. Check available stock.'));
         } else {
             setMessage(t('Purchase cancelled and stock/ledger successfully reversed.'));
+            setShowCancelModal(false);
         }
     }
 
@@ -284,7 +400,7 @@ export function PurchaseDetail() {
                             type="button"
                             disabled={cancelState.isLoading}
                             style={{ backgroundColor: '#fee2e2', color: '#b91c1c', borderColor: '#fca5a5' }}
-                            onClick={handleCancel}
+                            onClick={() => setShowCancelModal(true)}
                         >
                             {cancelState.isLoading ? t('Cancelling...') : t('Cancel / Reverse Purchase')}
                         </button>
@@ -293,6 +409,45 @@ export function PurchaseDetail() {
             </div>
 
             {message && <div className="status" style={{ marginBottom: '16px' }}>{message}</div>}
+
+            <Modal
+                isOpen={showCancelModal}
+                onClose={() => setShowCancelModal(false)}
+                title={t('Cancel / Reverse Purchase')}
+                subtitle={purchase.reference}
+                size="md"
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <p className="muted" style={{ margin: 0, fontSize: '13px', lineHeight: 1.5 }}>
+                        {t('Cancelling this purchase will deduct the received quantities from warehouse stock and reverse any supplier ledger entries. Please provide an audit reason.')}
+                    </p>
+                    <div className="field">
+                        <label style={{ fontWeight: 600, display: 'block', marginBottom: '6px' }}>{t('Reason for Cancellation')} *</label>
+                        <textarea
+                            rows="3"
+                            required
+                            value={cancelReason}
+                            onChange={(e) => setCancelReason(e.target.value)}
+                            placeholder={t('e.g. Purchase cancelled due to incorrect supplier batch')}
+                            style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}
+                        />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                        <button type="button" className="btn" onClick={() => setShowCancelModal(false)}>
+                            {t('Keep Purchase')}
+                        </button>
+                        <button
+                            type="button"
+                            className="btn"
+                            style={{ backgroundColor: '#fee2e2', color: '#b91c1c', borderColor: '#fca5a5' }}
+                            disabled={cancelState.isLoading || !cancelReason.trim()}
+                            onClick={confirmCancelPurchase}
+                        >
+                            {cancelState.isLoading ? t('Cancelling...') : t('Confirm Cancellation')}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
 
             <section className="card">
                 <table className="grid">

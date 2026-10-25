@@ -74,7 +74,8 @@ class SaleController extends Controller
 
     private function listing(Request $request, string $status, string $title)
     {
-        $sales = $this->query($request, $status)->paginate(15)->withQueryString();
+        $perPage = max(1, min(100, $request->integer('per_page', 15)));
+        $sales = $this->query($request, $status)->paginate($perPage)->withQueryString();
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -94,6 +95,7 @@ class SaleController extends Controller
                     'from' => $sales->firstItem(),
                     'to' => $sales->lastItem(),
                     'total' => $sales->total(),
+                    'per_page' => $sales->perPage(),
                 ],
             ]);
         }
@@ -124,11 +126,25 @@ class SaleController extends Controller
 
     public function returns(Request $request)
     {
+        $hasFromDate = $request->filled('from_date') && ! $request->filled('from');
+        $hasToDate = $request->filled('to_date') && ! $request->filled('to');
+        if ($hasFromDate) {
+            $request->merge(['from' => $request->input('from_date')]);
+        }
+        if ($hasToDate) {
+            $request->merge(['to' => $request->input('to_date')]);
+        }
+
         [$from, $to] = DateRange::fromRequest($request);
         $returns = SaleReturn::with('sale')
             ->whereBetween('returned_on', [$from->toDateString(), $to->toDateString()])
+            ->when($request->filled('q') || $request->filled('search'), function ($query) use ($request) {
+                $term = trim((string) ($request->input('search') ?? $request->input('q')));
+                $query->whereHas('sale', fn ($sale) => $sale->where('invoice_no', 'like', "%{$term}%"));
+            })
             ->latest()
-            ->paginate(10);
+            ->paginate(max(1, min(100, $request->integer('per_page', 10))))
+            ->withQueryString();
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -143,7 +159,10 @@ class SaleController extends Controller
                 'meta' => [
                     'current_page' => $returns->currentPage(),
                     'last_page' => $returns->lastPage(),
+                    'from' => $returns->firstItem(),
+                    'to' => $returns->lastItem(),
                     'total' => $returns->total(),
+                    'per_page' => $returns->perPage(),
                 ],
                 'from' => $from->toDateString(),
                 'to' => $to->toDateString(),
@@ -172,18 +191,36 @@ class SaleController extends Controller
 
     private function query(Request $request, string $status)
     {
+        $hasFromDate = $request->filled('from_date') && ! $request->filled('from');
+        $hasToDate = $request->filled('to_date') && ! $request->filled('to');
+        if ($hasFromDate) {
+            $request->merge(['from' => $request->input('from_date')]);
+        }
+        if ($hasToDate) {
+            $request->merge(['to' => $request->input('to_date')]);
+        }
+
         [$from, $to] = DateRange::fromRequest($request);
 
-        return Sale::with(['customer', 'user'])
+        $query = Sale::with(['customer', 'user'])
             ->where('status', $status)
             ->whereBetween('sold_at', [$from, $to])
-            ->when($request->filled('q'), function ($query) use ($request) {
-                $term = $request->string('q');
+            ->when($request->filled('q') || $request->filled('search'), function ($query) use ($request) {
+                $term = trim((string) ($request->input('search') ?? $request->input('q')));
                 $query->where(function ($inner) use ($term) {
                     $inner->where('invoice_no', 'like', "%{$term}%")
                         ->orWhereHas('customer', fn ($customer) => $customer->where('name', 'like', "%{$term}%"));
                 });
-            })
-            ->latest('sold_at');
+            });
+
+        $sortBy = $request->input('sort_by');
+        $sortDir = strtolower((string) ($request->input('sort_dir', $request->input('sort_direction', 'desc')))) === 'asc' ? 'asc' : 'desc';
+        if (in_array($sortBy, ['invoice_no', 'sold_at', 'grand_cents', 'paid_cents'], true)) {
+            $query->orderBy($sortBy, $sortDir);
+        } else {
+            $query->latest('sold_at');
+        }
+
+        return $query;
     }
 }

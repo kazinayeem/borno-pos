@@ -1,5 +1,13 @@
 import React, { useEffect } from 'react';
 
+const sizeMap = {
+    sm: '440px',
+    md: '560px',
+    lg: '740px',
+    xl: '920px',
+    full: '1100px',
+};
+
 /**
  * Standard Accessible Modal Component matching BornoPos theme.
  */
@@ -11,9 +19,12 @@ export function Modal({
     icon,
     children,
     footer,
-    maxWidth = '520px',
+    size = 'md',
+    maxWidth,
     className = '',
 }) {
+    const computedMaxWidth = maxWidth || sizeMap[size] || '560px';
+
     useEffect(() => {
         function handleKeyDown(e) {
             if (e.key === 'Escape' && isOpen) {
@@ -55,9 +66,11 @@ export function Modal({
             <div
                 className={`card modal bp-modal ${className}`}
                 onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
                 style={{
                     width: '100%',
-                    maxWidth,
+                    maxWidth: computedMaxWidth,
                     background: 'var(--card, #ffffff)',
                     color: 'var(--text, #1e293b)',
                     borderRadius: '16px',
@@ -81,8 +94,8 @@ export function Modal({
                         background: 'var(--card-head, #f8fafc)',
                     }}
                 >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {icon && <span style={{ fontSize: '18px' }}>{icon}</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {icon && <span style={{ fontSize: '20px', lineHeight: 1 }}>{icon}</span>}
                         <div>
                             <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-heading, #0f172a)' }}>
                                 {title}
@@ -142,5 +155,59 @@ export function Modal({
                 )}
             </div>
         </div>
+    );
+}
+
+/**
+ * Standard confirmation dialog to replace raw window.confirm calls.
+ */
+export function ConfirmModal({
+    isOpen,
+    onClose,
+    onConfirm,
+    title = 'Confirm Action',
+    message = 'Are you sure you want to proceed?',
+    confirmText = 'Confirm',
+    cancelText = 'Cancel',
+    variant = 'danger',
+    isLoading = false,
+}) {
+    if (!isOpen) return null;
+
+    const isDanger = variant === 'danger';
+
+    return (
+        <Modal
+            isOpen={isOpen}
+            onClose={isLoading ? undefined : onClose}
+            title={title}
+            icon={isDanger ? '⚠️' : 'ℹ️'}
+            size="sm"
+            footer={
+                <>
+                    <button
+                        type="button"
+                        className="btn"
+                        onClick={onClose}
+                        disabled={isLoading}
+                    >
+                        {cancelText}
+                    </button>
+                    <button
+                        type="button"
+                        className={`btn ${isDanger ? 'danger' : 'primary'}`}
+                        style={isDanger ? { background: '#ef4444', borderColor: '#ef4444', color: '#fff' } : {}}
+                        onClick={onConfirm}
+                        disabled={isLoading}
+                    >
+                        {isLoading ? 'Processing...' : confirmText}
+                    </button>
+                </>
+            }
+        >
+            <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.6, color: 'var(--text, #334155)' }}>
+                {message}
+            </p>
+        </Modal>
     );
 }

@@ -19,9 +19,22 @@ class ShopController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $stores = $user->isSuperAdmin()
-            ? Store::with('owner')->latest()->paginate(12)
-            : Store::withoutGlobalScopes()->where('id', $user->store_id)->orWhere('parent_id', $user->store_id)->paginate(12);
+        $query = $user->isSuperAdmin()
+            ? Store::with('owner')
+            : Store::withoutGlobalScopes()->where(function ($q) use ($user) {
+                $q->where('id', $user->store_id)->orWhere('parent_id', $user->store_id);
+            });
+
+        if ($search = trim((string) ($request->input('search') ?? $request->input('q')))) {
+            $query->where(function ($sub) use ($search) {
+                $sub->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
+
+        $perPage = max(1, min(100, $request->integer('per_page', 12)));
+        $stores = $query->latest()->paginate($perPage)->withQueryString();
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -39,7 +52,10 @@ class ShopController extends Controller
                 'meta' => [
                     'current_page' => $stores->currentPage(),
                     'last_page' => $stores->lastPage(),
+                    'from' => $stores->firstItem(),
+                    'to' => $stores->lastItem(),
                     'total' => $stores->total(),
+                    'per_page' => $stores->perPage(),
                 ],
             ]);
         }
@@ -150,9 +166,21 @@ class ShopController extends Controller
 
     public function report(Request $request)
     {
-        $rows = $request->user()->isSuperAdmin()
-            ? Subscription::withoutGlobalScopes()->with(['plan', 'store'])->latest()->paginate(15)
-            : Subscription::with('plan')->latest()->paginate(15);
+        $query = $request->user()->isSuperAdmin()
+            ? Subscription::withoutGlobalScopes()->with(['plan', 'store'])
+            : Subscription::with('plan');
+
+        if ($search = trim((string) ($request->input('search') ?? $request->input('q')))) {
+            $query->where(function ($sub) use ($search) {
+                $sub->whereHas('plan', fn ($pq) => $pq->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('store', fn ($sq) => $sq->where('name', 'like', "%{$search}%"))
+                    ->orWhere('payment_status', 'like', "%{$search}%")
+                    ->orWhere('status', 'like', "%{$search}%");
+            });
+        }
+
+        $perPage = max(1, min(100, $request->integer('per_page', 15)));
+        $rows = $query->latest()->paginate($perPage)->withQueryString();
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -169,7 +197,10 @@ class ShopController extends Controller
                 'meta' => [
                     'current_page' => $rows->currentPage(),
                     'last_page' => $rows->lastPage(),
+                    'from' => $rows->firstItem(),
+                    'to' => $rows->lastItem(),
                     'total' => $rows->total(),
+                    'per_page' => $rows->perPage(),
                 ],
             ]);
         }

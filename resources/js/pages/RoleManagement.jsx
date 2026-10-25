@@ -2,10 +2,20 @@ import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { api } from '../api';
 import { useT } from '../i18n';
+import { useUrlQueryState } from '../hooks/useUrlQueryState';
+import { SearchInput, Modal, ConfirmModal } from '../components/ui';
 
 export default function RoleManagement() {
     const t = useT();
     const currentUser = useSelector((state) => state.session.user);
+
+    const {
+        params,
+        setQuery,
+        resetFilters,
+    } = useUrlQueryState({
+        search: '',
+    });
 
     const [roles, setRoles] = useState([]);
     const [modules, setModules] = useState([]);
@@ -36,7 +46,9 @@ export default function RoleManagement() {
     async function loadRoles() {
         setLoading(true);
         try {
-            const res = await api('/api/roles');
+            const qp = new URLSearchParams();
+            if (params.search) qp.set('search', params.search);
+            const res = await api(`/api/roles?${qp.toString()}`);
             setRoles(res.roles || []);
             setModules(res.modules || []);
             setAllPermissionSlugs(res.all_permissions || []);
@@ -49,7 +61,7 @@ export default function RoleManagement() {
 
     useEffect(() => {
         loadRoles();
-    }, []);
+    }, [params.search]);
 
     function openCreate() {
         setActiveRole(null);
@@ -175,6 +187,22 @@ export default function RoleManagement() {
                 </div>
             )}
 
+            {/* Search Bar */}
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '16px' }}>
+                <SearchInput
+                    value={params.search}
+                    onChange={(e) => setQuery({ search: e.target.value })}
+                    onClear={() => setQuery({ search: '' })}
+                    placeholder={t('Search roles by name, description...')}
+                    style={{ maxWidth: '360px' }}
+                />
+                {params.search && (
+                    <button type="button" className="btn" onClick={() => resetFilters()}>
+                        {t('Reset')}
+                    </button>
+                )}
+            </div>
+
             {/* Roles Table */}
             <div className="table-responsive" style={{ overflowX: 'auto', border: '1px solid var(--line)', borderRadius: '10px' }} data-tour="roles-table">
                 <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
@@ -277,187 +305,167 @@ export default function RoleManagement() {
             </div>
 
             {/* Modal: Create or Edit Role with Granular Permission Matrix */}
-            {showModal && (
-                <div className="pos-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
-                    <div className="card" style={{ width: '100%', maxWidth: '780px', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--line)', paddingBottom: '12px' }}>
-                            <div>
-                                <h2 style={{ margin: 0, fontSize: '18px' }}>
-                                    {activeRole ? `${t('Edit Role')}: ${activeRole.name}` : t('Create Custom Role')}
-                                </h2>
-                                <p className="muted" style={{ margin: '2px 0 0', fontSize: '12px' }}>
-                                    {t('Check the exact actions this role is authorized to perform.')}
-                                </p>
-                            </div>
-                            <button type="button" onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' }}>✕</button>
+            <Modal
+                isOpen={showModal}
+                onClose={() => setShowModal(false)}
+                title={activeRole ? `${t('Edit Role')}: ${activeRole.name}` : t('Create Custom Role')}
+                subtitle={t('Check the exact actions this role is authorized to perform.')}
+                size="lg"
+            >
+                <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                            <label className="field">
+                                <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Role Name')} *</span>
+                                <input
+                                    required
+                                    disabled={activeRole?.is_system}
+                                    value={roleForm.name}
+                                    onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
+                                    placeholder={t('e.g. Senior Pharmacist')}
+                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                                />
+                                {activeRole?.is_system && <small style={{ color: 'var(--muted)' }}>{t('System role names cannot be renamed.')}</small>}
+                                {formErrors.name && <small style={{ color: '#ef4444' }}>{formErrors.name[0]}</small>}
+                            </label>
+
+                            <label className="field">
+                                <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Description')}</span>
+                                <input
+                                    value={roleForm.description}
+                                    onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
+                                    placeholder={t('Brief responsibilities description')}
+                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                                />
+                            </label>
                         </div>
 
-                        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-                            <div style={{ overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                                    <label className="field">
-                                        <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Role Name')} *</span>
-                                        <input
-                                            required
-                                            disabled={activeRole?.is_system}
-                                            value={roleForm.name}
-                                            onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
-                                            placeholder={t('e.g. Senior Pharmacist')}
-                                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                        />
-                                        {activeRole?.is_system && <small style={{ color: 'var(--muted)' }}>{t('System role names cannot be renamed.')}</small>}
-                                        {formErrors.name && <small style={{ color: '#ef4444' }}>{formErrors.name[0]}</small>}
-                                    </label>
-
-                                    <label className="field">
-                                        <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Description')}</span>
-                                        <input
-                                            value={roleForm.description}
-                                            onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
-                                            placeholder={t('Brief responsibilities description')}
-                                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                        />
-                                    </label>
-                                </div>
-
-                                {/* Permission Matrix Head */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', background: 'var(--bg)', padding: '8px 12px', borderRadius: '8px' }}>
-                                    <strong style={{ fontSize: '13px' }}>
-                                        {t('Module Permissions')} ({roleForm.permissions.length} {t('selected')})
-                                    </strong>
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button type="button" className="btn" onClick={selectAllGlobal} style={{ fontSize: '11px', padding: '4px 8px' }}>
-                                            {t('Select All')}
-                                        </button>
-                                        <button type="button" className="btn" onClick={deselectAllGlobal} style={{ fontSize: '11px', padding: '4px 8px' }}>
-                                            {t('Deselect All')}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Permission Matrix Table */}
-                                <div style={{ border: '1px solid var(--line)', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                                        <thead>
-                                            <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--line)' }}>
-                                                <th style={{ padding: '8px 12px', textAlign: 'left', width: '220px' }}>{t('Module')}</th>
-                                                <th style={{ padding: '8px 10px', textAlign: 'center' }}>{t('View')}</th>
-                                                <th style={{ padding: '8px 10px', textAlign: 'center' }}>{t('Create')}</th>
-                                                <th style={{ padding: '8px 10px', textAlign: 'center' }}>{t('Edit')}</th>
-                                                <th style={{ padding: '8px 10px', textAlign: 'center' }}>{t('Delete')}</th>
-                                                <th style={{ padding: '8px 12px', textAlign: 'right' }}>{t('Quick')}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {modules.map((mod) => {
-                                                const actions = mod.actions || {};
-                                                const modSlugs = Object.values(actions);
-                                                const allChecked = modSlugs.every((s) => roleForm.permissions.includes(s));
-
-                                                return (
-                                                    <tr key={mod.module} style={{ borderBottom: '1px solid var(--line)' }}>
-                                                        <td style={{ padding: '8px 12px', fontWeight: 600 }}>
-                                                            {mod.label}
-                                                        </td>
-
-                                                        {/* View */}
-                                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                                            {actions.view ? (
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={roleForm.permissions.includes(actions.view)}
-                                                                    onChange={() => togglePermission(actions.view)}
-                                                                    title={`${mod.label}: View`}
-                                                                />
-                                                            ) : <span style={{ opacity: 0.25 }}>—</span>}
-                                                        </td>
-
-                                                        {/* Create */}
-                                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                                            {actions.create ? (
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={roleForm.permissions.includes(actions.create)}
-                                                                    onChange={() => togglePermission(actions.create)}
-                                                                    title={`${mod.label}: Create`}
-                                                                />
-                                                            ) : <span style={{ opacity: 0.25 }}>—</span>}
-                                                        </td>
-
-                                                        {/* Edit */}
-                                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                                            {actions.edit ? (
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={roleForm.permissions.includes(actions.edit)}
-                                                                    onChange={() => togglePermission(actions.edit)}
-                                                                    title={`${mod.label}: Edit`}
-                                                                />
-                                                            ) : <span style={{ opacity: 0.25 }}>—</span>}
-                                                        </td>
-
-                                                        {/* Delete */}
-                                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                                            {actions.delete ? (
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={roleForm.permissions.includes(actions.delete)}
-                                                                    onChange={() => togglePermission(actions.delete)}
-                                                                    title={`${mod.label}: Delete`}
-                                                                />
-                                                            ) : <span style={{ opacity: 0.25 }}>—</span>}
-                                                        </td>
-
-                                                        {/* Module Toggle */}
-                                                        <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                                                            <button
-                                                                type="button"
-                                                                className="btn"
-                                                                onClick={() => toggleModule(mod)}
-                                                                style={{ fontSize: '10px', padding: '2px 6px' }}
-                                                            >
-                                                                {allChecked ? t('Clear') : t('All')}
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid var(--line)' }}>
-                                <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('Cancel')}</button>
-                                <button type="submit" className="btn primary" disabled={submitting}>
-                                    {submitting ? t('Saving...') : t('Save Role & Permissions')}
+                        {/* Permission Matrix Head */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', background: 'var(--bg)', padding: '8px 12px', borderRadius: '8px' }}>
+                            <strong style={{ fontSize: '13px' }}>
+                                {t('Module Permissions')} ({roleForm.permissions.length} {t('selected')})
+                            </strong>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button type="button" className="btn" onClick={selectAllGlobal} style={{ fontSize: '11px', padding: '4px 8px' }}>
+                                    {t('Select All')}
+                                </button>
+                                <button type="button" className="btn" onClick={deselectAllGlobal} style={{ fontSize: '11px', padding: '4px 8px' }}>
+                                    {t('Deselect All')}
                                 </button>
                             </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+                        </div>
 
-            {/* Modal: Delete Role Confirmation */}
-            {showDeleteModal && activeRole && (
-                <div className="pos-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
-                    <div className="card" style={{ width: '100%', maxWidth: '420px' }}>
-                        <h2 style={{ margin: '0 0 12px', color: '#ef4444' }}>{t('Delete Custom Role')}</h2>
-                        <p style={{ margin: '0 0 16px', lineHeight: 1.5 }}>
-                            {t('Are you sure you want to delete role')} <strong>{activeRole.name}</strong>?
-                        </p>
-                        <p style={{ margin: '0 0 20px', fontSize: '12px', color: 'var(--muted)' }}>
-                            {t('This role will be permanently removed. System roles and roles with active assigned staff members cannot be deleted.')}
-                        </p>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                            <button type="button" className="btn" onClick={() => setShowDeleteModal(false)}>{t('Cancel')}</button>
-                            <button type="button" className="btn danger" style={{ background: '#ef4444', color: '#fff' }} disabled={submitting} onClick={handleDelete}>
-                                {submitting ? t('Deleting...') : t('Yes, Delete Role')}
-                            </button>
+                        {/* Permission Matrix Table */}
+                        <div style={{ border: '1px solid var(--line)', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                <thead>
+                                    <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--line)' }}>
+                                        <th style={{ padding: '8px 12px', textAlign: 'left', width: '220px' }}>{t('Module')}</th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'center' }}>{t('View')}</th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'center' }}>{t('Create')}</th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'center' }}>{t('Edit')}</th>
+                                        <th style={{ padding: '8px 10px', textAlign: 'center' }}>{t('Delete')}</th>
+                                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>{t('Quick')}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {modules.map((mod) => {
+                                        const actions = mod.actions || {};
+                                        const modSlugs = Object.values(actions);
+                                        const allChecked = modSlugs.every((s) => roleForm.permissions.includes(s));
+
+                                        return (
+                                            <tr key={mod.module} style={{ borderBottom: '1px solid var(--line)' }}>
+                                                <td style={{ padding: '8px 12px', fontWeight: 600 }}>
+                                                    {mod.label}
+                                                </td>
+
+                                                {/* View */}
+                                                <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                                    {actions.view ? (
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={roleForm.permissions.includes(actions.view)}
+                                                            onChange={() => togglePermission(actions.view)}
+                                                            title={`${mod.label}: View`}
+                                                        />
+                                                    ) : <span style={{ opacity: 0.25 }}>—</span>}
+                                                </td>
+
+                                                {/* Create */}
+                                                <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                                    {actions.create ? (
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={roleForm.permissions.includes(actions.create)}
+                                                            onChange={() => togglePermission(actions.create)}
+                                                            title={`${mod.label}: Create`}
+                                                        />
+                                                    ) : <span style={{ opacity: 0.25 }}>—</span>}
+                                                </td>
+
+                                                {/* Edit */}
+                                                <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                                    {actions.edit ? (
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={roleForm.permissions.includes(actions.edit)}
+                                                            onChange={() => togglePermission(actions.edit)}
+                                                            title={`${mod.label}: Edit`}
+                                                        />
+                                                    ) : <span style={{ opacity: 0.25 }}>—</span>}
+                                                </td>
+
+                                                {/* Delete */}
+                                                <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                                    {actions.delete ? (
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={roleForm.permissions.includes(actions.delete)}
+                                                            onChange={() => togglePermission(actions.delete)}
+                                                            title={`${mod.label}: Delete`}
+                                                        />
+                                                    ) : <span style={{ opacity: 0.25 }}>—</span>}
+                                                </td>
+
+                                                {/* Module Toggle */}
+                                                <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                                                    <button
+                                                        type="button"
+                                                        className="btn"
+                                                        onClick={() => toggleModule(mod)}
+                                                        style={{ fontSize: '10px', padding: '2px 6px' }}
+                                                    >
+                                                        {allChecked ? t('Clear') : t('All')}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                </div>
-            )}
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid var(--line)' }}>
+                        <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('Cancel')}</button>
+                        <button type="submit" className="btn primary" disabled={submitting}>
+                            {submitting ? t('Saving...') : t('Save Role & Permissions')}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+
+            {/* Modal: Delete Role Confirmation */}
+            <ConfirmModal
+                isOpen={showDeleteModal && !!activeRole}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={handleDelete}
+                title={t('Delete Custom Role')}
+                message={activeRole ? `${t('Are you sure you want to delete role')} "${activeRole.name}"? ${t('This role will be permanently removed. System roles and roles with active assigned staff members cannot be deleted.')}` : ''}
+                confirmText={t('Yes, Delete Role')}
+                isLoading={submitting}
+            />
         </section>
     );
 }

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useTranslation } from '../i18n';
+import { Pagination, SearchInput, Modal } from '../components/ui';
+import { useUrlQueryState } from '../hooks/useUrlQueryState';
 
 export function GeneralSettingsPage() {
     const { t } = useTranslation();
@@ -379,10 +381,32 @@ export function StoresPage() {
     const [stores, setStores] = useState([]);
     const [meta, setMeta] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isCreating, setIsCreating] = useState(false);
+    const [storeForm, setStoreForm] = useState({
+        name: '',
+        business_type: 'all_in_one',
+        email: '',
+        phone: '',
+        address: '',
+    });
+    const [businessTypes, setBusinessTypes] = useState(['all_in_one', 'grocery', 'pharmacy', 'electronics', 'restaurant']);
+    const [saving, setSaving] = useState(false);
+    const [errorMsg, setErrorMsg] = useState(null);
 
-    const loadData = (page = 1) => {
+    const { queryState, setQuery, setPage, setPerPage } = useUrlQueryState({
+        search: '',
+        page: 1,
+        per_page: 12,
+    });
+
+    const loadData = () => {
         setLoading(true);
-        api(`/stores?page=${page}`)
+        const params = new URLSearchParams();
+        if (queryState.page) params.set('page', queryState.page);
+        if (queryState.per_page) params.set('per_page', queryState.per_page);
+        if (queryState.search) params.set('search', queryState.search);
+
+        api(`/stores?${params.toString()}`)
             .then((data) => {
                 setStores(data.stores || []);
                 setMeta(data.meta || null);
@@ -391,16 +415,57 @@ export function StoresPage() {
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { loadData(); }, []);
+    const openCreateModal = () => {
+        setStoreForm({ name: '', business_type: 'all_in_one', email: '', phone: '', address: '' });
+        setErrorMsg(null);
+        setIsCreating(true);
+        api('/stores/create')
+            .then((data) => {
+                if (data.business_types) setBusinessTypes(data.business_types);
+            })
+            .catch(() => {});
+    };
+
+    const handleCreateStore = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        setErrorMsg(null);
+        try {
+            await api('/stores', {
+                method: 'POST',
+                body: JSON.stringify(storeForm),
+            });
+            setIsCreating(false);
+            loadData();
+        } catch (err) {
+            setErrorMsg(err.message || t('Failed to create store.'));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    useEffect(() => {
+        loadData();
+    }, [queryState.page, queryState.per_page, queryState.search]);
 
     return (
         <section className="card">
-            <div className="table-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div className="table-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '16px', flexWrap: 'wrap' }}>
                 <div>
                     <h2>{t('Stores & Branches')}</h2>
                     <p className="muted">{t('Manage multi-store locations and active branches.')}</p>
                 </div>
-                <Link to="/stores/create" className="btn primary">+ {t('Create Store')}</Link>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <SearchInput
+                        value={queryState.search}
+                        onChange={(val) => setQuery({ search: val, page: 1 })}
+                        placeholder={t('Search stores...')}
+                        style={{ width: '240px' }}
+                    />
+                    <button type="button" className="btn primary" onClick={openCreateModal}>
+                        + {t('Create Store')}
+                    </button>
+                </div>
             </div>
 
             {loading ? (
@@ -408,42 +473,126 @@ export function StoresPage() {
             ) : stores.length === 0 ? (
                 <div style={{ padding: '32px', textAlign: 'center' }} className="muted">{t('No stores found.')}</div>
             ) : (
-                <div className="table-responsive" data-tour="stores-table">
-                    <table className="table">
-                        <thead>
-                            <tr>
-                                <th>{t('Store Name')}</th>
-                                <th>{t('Business Type')}</th>
-                                <th>{t('Phone')}</th>
-                                <th>{t('Email')}</th>
-                                <th>{t('Currency')}</th>
-                                <th>{t('Status')}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {stores.map((s) => (
-                                <tr key={s.id}>
-                                    <td style={{ fontWeight: 600 }}>
-                                        {s.name}
-                                        {s.is_current && (
-                                            <span style={{ marginLeft: '8px', background: '#dcfce7', color: '#166534', fontSize: '11px', padding: '2px 6px', borderRadius: '4px' }}>
-                                                {t('Current')}
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td><span style={{ textTransform: 'capitalize' }}>{(s.business_type || '').replace('_', ' ')}</span></td>
-                                    <td>{s.phone || '—'}</td>
-                                    <td>{s.email || '—'}</td>
-                                    <td>{s.currency_code} ({s.currency_symbol})</td>
-                                    <td>
-                                        <span style={{ color: '#16a34a', fontWeight: 600 }}>● {t('Active')}</span>
-                                    </td>
+                <>
+                    <div className="table-responsive" data-tour="stores-table">
+                        <table className="table">
+                            <thead>
+                                <tr>
+                                    <th>{t('Store Name')}</th>
+                                    <th>{t('Business Type')}</th>
+                                    <th>{t('Phone')}</th>
+                                    <th>{t('Email')}</th>
+                                    <th>{t('Currency')}</th>
+                                    <th>{t('Status')}</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                {stores.map((s) => (
+                                    <tr key={s.id}>
+                                        <td style={{ fontWeight: 600 }}>
+                                            {s.name}
+                                            {s.is_current && (
+                                                <span style={{ marginLeft: '8px', background: '#dcfce7', color: '#166534', fontSize: '11px', padding: '2px 6px', borderRadius: '4px' }}>
+                                                    {t('Current')}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td><span style={{ textTransform: 'capitalize' }}>{(s.business_type || '').replace('_', ' ')}</span></td>
+                                        <td>{s.phone || '—'}</td>
+                                        <td>{s.email || '—'}</td>
+                                        <td>{s.currency_code} ({s.currency_symbol})</td>
+                                        <td>
+                                            <span style={{ color: '#16a34a', fontWeight: 600 }}>● {t('Active')}</span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {meta && (
+                        <Pagination
+                            meta={meta}
+                            page={queryState.page}
+                            perPage={queryState.per_page}
+                            onPageChange={setPage}
+                            onPerPageChange={setPerPage}
+                        />
+                    )}
+                </>
             )}
+
+            <Modal
+                isOpen={isCreating}
+                onClose={() => setIsCreating(false)}
+                title={t('Create New Store')}
+                subtitle={t('Add a branch or store to your BornoPos account.')}
+                size="md"
+            >
+                {errorMsg && (
+                    <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '10px 14px', borderRadius: '8px', marginBottom: '14px', fontSize: '13px' }}>
+                        {errorMsg}
+                    </div>
+                )}
+                <form onSubmit={handleCreateStore} className="grid" style={{ gap: '14px' }}>
+                    <div className="field">
+                        <label>{t('Store / Branch Name')} *</label>
+                        <input
+                            type="text"
+                            required
+                            value={storeForm.name}
+                            onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
+                            placeholder={t('e.g. Dhanmondi Outlet')}
+                        />
+                    </div>
+                    <div className="field">
+                        <label>{t('Business Type')} *</label>
+                        <select value={storeForm.business_type} onChange={(e) => setStoreForm({ ...storeForm, business_type: e.target.value })}>
+                            {businessTypes.map((type) => (
+                                <option key={type} value={type}>
+                                    {type.replace('_', ' ').toUpperCase()}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="grid grid-2" style={{ gap: '12px' }}>
+                        <div className="field">
+                            <label>{t('Email Address')}</label>
+                            <input
+                                type="email"
+                                value={storeForm.email}
+                                onChange={(e) => setStoreForm({ ...storeForm, email: e.target.value })}
+                                placeholder={t('branch@example.com')}
+                            />
+                        </div>
+                        <div className="field">
+                            <label>{t('Phone')}</label>
+                            <input
+                                type="text"
+                                value={storeForm.phone}
+                                onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })}
+                                placeholder={t('+88017...')}
+                            />
+                        </div>
+                    </div>
+                    <div className="field">
+                        <label>{t('Address')}</label>
+                        <textarea
+                            rows="2"
+                            value={storeForm.address}
+                            onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })}
+                            placeholder={t('Physical branch street address')}
+                        />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                        <button type="button" className="btn" onClick={() => setIsCreating(false)}>
+                            {t('Cancel')}
+                        </button>
+                        <button type="submit" className="btn primary" disabled={saving}>
+                            {saving ? t('Creating...') : t('Create Store')}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
         </section>
     );
 }
@@ -684,9 +833,20 @@ export function SubscriptionReportPage() {
     const [meta, setMeta] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    const loadData = (page = 1) => {
+    const { queryState, setQuery, setPage, setPerPage } = useUrlQueryState({
+        search: '',
+        page: 1,
+        per_page: 15,
+    });
+
+    const loadData = () => {
         setLoading(true);
-        api(`/subscription/report?page=${page}`)
+        const params = new URLSearchParams();
+        if (queryState.page) params.set('page', queryState.page);
+        if (queryState.per_page) params.set('per_page', queryState.per_page);
+        if (queryState.search) params.set('search', queryState.search);
+
+        api(`/subscription/report?${params.toString()}`)
             .then((data) => {
                 setRows(data.rows || []);
                 setMeta(data.meta || null);
@@ -695,13 +855,25 @@ export function SubscriptionReportPage() {
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { loadData(); }, []);
+    useEffect(() => {
+        loadData();
+    }, [queryState.page, queryState.per_page, queryState.search]);
 
     return (
         <section className="card">
-            <div className="section-title">
-                <h2>{t('Subscription History & Reports')}</h2>
-                <p className="muted">{t('Audit records of plan renewals and invoices.')}</p>
+            <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '16px', flexWrap: 'wrap' }}>
+                <div>
+                    <h2>{t('Subscription History & Reports')}</h2>
+                    <p className="muted">{t('Audit records of plan renewals and invoices.')}</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <SearchInput
+                        value={queryState.search}
+                        onChange={(val) => setQuery({ search: val, page: 1 })}
+                        placeholder={t('Search subscriptions...')}
+                        style={{ width: '240px' }}
+                    />
+                </div>
             </div>
 
             {loading ? (
@@ -709,32 +881,43 @@ export function SubscriptionReportPage() {
             ) : rows.length === 0 ? (
                 <div style={{ padding: '32px', textAlign: 'center' }} className="muted">{t('No subscription records found.')}</div>
             ) : (
-                <div className="table-responsive">
-                    <table className="table">
-                        <thead>
-                            <tr>
-                                <th>{t('Store')}</th>
-                                <th>{t('Plan')}</th>
-                                <th>{t('Amount')}</th>
-                                <th>{t('Status')}</th>
-                                <th>{t('Payment')}</th>
-                                <th>{t('Valid Period')}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows.map((r) => (
-                                <tr key={r.id}>
-                                    <td style={{ fontWeight: 600 }}>{r.store_name || 'My Store'}</td>
-                                    <td>{r.plan_name || '—'}</td>
-                                    <td>৳{(r.amount_cents / 100).toFixed(2)}</td>
-                                    <td><span style={{ textTransform: 'capitalize' }}>{r.status}</span></td>
-                                    <td><span style={{ textTransform: 'capitalize' }}>{r.payment_status}</span></td>
-                                    <td>{r.starts_on || '—'} {r.ends_on ? `to ${r.ends_on}` : ''}</td>
+                <>
+                    <div className="table-responsive">
+                        <table className="table">
+                            <thead>
+                                <tr>
+                                    <th>{t('Store')}</th>
+                                    <th>{t('Plan')}</th>
+                                    <th>{t('Amount')}</th>
+                                    <th>{t('Status')}</th>
+                                    <th>{t('Payment')}</th>
+                                    <th>{t('Valid Period')}</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                {rows.map((r) => (
+                                    <tr key={r.id}>
+                                        <td style={{ fontWeight: 600 }}>{r.store_name || 'My Store'}</td>
+                                        <td>{r.plan_name || '—'}</td>
+                                        <td>৳{(r.amount_cents / 100).toFixed(2)}</td>
+                                        <td><span style={{ textTransform: 'capitalize' }}>{r.status}</span></td>
+                                        <td><span style={{ textTransform: 'capitalize' }}>{r.payment_status}</span></td>
+                                        <td>{r.starts_on || '—'} {r.ends_on ? `to ${r.ends_on}` : ''}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {meta && (
+                        <Pagination
+                            meta={meta}
+                            page={queryState.page}
+                            perPage={queryState.per_page}
+                            onPageChange={setPage}
+                            onPerPageChange={setPerPage}
+                        />
+                    )}
+                </>
             )}
         </section>
     );

@@ -18,6 +18,11 @@ class HrmController extends Controller
     {
         $query = Attendance::with('employee');
 
+        if ($request->filled('q') || $request->filled('search')) {
+            $term = trim((string) ($request->input('search') ?? $request->input('q')));
+            $query->whereHas('employee', fn ($eq) => $eq->where('name', 'like', "%{$term}%"));
+        }
+
         if ($request->filled('employee_id')) {
             $query->where('employee_id', $request->integer('employee_id'));
         }
@@ -34,7 +39,8 @@ class HrmController extends Controller
             $query->whereDate('attended_on', '<=', $request->string('to')->toString());
         }
 
-        $rows = $query->latest('attended_on')->paginate(15)->withQueryString();
+        $perPage = max(1, min(100, $request->integer('per_page', 15)));
+        $rows = $query->latest('attended_on')->paginate($perPage)->withQueryString();
         $employees = Employee::orderBy('name')->get();
 
         if ($request->expectsJson()) {
@@ -57,7 +63,10 @@ class HrmController extends Controller
                 'meta' => [
                     'current_page' => $rows->currentPage(),
                     'last_page' => $rows->lastPage(),
+                    'from' => $rows->firstItem(),
+                    'to' => $rows->lastItem(),
                     'total' => $rows->total(),
+                    'per_page' => $rows->perPage(),
                 ],
                 'employees' => $employees->map(fn ($e) => ['id' => $e->id, 'name' => $e->name]),
             ]);
@@ -106,6 +115,11 @@ class HrmController extends Controller
     {
         $query = Payroll::with('employee');
 
+        if ($request->filled('q') || $request->filled('search')) {
+            $term = trim((string) ($request->input('search') ?? $request->input('q')));
+            $query->whereHas('employee', fn ($eq) => $eq->where('name', 'like', "%{$term}%"));
+        }
+
         if ($request->filled('employee_id')) {
             $query->where('employee_id', $request->integer('employee_id'));
         }
@@ -114,7 +128,8 @@ class HrmController extends Controller
             $query->where('month', $request->string('month')->toString());
         }
 
-        $rows = $query->latest('paid_on')->paginate(15)->withQueryString();
+        $perPage = max(1, min(100, $request->integer('per_page', 15)));
+        $rows = $query->latest('paid_on')->paginate($perPage)->withQueryString();
         $employees = Employee::orderBy('name')->get();
 
         if ($request->expectsJson()) {
@@ -134,7 +149,10 @@ class HrmController extends Controller
                 'meta' => [
                     'current_page' => $rows->currentPage(),
                     'last_page' => $rows->lastPage(),
+                    'from' => $rows->firstItem(),
+                    'to' => $rows->lastItem(),
                     'total' => $rows->total(),
+                    'per_page' => $rows->perPage(),
                 ],
                 'employees' => $employees->map(fn ($e) => [
                     'id' => $e->id,

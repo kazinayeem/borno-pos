@@ -1,36 +1,59 @@
 import { useEffect, useState } from 'react';
 import { api, money } from '../api';
 import { useT } from '../i18n';
+import { Pagination, SearchInput } from '../components/ui';
+import { useUrlQueryState } from '../hooks/useUrlQueryState';
 
-function DateRangeSelector({ from, to, setFrom, setTo, onApply }) {
+const defaultFrom = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+const defaultTo = new Date().toISOString().slice(0, 10);
+
+function DateRangeSelector({ from, to, onChange, onApply }) {
     const t = useT();
     return (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <input
+                type="date"
+                value={from || ''}
+                onChange={(e) => onChange?.({ from: e.target.value })}
+            />
             <span className="muted">to</span>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-            <button type="button" className="btn primary" onClick={onApply}>{t('Apply Filter')}</button>
-            <button type="button" className="btn" onClick={() => window.print()}>🖨 {t('Print')}</button>
+            <input
+                type="date"
+                value={to || ''}
+                onChange={(e) => onChange?.({ to: e.target.value })}
+            />
+            {onApply && (
+                <button type="button" className="btn primary" onClick={onApply}>
+                    {t('Apply Filter')}
+                </button>
+            )}
+            <button type="button" className="btn" onClick={() => window.print()}>
+                🖨 {t('Print')}
+            </button>
         </div>
     );
 }
 
 export function ReportSummaryPage() {
     const t = useT();
-    const [from, setFrom] = useState(new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
-    const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
+    const { queryState, setQuery } = useUrlQueryState({
+        from: defaultFrom,
+        to: defaultTo,
+    });
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
     function loadData() {
         setLoading(true);
-        api(`/report/summary?from=${from}&to=${to}`)
+        api(`/report/summary?from=${queryState.from}&to=${queryState.to}`)
             .then((res) => setData(res.data))
             .catch(() => {})
             .finally(() => setLoading(false));
     }
 
-    useEffect(() => { loadData(); }, []);
+    useEffect(() => {
+        loadData();
+    }, [queryState.from, queryState.to]);
 
     return (
         <div>
@@ -39,7 +62,12 @@ export function ReportSummaryPage() {
                     <h1>{t('Business Summary Report')}</h1>
                     <div className="crumbs">{t('Comprehensive sales, purchases, expenses, and cash flow overview')}</div>
                 </div>
-                <DateRangeSelector from={from} to={to} setFrom={setFrom} setTo={setTo} onApply={loadData} />
+                <DateRangeSelector
+                    from={queryState.from}
+                    to={queryState.to}
+                    onChange={(updates) => setQuery(updates)}
+                    onApply={loadData}
+                />
             </div>
 
             {loading ? (
@@ -74,20 +102,24 @@ export function ReportSummaryPage() {
 
 export function ReportProfitLossPage() {
     const t = useT();
-    const [from, setFrom] = useState(new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
-    const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
+    const { queryState, setQuery } = useUrlQueryState({
+        from: defaultFrom,
+        to: defaultTo,
+    });
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
     function loadData() {
         setLoading(true);
-        api(`/report/profit-loss?from=${from}&to=${to}`)
+        api(`/report/profit-loss?from=${queryState.from}&to=${queryState.to}`)
             .then((res) => setData(res.data))
             .catch(() => {})
             .finally(() => setLoading(false));
     }
 
-    useEffect(() => { loadData(); }, []);
+    useEffect(() => {
+        loadData();
+    }, [queryState.from, queryState.to]);
 
     return (
         <div>
@@ -96,7 +128,12 @@ export function ReportProfitLossPage() {
                     <h1>{t('Profit & Loss Statement')}</h1>
                     <div className="crumbs">{t('Net profit, gross margin, cost of goods sold, and operating overheads')}</div>
                 </div>
-                <DateRangeSelector from={from} to={to} setFrom={setFrom} setTo={setTo} onApply={loadData} />
+                <DateRangeSelector
+                    from={queryState.from}
+                    to={queryState.to}
+                    onChange={(updates) => setQuery(updates)}
+                    onApply={loadData}
+                />
             </div>
 
             {loading ? (
@@ -141,16 +178,25 @@ export function ReportProfitLossPage() {
 
 export function ReportPurchasesPage() {
     const t = useT();
-    const [from, setFrom] = useState(new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
-    const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
+    const { queryState, setQuery, setPage, setPerPage } = useUrlQueryState({
+        from: defaultFrom,
+        to: defaultTo,
+        page: 1,
+        per_page: 15,
+    });
     const [purchases, setPurchases] = useState([]);
-    const [page, setPage] = useState(1);
     const [meta, setMeta] = useState(null);
     const [loading, setLoading] = useState(true);
 
     function loadData() {
         setLoading(true);
-        api(`/report/purchases?from=${from}&to=${to}&page=${page}`)
+        const params = new URLSearchParams();
+        if (queryState.from) params.set('from', queryState.from);
+        if (queryState.to) params.set('to', queryState.to);
+        if (queryState.page) params.set('page', queryState.page);
+        if (queryState.per_page) params.set('per_page', queryState.per_page);
+
+        api(`/report/purchases?${params.toString()}`)
             .then((res) => {
                 setPurchases(res.purchases || []);
                 setMeta(res.meta || null);
@@ -159,7 +205,9 @@ export function ReportPurchasesPage() {
             .finally(() => setLoading(false));
     }
 
-    useEffect(() => { loadData(); }, [page]);
+    useEffect(() => {
+        loadData();
+    }, [queryState.from, queryState.to, queryState.page, queryState.per_page]);
 
     return (
         <div>
@@ -168,7 +216,12 @@ export function ReportPurchasesPage() {
                     <h1>{t('Purchases Report')}</h1>
                     <div className="crumbs">{t('Purchased merchandise, supplier payables, and inventory acquisition logs')}</div>
                 </div>
-                <DateRangeSelector from={from} to={to} setFrom={setFrom} setTo={setTo} onApply={() => { setPage(1); loadData(); }} />
+                <DateRangeSelector
+                    from={queryState.from}
+                    to={queryState.to}
+                    onChange={(updates) => setQuery({ ...updates, page: 1 })}
+                    onApply={loadData}
+                />
             </div>
 
             <section className="card">
@@ -202,12 +255,14 @@ export function ReportPurchasesPage() {
                 </table>
                 {loading && <p className="muted" style={{ padding: '16px' }}>{t('Loading report…')}</p>}
                 {!loading && purchases.length === 0 && <p className="empty">{t('No purchases found in this date range.')}</p>}
-                {meta && meta.last_page > 1 && (
-                    <div className="actions" style={{ padding: '12px 16px' }}>
-                        <button type="button" className="btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{t('Previous')}</button>
-                        <span className="muted" style={{ alignSelf: 'center', fontSize: '13px' }}>Page {page} of {meta.last_page}</span>
-                        <button type="button" className="btn" disabled={page >= meta.last_page} onClick={() => setPage((p) => p + 1)}>{t('Next')}</button>
-                    </div>
+                {meta && (
+                    <Pagination
+                        meta={meta}
+                        page={queryState.page}
+                        perPage={queryState.per_page}
+                        onPageChange={setPage}
+                        onPerPageChange={setPerPage}
+                    />
                 )}
             </section>
         </div>
@@ -216,16 +271,25 @@ export function ReportPurchasesPage() {
 
 export function ReportSalesPage() {
     const t = useT();
-    const [from, setFrom] = useState(new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
-    const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
+    const { queryState, setQuery, setPage, setPerPage } = useUrlQueryState({
+        from: defaultFrom,
+        to: defaultTo,
+        page: 1,
+        per_page: 15,
+    });
     const [sales, setSales] = useState([]);
-    const [page, setPage] = useState(1);
     const [meta, setMeta] = useState(null);
     const [loading, setLoading] = useState(true);
 
     function loadData() {
         setLoading(true);
-        api(`/report/sales?from=${from}&to=${to}&page=${page}`)
+        const params = new URLSearchParams();
+        if (queryState.from) params.set('from', queryState.from);
+        if (queryState.to) params.set('to', queryState.to);
+        if (queryState.page) params.set('page', queryState.page);
+        if (queryState.per_page) params.set('per_page', queryState.per_page);
+
+        api(`/report/sales?${params.toString()}`)
             .then((res) => {
                 setSales(res.sales || []);
                 setMeta(res.meta || null);
@@ -234,7 +298,9 @@ export function ReportSalesPage() {
             .finally(() => setLoading(false));
     }
 
-    useEffect(() => { loadData(); }, [page]);
+    useEffect(() => {
+        loadData();
+    }, [queryState.from, queryState.to, queryState.page, queryState.per_page]);
 
     return (
         <div>
@@ -243,7 +309,12 @@ export function ReportSalesPage() {
                     <h1>{t('Sales Report')}</h1>
                     <div className="crumbs">{t('Completed transactions, customer sales, and collection details')}</div>
                 </div>
-                <DateRangeSelector from={from} to={to} setFrom={setFrom} setTo={setTo} onApply={() => { setPage(1); loadData(); }} />
+                <DateRangeSelector
+                    from={queryState.from}
+                    to={queryState.to}
+                    onChange={(updates) => setQuery({ ...updates, page: 1 })}
+                    onApply={loadData}
+                />
             </div>
 
             <section className="card">
@@ -277,12 +348,14 @@ export function ReportSalesPage() {
                 </table>
                 {loading && <p className="muted" style={{ padding: '16px' }}>{t('Loading report…')}</p>}
                 {!loading && sales.length === 0 && <p className="empty">{t('No sales found in this date range.')}</p>}
-                {meta && meta.last_page > 1 && (
-                    <div className="actions" style={{ padding: '12px 16px' }}>
-                        <button type="button" className="btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{t('Previous')}</button>
-                        <span className="muted" style={{ alignSelf: 'center', fontSize: '13px' }}>Page {page} of {meta.last_page}</span>
-                        <button type="button" className="btn" disabled={page >= meta.last_page} onClick={() => setPage((p) => p + 1)}>{t('Next')}</button>
-                    </div>
+                {meta && (
+                    <Pagination
+                        meta={meta}
+                        page={queryState.page}
+                        perPage={queryState.per_page}
+                        onPageChange={setPage}
+                        onPerPageChange={setPerPage}
+                    />
                 )}
             </section>
         </div>
@@ -291,15 +364,24 @@ export function ReportSalesPage() {
 
 export function ReportProductsPage() {
     const t = useT();
+    const { queryState, setQuery, setPage, setPerPage } = useUrlQueryState({
+        search: '',
+        page: 1,
+        per_page: 15,
+    });
     const [products, setProducts] = useState([]);
     const [totalValuation, setTotalValuation] = useState(0);
-    const [page, setPage] = useState(1);
     const [meta, setMeta] = useState(null);
     const [loading, setLoading] = useState(true);
 
     function loadData() {
         setLoading(true);
-        api(`/report/product?page=${page}`)
+        const params = new URLSearchParams();
+        if (queryState.page) params.set('page', queryState.page);
+        if (queryState.per_page) params.set('per_page', queryState.per_page);
+        if (queryState.search) params.set('search', queryState.search);
+
+        api(`/report/product?${params.toString()}`)
             .then((res) => {
                 setProducts(res.products || []);
                 setTotalValuation(res.total_valuation_cents || 0);
@@ -309,16 +391,24 @@ export function ReportProductsPage() {
             .finally(() => setLoading(false));
     }
 
-    useEffect(() => { loadData(); }, [page]);
+    useEffect(() => {
+        loadData();
+    }, [queryState.page, queryState.per_page, queryState.search]);
 
     return (
         <div>
-            <div className="page-title">
+            <div className="page-title" style={{ flexWrap: 'wrap', gap: '16px' }}>
                 <div>
                     <h1>{t('Product Valuation & Stock Report')}</h1>
                     <div className="crumbs">{t('Inventory valuation, on-hand counts, and asset worth')}</div>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <SearchInput
+                        value={queryState.search}
+                        onChange={(val) => setQuery({ search: val, page: 1 })}
+                        placeholder={t('Search products...')}
+                        style={{ width: '220px' }}
+                    />
                     <div className="card" style={{ padding: '8px 16px', fontWeight: 800, fontSize: '15px', color: '#10b981' }}>
                         {t('Total Stock Worth')}: {money(totalValuation)}
                     </div>
@@ -355,12 +445,14 @@ export function ReportProductsPage() {
                 </table>
                 {loading && <p className="muted" style={{ padding: '16px' }}>{t('Loading inventory valuation…')}</p>}
                 {!loading && products.length === 0 && <p className="empty">{t('No products found.')}</p>}
-                {meta && meta.last_page > 1 && (
-                    <div className="actions" style={{ padding: '12px 16px' }}>
-                        <button type="button" className="btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{t('Previous')}</button>
-                        <span className="muted" style={{ alignSelf: 'center', fontSize: '13px' }}>Page {page} of {meta.last_page}</span>
-                        <button type="button" className="btn" disabled={page >= meta.last_page} onClick={() => setPage((p) => p + 1)}>{t('Next')}</button>
-                    </div>
+                {meta && (
+                    <Pagination
+                        meta={meta}
+                        page={queryState.page}
+                        perPage={queryState.per_page}
+                        onPageChange={setPage}
+                        onPerPageChange={setPerPage}
+                    />
                 )}
             </section>
         </div>
@@ -369,16 +461,25 @@ export function ReportProductsPage() {
 
 export function ReportExpensesPage() {
     const t = useT();
-    const [from, setFrom] = useState(new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
-    const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
+    const { queryState, setQuery, setPage, setPerPage } = useUrlQueryState({
+        from: defaultFrom,
+        to: defaultTo,
+        page: 1,
+        per_page: 15,
+    });
     const [expenses, setExpenses] = useState([]);
-    const [page, setPage] = useState(1);
     const [meta, setMeta] = useState(null);
     const [loading, setLoading] = useState(true);
 
     function loadData() {
         setLoading(true);
-        api(`/report/expense?from=${from}&to=${to}&page=${page}`)
+        const params = new URLSearchParams();
+        if (queryState.from) params.set('from', queryState.from);
+        if (queryState.to) params.set('to', queryState.to);
+        if (queryState.page) params.set('page', queryState.page);
+        if (queryState.per_page) params.set('per_page', queryState.per_page);
+
+        api(`/report/expense?${params.toString()}`)
             .then((res) => {
                 setExpenses(res.expenses || []);
                 setMeta(res.meta || null);
@@ -387,7 +488,9 @@ export function ReportExpensesPage() {
             .finally(() => setLoading(false));
     }
 
-    useEffect(() => { loadData(); }, [page]);
+    useEffect(() => {
+        loadData();
+    }, [queryState.from, queryState.to, queryState.page, queryState.per_page]);
 
     return (
         <div>
@@ -396,7 +499,12 @@ export function ReportExpensesPage() {
                     <h1>{t('Expense Report')}</h1>
                     <div className="crumbs">{t('Categorized operational spending and expense audits')}</div>
                 </div>
-                <DateRangeSelector from={from} to={to} setFrom={setFrom} setTo={setTo} onApply={() => { setPage(1); loadData(); }} />
+                <DateRangeSelector
+                    from={queryState.from}
+                    to={queryState.to}
+                    onChange={(updates) => setQuery({ ...updates, page: 1 })}
+                    onApply={loadData}
+                />
             </div>
 
             <section className="card">
@@ -422,12 +530,14 @@ export function ReportExpensesPage() {
                 </table>
                 {loading && <p className="muted" style={{ padding: '16px' }}>{t('Loading expenses…')}</p>}
                 {!loading && expenses.length === 0 && <p className="empty">{t('No expenses recorded in this period.')}</p>}
-                {meta && meta.last_page > 1 && (
-                    <div className="actions" style={{ padding: '12px 16px' }}>
-                        <button type="button" className="btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{t('Previous')}</button>
-                        <span className="muted" style={{ alignSelf: 'center', fontSize: '13px' }}>Page {page} of {meta.last_page}</span>
-                        <button type="button" className="btn" disabled={page >= meta.last_page} onClick={() => setPage((p) => p + 1)}>{t('Next')}</button>
-                    </div>
+                {meta && (
+                    <Pagination
+                        meta={meta}
+                        page={queryState.page}
+                        perPage={queryState.per_page}
+                        onPageChange={setPage}
+                        onPerPageChange={setPerPage}
+                    />
                 )}
             </section>
         </div>

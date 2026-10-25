@@ -2,20 +2,32 @@ import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { api } from '../api';
 import { useT } from '../i18n';
+import { useUrlQueryState } from '../hooks/useUrlQueryState';
+import { Pagination, SearchInput, Modal, ConfirmModal } from '../components/ui';
 
 export default function StaffManagement() {
     const t = useT();
     const currentUser = useSelector((state) => state.session.user);
 
+    const {
+        params,
+        setQuery,
+        setPage,
+        setPerPage,
+        resetFilters,
+    } = useUrlQueryState({
+        search: '',
+        role_id: '',
+        status: '',
+        sort: 'latest',
+        page: 1,
+        per_page: 15,
+    });
+
     const [staff, setStaff] = useState([]);
     const [roles, setRoles] = useState([]);
     const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0 });
     const [loading, setLoading] = useState(true);
-    const [q, setQ] = useState('');
-    const [selectedRole, setSelectedRole] = useState('');
-    const [selectedStatus, setSelectedStatus] = useState('');
-    const [sort, setSort] = useState('latest');
-    const [page, setPage] = useState(1);
 
     const [alertMessage, setAlertMessage] = useState({ type: '', text: '' });
 
@@ -49,18 +61,19 @@ export default function StaffManagement() {
     const canEdit = isOwnerOrAdmin || currentUser?.permissions?.includes('staff.edit');
     const canDelete = isOwnerOrAdmin || currentUser?.permissions?.includes('staff.delete');
 
-    async function loadStaff(pageNumber = page) {
+    async function loadStaff() {
         setLoading(true);
         try {
-            const params = new URLSearchParams({
-                page: pageNumber,
-                q: q.trim(),
-                sort,
+            const qp = new URLSearchParams({
+                page: String(params.page),
+                sort: params.sort,
             });
-            if (selectedRole) params.append('role_id', selectedRole);
-            if (selectedStatus) params.append('status', selectedStatus);
+            if (params.search) qp.set('search', params.search);
+            if (params.role_id) qp.set('role_id', params.role_id);
+            if (params.status) qp.set('status', params.status);
+            if (params.per_page) qp.set('per_page', params.per_page);
 
-            const res = await api(`/api/staff?${params.toString()}`);
+            const res = await api(`/api/staff?${qp.toString()}`);
             setStaff(res.staff || []);
             setRoles(res.roles || []);
             setMeta(res.meta || { current_page: 1, last_page: 1, total: 0 });
@@ -72,12 +85,8 @@ export default function StaffManagement() {
     }
 
     useEffect(() => {
-        const timeout = setTimeout(() => {
-            loadStaff(1);
-        }, 250);
-
-        return () => clearTimeout(timeout);
-    }, [q, selectedRole, selectedStatus, sort]);
+        loadStaff();
+    }, [params.page, params.per_page, params.search, params.role_id, params.status, params.sort]);
 
     function openCreate() {
         setFormData({
@@ -222,17 +231,17 @@ export default function StaffManagement() {
 
             {/* Filter and Search Bar */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '16px' }}>
-                <input
-                    type="search"
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
+                <SearchInput
+                    value={params.search}
+                    onChange={(e) => setQuery({ search: e.target.value })}
+                    onClear={() => setQuery({ search: '' })}
                     placeholder={t('Search by name, email, username, phone...')}
-                    style={{ flex: '1 1 240px', minWidth: '220px', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                    style={{ flex: '1 1 240px', minWidth: '220px' }}
                 />
 
                 <select
-                    value={selectedRole}
-                    onChange={(e) => setSelectedRole(e.target.value)}
+                    value={params.role_id}
+                    onChange={(e) => setQuery({ role_id: e.target.value })}
                     style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--text)' }}
                 >
                     <option value="">{t('All Roles')}</option>
@@ -242,8 +251,8 @@ export default function StaffManagement() {
                 </select>
 
                 <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    value={params.status}
+                    onChange={(e) => setQuery({ status: e.target.value })}
                     style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--text)' }}
                 >
                     <option value="">{t('All Statuses')}</option>
@@ -252,14 +261,20 @@ export default function StaffManagement() {
                 </select>
 
                 <select
-                    value={sort}
-                    onChange={(e) => setSort(e.target.value)}
+                    value={params.sort}
+                    onChange={(e) => setQuery({ sort: e.target.value })}
                     style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--text)' }}
                 >
                     <option value="latest">{t('Newest First')}</option>
                     <option value="name_asc">{t('Name (A-Z)')}</option>
                     <option value="name_desc">{t('Name (Z-A)')}</option>
                 </select>
+
+                {(params.search || params.role_id || params.status || params.sort !== 'latest') && (
+                    <button type="button" className="btn" onClick={() => resetFilters()}>
+                        {t('Reset')}
+                    </button>
+                )}
             </div>
 
             {/* Staff Table */}
@@ -408,310 +423,280 @@ export default function StaffManagement() {
             </div>
 
             {/* Pagination Controls */}
-            {meta.last_page > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', fontSize: '13px' }}>
-                    <div className="muted">
-                        {t('Showing')} {meta.from || 0} - {meta.to || 0} {t('of')} {meta.total} {t('staff')}
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                        <button
-                            type="button"
-                            className="btn"
-                            disabled={meta.current_page <= 1}
-                            onClick={() => { setPage((p) => Math.max(1, p - 1)); loadStaff(meta.current_page - 1); }}
-                        >
-                            ← {t('Previous')}
-                        </button>
-                        <span style={{ padding: '6px 12px', fontWeight: 'bold' }}>
-                            {meta.current_page} / {meta.last_page}
-                        </span>
-                        <button
-                            type="button"
-                            className="btn"
-                            disabled={meta.current_page >= meta.last_page}
-                            onClick={() => { setPage((p) => p + 1); loadStaff(meta.current_page + 1); }}
-                        >
-                            {t('Next')} →
-                        </button>
-                    </div>
-                </div>
-            )}
+            <Pagination
+                currentPage={meta.current_page || params.page}
+                lastPage={meta.last_page || 1}
+                total={meta.total || 0}
+                from={meta.from || 0}
+                to={meta.to || 0}
+                perPage={params.per_page}
+                onPageChange={setPage}
+                onPerPageChange={setPerPage}
+                perPageOptions={[10, 15, 25, 50]}
+            />
 
             {/* Modal: Create Staff Member */}
-            {showCreateModal && (
-                <div className="pos-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
-                    <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                            <h2 style={{ margin: 0, fontSize: '18px' }}>{t('Add New Staff Member')}</h2>
-                            <button type="button" onClick={() => setShowCreateModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' }}>✕</button>
-                        </div>
-                        <form onSubmit={handleCreate}>
-                            <label className="field" style={{ display: 'block', marginBottom: '12px' }}>
-                                <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Full Name')} *</span>
-                                <input
-                                    required
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    placeholder={t('e.g. John Doe')}
-                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                />
-                                {formErrors.name && <small style={{ color: '#ef4444' }}>{formErrors.name[0]}</small>}
-                            </label>
+            <Modal
+                isOpen={showCreateModal}
+                onClose={() => setShowCreateModal(false)}
+                title={t('Add New Staff Member')}
+                subtitle={t('Provision credentials and assign system roles.')}
+                size="md"
+            >
+                <form onSubmit={handleCreate}>
+                    <label className="field" style={{ display: 'block', marginBottom: '12px' }}>
+                        <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Full Name')} *</span>
+                        <input
+                            required
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            placeholder={t('e.g. John Doe')}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                        />
+                        {formErrors.name && <small style={{ color: '#ef4444' }}>{formErrors.name[0]}</small>}
+                    </label>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-                                <label className="field">
-                                    <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Email Address')} *</span>
-                                    <input
-                                        type="email"
-                                        required
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        placeholder={t('john@example.com')}
-                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                    />
-                                    {formErrors.email && <small style={{ color: '#ef4444' }}>{formErrors.email[0]}</small>}
-                                </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                        <label className="field">
+                            <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Email Address')} *</span>
+                            <input
+                                type="email"
+                                required
+                                value={formData.email}
+                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                placeholder={t('john@example.com')}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                            />
+                            {formErrors.email && <small style={{ color: '#ef4444' }}>{formErrors.email[0]}</small>}
+                        </label>
 
-                                <label className="field">
-                                    <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Username')}</span>
-                                    <input
-                                        value={formData.username}
-                                        onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                        placeholder={t('johndoe')}
-                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                    />
-                                    {formErrors.username && <small style={{ color: '#ef4444' }}>{formErrors.username[0]}</small>}
-                                </label>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-                                <label className="field">
-                                    <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Phone')}</span>
-                                    <input
-                                        value={formData.phone}
-                                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                        placeholder={t('+88017...')}
-                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                    />
-                                </label>
-
-                                <label className="field">
-                                    <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Role')} *</span>
-                                    <select
-                                        required
-                                        value={formData.role_id}
-                                        onChange={(e) => setFormData({ ...formData, role_id: e.target.value })}
-                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                    >
-                                        <option value="">{t('Select a role...')}</option>
-                                        {roles.map((r) => (
-                                            <option key={r.id} value={r.id}>{r.name}</option>
-                                        ))}
-                                    </select>
-                                    {formErrors.role_id && <small style={{ color: '#ef4444' }}>{formErrors.role_id[0]}</small>}
-                                </label>
-                            </div>
-
-                            <label className="field" style={{ display: 'block', marginBottom: '16px' }}>
-                                <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Password')} *</span>
-                                <div style={{ position: 'relative' }}>
-                                    <input
-                                        type={showPassword ? 'text' : 'password'}
-                                        required
-                                        value={formData.password}
-                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                        placeholder={t('Minimum 6 characters')}
-                                        style={{ width: '100%', padding: '9px 12px', paddingRight: '40px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer' }}
-                                    >
-                                        👁
-                                    </button>
-                                </div>
-                                {formErrors.password && <small style={{ color: '#ef4444' }}>{formErrors.password[0]}</small>}
-                            </label>
-
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', cursor: 'pointer' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={formData.is_active}
-                                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                                />
-                                <span>{t('Account is Active and authorized to log in')}</span>
-                            </label>
-
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                                <button type="button" className="btn" onClick={() => setShowCreateModal(false)}>{t('Cancel')}</button>
-                                <button type="submit" className="btn primary" disabled={submitting}>
-                                    {submitting ? t('Saving...') : t('Create Staff Member')}
-                                </button>
-                            </div>
-                        </form>
+                        <label className="field">
+                            <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Username')}</span>
+                            <input
+                                value={formData.username}
+                                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                placeholder={t('johndoe')}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                            />
+                            {formErrors.username && <small style={{ color: '#ef4444' }}>{formErrors.username[0]}</small>}
+                        </label>
                     </div>
-                </div>
-            )}
 
-            {/* Modal: Edit Staff Member */}
-            {showEditModal && activeStaff && (
-                <div className="pos-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
-                    <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                            <h2 style={{ margin: 0, fontSize: '18px' }}>{t('Edit Staff Member')}</h2>
-                            <button type="button" onClick={() => setShowEditModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' }}>✕</button>
-                        </div>
-                        <form onSubmit={handleUpdate}>
-                            <label className="field" style={{ display: 'block', marginBottom: '12px' }}>
-                                <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Full Name')} *</span>
-                                <input
-                                    required
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                />
-                                {formErrors.name && <small style={{ color: '#ef4444' }}>{formErrors.name[0]}</small>}
-                            </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                        <label className="field">
+                            <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Phone')}</span>
+                            <input
+                                value={formData.phone}
+                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                placeholder={t('+88017...')}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                            />
+                        </label>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-                                <label className="field">
-                                    <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Email Address')} *</span>
-                                    <input
-                                        type="email"
-                                        required
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                    />
-                                    {formErrors.email && <small style={{ color: '#ef4444' }}>{formErrors.email[0]}</small>}
-                                </label>
-
-                                <label className="field">
-                                    <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Username')}</span>
-                                    <input
-                                        value={formData.username}
-                                        onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                    />
-                                    {formErrors.username && <small style={{ color: '#ef4444' }}>{formErrors.username[0]}</small>}
-                                </label>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-                                <label className="field">
-                                    <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Phone')}</span>
-                                    <input
-                                        value={formData.phone}
-                                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                    />
-                                </label>
-
-                                <label className="field">
-                                    <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Role')} *</span>
-                                    <select
-                                        required
-                                        disabled={activeStaff.role === 'owner'}
-                                        value={formData.role_id}
-                                        onChange={(e) => setFormData({ ...formData, role_id: e.target.value })}
-                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                    >
-                                        {roles.map((r) => (
-                                            <option key={r.id} value={r.id}>{r.name}</option>
-                                        ))}
-                                    </select>
-                                    {activeStaff.role === 'owner' && <small style={{ color: 'var(--muted)' }}>{t('Owner role cannot be changed.')}</small>}
-                                    {formErrors.role_id && <small style={{ color: '#ef4444' }}>{formErrors.role_id[0]}</small>}
-                                </label>
-                            </div>
-
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', cursor: 'pointer' }}>
-                                <input
-                                    type="checkbox"
-                                    disabled={activeStaff.role === 'owner'}
-                                    checked={formData.is_active}
-                                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                                />
-                                <span>{t('Account is Active and authorized to log in')}</span>
-                            </label>
-
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                                <button type="button" className="btn" onClick={() => setShowEditModal(false)}>{t('Cancel')}</button>
-                                <button type="submit" className="btn primary" disabled={submitting}>
-                                    {submitting ? t('Saving...') : t('Update Staff Member')}
-                                </button>
-                            </div>
-                        </form>
+                        <label className="field">
+                            <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Role')} *</span>
+                            <select
+                                required
+                                value={formData.role_id}
+                                onChange={(e) => setFormData({ ...formData, role_id: e.target.value })}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                            >
+                                <option value="">{t('Select a role...')}</option>
+                                {roles.map((r) => (
+                                    <option key={r.id} value={r.id}>{r.name}</option>
+                                ))}
+                            </select>
+                            {formErrors.role_id && <small style={{ color: '#ef4444' }}>{formErrors.role_id[0]}</small>}
+                        </label>
                     </div>
-                </div>
-            )}
 
-            {/* Modal: Reset Password */}
-            {showPasswordModal && activeStaff && (
-                <div className="pos-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
-                    <div className="card" style={{ width: '100%', maxWidth: '420px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                            <h2 style={{ margin: 0, fontSize: '18px' }}>{t('Reset Password')}: {activeStaff.name}</h2>
-                            <button type="button" onClick={() => setShowPasswordModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' }}>✕</button>
-                        </div>
-                        <form onSubmit={handlePasswordReset}>
-                            <label className="field" style={{ display: 'block', marginBottom: '12px' }}>
-                                <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('New Password')} *</span>
-                                <input
-                                    type="password"
-                                    required
-                                    value={passwordData.password}
-                                    onChange={(e) => setPasswordData({ ...passwordData, password: e.target.value })}
-                                    placeholder={t('Minimum 6 characters')}
-                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                />
-                                {formErrors.password && <small style={{ color: '#ef4444' }}>{formErrors.password[0]}</small>}
-                            </label>
-
-                            <label className="field" style={{ display: 'block', marginBottom: '20px' }}>
-                                <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Confirm New Password')} *</span>
-                                <input
-                                    type="password"
-                                    required
-                                    value={passwordData.password_confirmation}
-                                    onChange={(e) => setPasswordData({ ...passwordData, password_confirmation: e.target.value })}
-                                    placeholder={t('Repeat new password')}
-                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
-                                />
-                            </label>
-
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                                <button type="button" className="btn" onClick={() => setShowPasswordModal(false)}>{t('Cancel')}</button>
-                                <button type="submit" className="btn primary" disabled={submitting}>
-                                    {submitting ? t('Saving...') : t('Save New Password')}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal: Delete Confirmation */}
-            {showDeleteModal && activeStaff && (
-                <div className="pos-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
-                    <div className="card" style={{ width: '100%', maxWidth: '440px' }}>
-                        <h2 style={{ margin: '0 0 12px', color: '#ef4444' }}>{t('Confirm Staff Deletion')}</h2>
-                        <p style={{ margin: '0 0 16px', lineHeight: 1.5 }}>
-                            {t('Are you sure you want to permanently delete staff account')} <strong>{activeStaff.name}</strong> ({activeStaff.email})?
-                        </p>
-                        <p style={{ margin: '0 0 20px', fontSize: '12px', color: 'var(--muted)' }}>
-                            {t('This action cannot be undone. Historical sales and transactions logged by this user will remain preserved in audit records.')}
-                        </p>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                            <button type="button" className="btn" onClick={() => setShowDeleteModal(false)}>{t('Cancel')}</button>
-                            <button type="button" className="btn danger" style={{ background: '#ef4444', color: '#fff' }} disabled={submitting} onClick={handleDelete}>
-                                {submitting ? t('Deleting...') : t('Yes, Delete Account')}
+                    <label className="field" style={{ display: 'block', marginBottom: '16px' }}>
+                        <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Password')} *</span>
+                        <div style={{ position: 'relative' }}>
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                required
+                                value={formData.password}
+                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                placeholder={t('Minimum 6 characters')}
+                                style={{ width: '100%', padding: '9px 12px', paddingRight: '40px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer' }}
+                            >
+                                👁
                             </button>
                         </div>
+                        {formErrors.password && <small style={{ color: '#ef4444' }}>{formErrors.password[0]}</small>}
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', cursor: 'pointer' }}>
+                        <input
+                            type="checkbox"
+                            checked={formData.is_active}
+                            onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                        />
+                        <span>{t('Account is Active and authorized to log in')}</span>
+                    </label>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid var(--line)' }}>
+                        <button type="button" className="btn" onClick={() => setShowCreateModal(false)}>{t('Cancel')}</button>
+                        <button type="submit" className="btn primary" disabled={submitting}>
+                            {submitting ? t('Saving...') : t('Create Staff Member')}
+                        </button>
                     </div>
-                </div>
-            )}
+                </form>
+            </Modal>
+
+            {/* Modal: Edit Staff Member */}
+            <Modal
+                isOpen={showEditModal && !!activeStaff}
+                onClose={() => setShowEditModal(false)}
+                title={t('Edit Staff Member')}
+                subtitle={activeStaff?.name}
+                size="md"
+            >
+                {activeStaff && (
+                    <form onSubmit={handleUpdate}>
+                        <label className="field" style={{ display: 'block', marginBottom: '12px' }}>
+                            <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Full Name')} *</span>
+                            <input
+                                required
+                                value={formData.name}
+                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                            />
+                            {formErrors.name && <small style={{ color: '#ef4444' }}>{formErrors.name[0]}</small>}
+                        </label>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                            <label className="field">
+                                <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Email Address')} *</span>
+                                <input
+                                    type="email"
+                                    required
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                                />
+                                {formErrors.email && <small style={{ color: '#ef4444' }}>{formErrors.email[0]}</small>}
+                            </label>
+
+                            <label className="field">
+                                <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Username')}</span>
+                                <input
+                                    value={formData.username}
+                                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                                />
+                                {formErrors.username && <small style={{ color: '#ef4444' }}>{formErrors.username[0]}</small>}
+                            </label>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                            <label className="field">
+                                <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Phone')}</span>
+                                <input
+                                    value={formData.phone}
+                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                                />
+                            </label>
+
+                            <label className="field">
+                                <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Role')} *</span>
+                                <select
+                                    required
+                                    disabled={activeStaff.role === 'owner'}
+                                    value={formData.role_id}
+                                    onChange={(e) => setFormData({ ...formData, role_id: e.target.value })}
+                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                                >
+                                    {roles.map((r) => (
+                                        <option key={r.id} value={r.id}>{r.name}</option>
+                                    ))}
+                                </select>
+                                {activeStaff.role === 'owner' && <small style={{ color: 'var(--muted)' }}>{t('Owner role cannot be changed.')}</small>}
+                                {formErrors.role_id && <small style={{ color: '#ef4444' }}>{formErrors.role_id[0]}</small>}
+                            </label>
+                        </div>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', cursor: 'pointer' }}>
+                            <input
+                                type="checkbox"
+                                disabled={activeStaff.role === 'owner'}
+                                checked={formData.is_active}
+                                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                            />
+                            <span>{t('Account is Active and authorized to log in')}</span>
+                        </label>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid var(--line)' }}>
+                            <button type="button" className="btn" onClick={() => setShowEditModal(false)}>{t('Cancel')}</button>
+                            <button type="submit" className="btn primary" disabled={submitting}>
+                                {submitting ? t('Saving...') : t('Update Staff Member')}
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </Modal>
+
+            {/* Modal: Reset Password */}
+            <Modal
+                isOpen={showPasswordModal && !!activeStaff}
+                onClose={() => setShowPasswordModal(false)}
+                title={`${t('Reset Password')}: ${activeStaff?.name}`}
+                size="sm"
+            >
+                {activeStaff && (
+                    <form onSubmit={handlePasswordReset}>
+                        <label className="field" style={{ display: 'block', marginBottom: '12px' }}>
+                            <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('New Password')} *</span>
+                            <input
+                                type="password"
+                                required
+                                value={passwordData.password}
+                                onChange={(e) => setPasswordData({ ...passwordData, password: e.target.value })}
+                                placeholder={t('Minimum 6 characters')}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                            />
+                            {formErrors.password && <small style={{ color: '#ef4444' }}>{formErrors.password[0]}</small>}
+                        </label>
+
+                        <label className="field" style={{ display: 'block', marginBottom: '20px' }}>
+                            <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>{t('Confirm New Password')} *</span>
+                            <input
+                                type="password"
+                                required
+                                value={passwordData.password_confirmation}
+                                onChange={(e) => setPasswordData({ ...passwordData, password_confirmation: e.target.value })}
+                                placeholder={t('Repeat new password')}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)' }}
+                            />
+                        </label>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid var(--line)' }}>
+                            <button type="button" className="btn" onClick={() => setShowPasswordModal(false)}>{t('Cancel')}</button>
+                            <button type="submit" className="btn primary" disabled={submitting}>
+                                {submitting ? t('Saving...') : t('Save New Password')}
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </Modal>
+
+            {/* Modal: Delete Confirmation */}
+            <ConfirmModal
+                isOpen={showDeleteModal && !!activeStaff}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={handleDelete}
+                title={t('Confirm Staff Deletion')}
+                message={activeStaff ? `${t('Are you sure you want to permanently delete staff account')} "${activeStaff.name}" (${activeStaff.email})? ${t('This action cannot be undone. Historical sales and transactions logged by this user will remain preserved in audit records.')}` : ''}
+                confirmText={t('Yes, Delete Account')}
+                isLoading={submitting}
+            />
         </section>
     );
 }

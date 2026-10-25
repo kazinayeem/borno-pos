@@ -16,6 +16,6 @@ export {
     DateRangePicker,
 } from './formControls';
 
-export { Modal } from './Modal';
+export { Modal, ConfirmModal } from './Modal';
 export { Pagination } from './Pagination';
 export { useUrlQueryState } from '../../hooks/useUrlQueryState';

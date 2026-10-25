@@ -157,11 +157,26 @@ export const bornoposApi = createApi({
             providesTags: ['Purchases'],
         }),
         getBatches: builder.query({
-            query: ({ status = '', page = 1 } = {}) => `/purchase/batch${queryString({ status, page })}`,
+            query: ({ status = '', page = 1, q = '', search = '', per_page } = {}) => {
+                const s = search || q;
+                return `/purchase/batch${queryString({
+                    status,
+                    page,
+                    ...(s ? { q: s } : {}),
+                    ...(per_page ? { per_page } : {}),
+                })}`;
+            },
             providesTags: ['Batches'],
         }),
         getInstallments: builder.query({
-            query: () => '/report/installments',
+            query: (params = {}) => {
+                const query = {};
+                if (params.search || params.q) query.search = params.search || params.q;
+                if (params.page) query.page = params.page;
+                if (params.per_page) query.per_page = params.per_page;
+                if (params.status) query.status = params.status;
+                return { url: '/report/installments', params: query };
+            },
             providesTags: ['Installments'],
         }),
         createInstallment: builder.mutation({

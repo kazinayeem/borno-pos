@@ -12,10 +12,26 @@ class InstallmentController extends Controller
 {
     public function index(Request $request)
     {
-        $rows = Installment::with(['plan.customer', 'plan.sale'])
-            ->where('status', '!=', 'paid')
-            ->orderBy('due_on')
-            ->paginate(15)
+        $perPage = max(5, min(100, (int) $request->query('per_page', 15)));
+        $query = Installment::with(['plan.customer', 'plan.sale']);
+
+        $status = $request->query('status', '');
+        if ($status && $status !== 'all') {
+            $query->where('status', $status);
+        } else {
+            $query->where('status', '!=', 'paid');
+        }
+
+        if ($request->filled('q') || $request->filled('search')) {
+            $term = trim((string) ($request->input('search') ?? $request->input('q')));
+            $query->where(function ($q) use ($term) {
+                $q->whereHas('plan.customer', fn ($cq) => $cq->where('name', 'like', "%{$term}%"))
+                    ->orWhereHas('plan.sale', fn ($sq) => $sq->where('invoice_no', 'like', "%{$term}%"));
+            });
+        }
+
+        $rows = $query->orderBy('due_on')
+            ->paginate($perPage)
             ->withQueryString();
 
         if ($request->expectsJson()) {
@@ -36,7 +52,10 @@ class InstallmentController extends Controller
                 'meta' => [
                     'current_page' => $rows->currentPage(),
                     'last_page' => $rows->lastPage(),
+                    'from' => $rows->firstItem(),
+                    'to' => $rows->lastItem(),
                     'total' => $rows->total(),
+                    'per_page' => $rows->perPage(),
                 ],
             ]);
         }
