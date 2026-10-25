@@ -26,7 +26,7 @@ export const bornoposApi = createApi({
             return headers;
         },
     }),
-    tagTypes: ['Products', 'Catalog', 'Pos', 'Sales', 'Purchases', 'Dashboard', 'Batches', 'Installments', 'Reports'],
+    tagTypes: ['Products', 'Catalog', 'Pos', 'Sales', 'Purchases', 'Dashboard', 'Batches', 'Installments', 'Reports', 'Shops', 'Plans', 'Payments', 'Invoices', 'Settings'],
     endpoints: (builder) => ({
         getDashboard: builder.query({
             query: ({ platform, ...params }) => `${platform ? '/api/dashboard' : '/api/store-dashboard'}${queryString(params)}`,
@@ -191,6 +191,97 @@ export const bornoposApi = createApi({
             query: ({ id, body }) => ({ url: `/product-serials/${id}/service`, method: 'POST', body }),
             invalidatesTags: ['Sales'],
         }),
+        getAdminShops: builder.query({
+            query: (params) => `/api/admin/shops${queryString(params || {})}`,
+            providesTags: ['Shops'],
+        }),
+        getAdminShop: builder.query({
+            query: (id) => `/api/admin/shops/${id}`,
+            providesTags: (result, error, id) => [{ type: 'Shops', id }],
+        }),
+        toggleShopStatus: builder.mutation({
+            query: ({ id, ...body }) => ({ url: `/api/admin/shops/${id}/toggle-status`, method: 'POST', body }),
+            invalidatesTags: ['Shops', 'Dashboard'],
+        }),
+        extendShopSubscription: builder.mutation({
+            query: ({ id, ...body }) => ({ url: `/api/admin/shops/${id}/extend-subscription`, method: 'POST', body }),
+            invalidatesTags: ['Shops', 'Dashboard'],
+        }),
+        changeShopPlan: builder.mutation({
+            query: ({ id, ...body }) => ({ url: `/api/admin/shops/${id}/change-plan`, method: 'POST', body }),
+            invalidatesTags: ['Shops', 'Plans', 'Dashboard'],
+        }),
+        createAdminShop: builder.mutation({
+            query: (body) => ({ url: '/api/admin/shops', method: 'POST', body }),
+            invalidatesTags: ['Shops', 'Dashboard'],
+        }),
+        notifyShopOwner: builder.mutation({
+            query: ({ id, ...body }) => ({ url: `/api/admin/shops/${id}/notify`, method: 'POST', body }),
+        }),
+        getAdminPlans: builder.query({
+            query: () => '/api/admin/plans',
+            providesTags: ['Plans'],
+        }),
+        saveAdminPlan: builder.mutation({
+            query: ({ id, ...body }) => ({
+                url: id ? `/api/admin/plans/${id}` : '/api/admin/plans',
+                method: id ? 'PUT' : 'POST',
+                body,
+            }),
+            invalidatesTags: ['Plans', 'Dashboard'],
+        }),
+        toggleAdminPlan: builder.mutation({
+            query: (id) => ({ url: `/api/admin/plans/${id}/toggle`, method: 'POST' }),
+            invalidatesTags: ['Plans'],
+        }),
+        getAdminPayments: builder.query({
+            query: (params) => `/api/admin/subscription-payments${queryString(params || {})}`,
+            providesTags: ['Payments'],
+        }),
+        getAdminPayment: builder.query({
+            query: (id) => `/api/admin/subscription-payments/${id}`,
+            providesTags: (result, error, id) => [{ type: 'Payments', id }],
+        }),
+        approveAdminPayment: builder.mutation({
+            query: (id) => ({ url: `/api/admin/subscription-payments/${id}/approve`, method: 'POST' }),
+            invalidatesTags: ['Payments', 'Shops', 'Dashboard', 'Invoices'],
+        }),
+        rejectAdminPayment: builder.mutation({
+            query: ({ id, ...body }) => ({ url: `/api/admin/subscription-payments/${id}/reject`, method: 'POST', body }),
+            invalidatesTags: ['Payments', 'Shops', 'Dashboard'],
+        }),
+        getAdminInvoices: builder.query({
+            query: (params) => `/api/admin/subscription-invoices${queryString(params || {})}`,
+            providesTags: ['Invoices'],
+        }),
+        getAdminInvoice: builder.query({
+            query: (id) => `/api/admin/subscription-invoices/${id}`,
+            providesTags: (result, error, id) => [{ type: 'Invoices', id }],
+        }),
+        getAdminPaymentSettings: builder.query({
+            query: () => '/api/admin/payment-settings',
+            providesTags: ['Settings'],
+        }),
+        saveAdminPaymentSettings: builder.mutation({
+            query: (body) => ({ url: '/api/admin/payment-settings', method: 'POST', body }),
+            invalidatesTags: ['Settings'],
+        }),
+        getSubscriptionCheckoutInfo: builder.query({
+            query: () => '/api/subscription/checkout-info',
+            providesTags: ['Payments', 'Shops'],
+        }),
+        submitSubscriptionPayment: builder.mutation({
+            query: (body) => ({
+                url: '/api/subscription/submit-payment',
+                method: 'POST',
+                body,
+            }),
+            invalidatesTags: ['Payments', 'Dashboard', 'Shops'],
+        }),
+        getMySubscriptionHistory: builder.query({
+            query: () => '/api/subscription/my-history',
+            providesTags: ['Payments'],
+        }),
     }),
 });
 
@@ -225,4 +316,25 @@ export const {
     useCreateInstallmentMutation,
     usePayInstallmentMutation,
     useRecordServiceMutation,
+    useGetAdminShopsQuery,
+    useGetAdminShopQuery,
+    useToggleShopStatusMutation,
+    useExtendShopSubscriptionMutation,
+    useChangeShopPlanMutation,
+    useCreateAdminShopMutation,
+    useNotifyShopOwnerMutation,
+    useGetAdminPlansQuery,
+    useSaveAdminPlanMutation,
+    useToggleAdminPlanMutation,
+    useGetAdminPaymentsQuery,
+    useGetAdminPaymentQuery,
+    useApproveAdminPaymentMutation,
+    useRejectAdminPaymentMutation,
+    useGetAdminInvoicesQuery,
+    useGetAdminInvoiceQuery,
+    useGetAdminPaymentSettingsQuery,
+    useSaveAdminPaymentSettingsMutation,
+    useGetSubscriptionCheckoutInfoQuery,
+    useSubmitSubscriptionPaymentMutation,
+    useGetMySubscriptionHistoryQuery,
 } = bornoposApi;

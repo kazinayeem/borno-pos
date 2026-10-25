@@ -77,18 +77,21 @@ export const shopNav = [
 
 export const adminNav = [
     { label: 'Dashboard', href: '/dashboard', icon: 'grid', spa: true },
-    { label: 'Shop', icon: 'shop', match: ['/shop', '/stores'], children: [
+    { label: 'Shop / Tenants', icon: 'shop', match: ['/shop', '/stores'], children: [
+        ['All Shops', '/stores', true],
+        ['Create Shop', '/stores/create', true],
         ['Categories', '/shop-categories', true],
-        ['List', '/stores', true],
-        ['Create', '/stores/create', true],
     ] },
-    { label: 'Subscriptions', icon: 'card', match: ['/subscription'], children: [
+    { label: 'Subscriptions', icon: 'card', match: ['/subscription', '/payment-verifications'], children: [
+        ['Payment Queue', '/payment-verifications', true],
+        ['Subscription Plans', '/subscription-plans', true],
+        ['Invoices', '/subscription-invoices', true],
         ['Reports', '/subscription/report', true],
     ] },
-    { label: 'Settings', icon: 'gear', match: ['/currency', '/user/profile', '/payment-gateway', '/settings', '/language'], children: [
+    { label: 'Settings', icon: 'gear', match: ['/currency', '/user/profile', '/payment-gateway', '/shop-payment-gateway', '/settings', '/language'], children: [
+        ['Payment Gateways', '/shop-payment-gateway', true],
         ['Currencies', '/currency', true],
         ['Profile', '/user/profile', true],
-        ['Payment Gateway', '/shop-payment-gateway', true],
         ['Mail', '/settings/mail-settings', true],
         ['Language', '/language', true],
     ] },
