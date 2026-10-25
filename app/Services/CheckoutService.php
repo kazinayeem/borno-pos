@@ -128,7 +128,26 @@ class CheckoutService
                 }
             }
 
-            $discount = min(Money::parse($data['discount'] ?? 0), $subtotal);
+            $discountType = $data['discount_type'] ?? 'fixed';
+            $rawDiscount = trim((string) ($data['discount'] ?? '0'));
+            if (str_ends_with($rawDiscount, '%')) {
+                $discountType = 'percent';
+                $rawDiscount = rtrim($rawDiscount, '%');
+            }
+
+            if ($discountType === 'percent') {
+                $rawDiscount = trim($rawDiscount);
+                if (! is_numeric($rawDiscount)) {
+                    throw ValidationException::withMessages([
+                        'discount' => 'Enter a valid discount percentage.',
+                    ]);
+                }
+                $percent = max(0, min(100, (float) $rawDiscount));
+                $discount = max(0, min($subtotal, (int) round($subtotal * ($percent / 100))));
+            } else {
+                $parsedDiscount = Money::parse($rawDiscount !== '' ? $rawDiscount : 0);
+                $discount = max(0, min($parsedDiscount, $subtotal));
+            }
             $couponCents = $this->couponDiscount($storeId, $data['coupon_code'] ?? null, $subtotal - $discount);
             $grand = max(0, $subtotal - $discount - $couponCents + $taxTotal);
             $paid = $status === 'draft' ? 0 : Money::parse($data['amount_paid'] ?? 0);

@@ -133,6 +133,7 @@ class PosController extends Controller
             'items.*.product_variant_id' => ['nullable', 'integer'],
             'customer_id' => ['nullable', 'integer'],
             'discount' => ['nullable'],
+            'discount_type' => ['nullable', 'string', 'in:fixed,percent'],
             'coupon_code' => ['nullable', 'string', 'max:40'],
             'payment_method' => ['required', 'string', 'max:40'],
             'amount_paid' => ['nullable'],

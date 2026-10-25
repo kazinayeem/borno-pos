@@ -488,7 +488,7 @@ export default function PurchaseList() {
                 <div
                     className="card"
                     onClick={() => {
-                        setActiveTab('all');
+                        setQuery({ tab: 'all' });
                         handleResetFilters();
                     }}
                     style={{
@@ -514,9 +514,7 @@ export default function PurchaseList() {
                 <div
                     className="card"
                     onClick={() => {
-                        setActiveTab('all');
-                        setPaymentStatus('paid');
-                        setPage(1);
+                        setQuery({ tab: 'all', payment_status: 'paid', page: 1 });
                     }}
                     style={{
                         cursor: 'pointer',
@@ -540,8 +538,7 @@ export default function PurchaseList() {
                 <div
                     className="card"
                     onClick={() => {
-                        setActiveTab('due');
-                        setPage(1);
+                        setQuery({ tab: 'due', page: 1 });
                     }}
                     style={{
                         cursor: 'pointer',
@@ -566,9 +563,7 @@ export default function PurchaseList() {
                 <div
                     className="card"
                     onClick={() => {
-                        setActiveTab('all');
-                        setPaymentStatus('due');
-                        setPage(1);
+                        setQuery({ tab: 'all', payment_status: 'due', page: 1 });
                     }}
                     style={{
                         cursor: 'pointer',
@@ -590,9 +585,7 @@ export default function PurchaseList() {
                 <div
                     className="card"
                     onClick={() => {
-                        setActiveTab('all');
-                        setPaymentStatus('partial');
-                        setPage(1);
+                        setQuery({ tab: 'all', payment_status: 'partial', page: 1 });
                     }}
                     style={{
                         cursor: 'pointer',
@@ -653,7 +646,7 @@ export default function PurchaseList() {
                                     type="text"
                                     placeholder={t('Search supplier...')}
                                     value={supplierSearch}
-                                    onChange={(e) => setSupplierSearch(e.target.value)}
+                                    onChange={(e) => setQuery({ supplier_search: e.target.value })}
                                 />
                             </div>
                             <label
@@ -668,7 +661,7 @@ export default function PurchaseList() {
                                 <input
                                     type="checkbox"
                                     checked={supplierDueOnly}
-                                    onChange={(e) => setSupplierDueOnly(e.target.checked)}
+                                    onChange={(e) => setQuery({ supplier_due_only: e.target.checked })}
                                 />
                                 <span>{t('Show Due Only')}</span>
                             </label>
@@ -1136,6 +1129,21 @@ export default function PurchaseList() {
                                         <tr>
                                             <td colSpan="12" style={{ textAlign: 'center', padding: '40px' }}>
                                                 <span className="spinner" /> {t('Loading purchases...')}
+                                            </td>
+                                        </tr>
+                                    ) : error ? (
+                                        <tr>
+                                            <td colSpan="12" style={{ textAlign: 'center', padding: '50px 20px', color: '#dc2626' }}>
+                                                <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>⚠️</div>
+                                                <strong style={{ fontSize: '1.1rem' }}>
+                                                    {error.data?.message || t('Failed to load purchases.')}
+                                                </strong>
+                                                <p style={{ color: '#64748b', margin: '4px 0 14px' }}>
+                                                    {t('An error occurred while fetching the purchase list.')}
+                                                </p>
+                                                <button className="btn btn-sm btn-primary" type="button" onClick={() => refetch()}>
+                                                    ↺ {t('Retry')}
+                                                </button>
                                             </td>
                                         </tr>
                                     ) : purchases.length === 0 ? (

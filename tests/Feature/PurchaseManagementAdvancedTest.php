@@ -631,4 +631,82 @@ class PurchaseManagementAdvancedTest extends TestCase
         ]);
         $resPay->assertNotFound();
     }
+
+    public function test_searching_purchases_by_medicine_name_strength_and_generic_name_succeeds_without_column_errors(): void
+    {
+        $ctx = $this->setupShop();
+
+        // Ensure an account exists with column 'number'
+        $account = Account::create([
+            'store_id' => $ctx['store']->id,
+            'name' => 'Islami Bank Account',
+            'number' => '2050123456789',
+            'type' => 'bank',
+            'opening_cents' => 10000000,
+            'is_default' => true,
+        ]);
+
+        $risedon = Product::create([
+            'store_id' => $ctx['store']->id,
+            'name' => 'Risedon 150 mg',
+            'generic_name' => 'Risedronate Sodium',
+            'strength' => '150 mg',
+            'dosage_form' => 'Tablet',
+            'code' => 'MED-RISEDON-150',
+            'barcode' => '8941123456789',
+            'cost_cents' => 15000,
+            'price_cents' => 20000,
+            'stock_qty' => 50,
+            'is_active' => true,
+        ]);
+
+        $purchase = Purchase::create([
+            'store_id' => $ctx['store']->id,
+            'warehouse_id' => $ctx['warehouse']->id,
+            'supplier_id' => $ctx['supplierSquare']->id,
+            'user_id' => $ctx['owner']->id,
+            'account_id' => $account->id,
+            'reference' => 'PO-RISEDON-TEST',
+            'purchased_on' => now()->toDateString(),
+            'status' => 'received',
+            'grand_cents' => 150000,
+            'paid_cents' => 150000,
+        ]);
+
+        PurchaseItem::create([
+            'purchase_id' => $purchase->id,
+            'product_id' => $risedon->id,
+            'qty' => 10,
+            'cost_cents' => 15000,
+            'subtotal_cents' => 150000,
+            'batch_no' => 'RIS-BATCH-001',
+        ]);
+
+        // 1. Search with exact medicine brand & strength
+        $res = $this->actingAs($ctx['owner'])->getJson('/purchase/list?search=Risedon+150+mg');
+        $res->assertOk();
+        $res->assertJsonPath('meta.total', 1);
+        $res->assertJsonPath('data.0.reference', 'PO-RISEDON-TEST');
+
+        // Check filter accounts are properly mapped with 'number' and 'account_number'
+        $accounts = $res->json('filters.accounts');
+        $this->assertNotEmpty($accounts);
+        $this->assertEquals('2050123456789', $accounts[0]['number']);
+        $this->assertEquals('2050123456789', $accounts[0]['account_number']);
+
+        // 2. Search by generic name
+        $resGeneric = $this->actingAs($ctx['owner'])->getJson('/purchase/list?search=Risedronate');
+        $resGeneric->assertOk();
+        $resGeneric->assertJsonPath('meta.total', 1);
+
+        // 3. Search by strength
+        $resStrength = $this->actingAs($ctx['owner'])->getJson('/purchase/list?search=150+mg');
+        $resStrength->assertOk();
+        $resStrength->assertJsonPath('meta.total', 1);
+
+        // 4. Search by batch
+        $resBatch = $this->actingAs($ctx['owner'])->getJson('/purchase/list?search=RIS-BATCH-001');
+        $resBatch->assertOk();
+        $resBatch->assertJsonPath('meta.total', 1);
+    }
 }

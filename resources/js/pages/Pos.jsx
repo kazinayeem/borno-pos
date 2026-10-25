@@ -29,6 +29,7 @@ function blankOrder(number) {
         cart: [],
         customerId: '',
         discount: '0',
+        discount_type: 'fixed',
         coupon: '',
         paid: '',
         method: 'Cash',
@@ -286,6 +287,7 @@ export default function Pos() {
     const cart = active.cart;
     const customerId = active.customerId;
     const discount = active.discount;
+    const discountType = active.discount_type || (String(active.discount || '').includes('%') ? 'percent' : 'fixed');
     const coupon = active.coupon;
     const paid = active.paid;
     const method = active.method;
@@ -402,7 +404,12 @@ export default function Pos() {
 
         return sum + Math.floor(line.price_cents * line.qty * line.tax_bps / 10000);
     }, 0);
-    const discountCents = Math.min(cents(discount), subtotal);
+    const discountPercentNum = discountType === 'percent'
+        ? Math.max(0, Math.min(100, parseFloat(String(discount || '').replace('%', '').trim()) || 0))
+        : 0;
+    const discountCents = discountType === 'percent'
+        ? Math.min(subtotal, Math.round(subtotal * (discountPercentNum / 100)))
+        : Math.min(Math.max(0, cents(discount)), subtotal);
     const couponRow = (data?.coupons || []).find((row) => row.code.toLowerCase() === coupon.trim().toLowerCase());
     const couponBase = Math.max(0, subtotal - discountCents);
     const couponCents = !couponRow || couponBase <= 0
@@ -607,7 +614,8 @@ export default function Pos() {
                 product_variant_id: line.variant_id || null,
             })),
             customer_id: customerId || null,
-            discount,
+            discount: discountType === 'percent' ? `${discountPercentNum}%` : discount,
+            discount_type: discountType,
             coupon_code: coupon.trim() || null,
             payment_method: method,
             amount_paid: paid || (grand / 100).toFixed(2),
@@ -636,6 +644,7 @@ export default function Pos() {
                 cart: [],
                 customerId: '',
                 discount: '0',
+                discount_type: 'fixed',
                 coupon: '',
                 paid: '',
                 method: 'Cash',
@@ -1424,37 +1433,110 @@ export default function Pos() {
                         <div className="pos-extra-toggle">
                             <button
                                 type="button"
-                                className={showDiscounts || discount !== '0' || coupon ? 'active' : ''}
+                                className={showDiscounts || (discount && discount !== '0' && discount !== '0%') || coupon ? 'active' : ''}
                                 onClick={() => setShowDiscounts(!showDiscounts)}
                                 title="Discount / Coupon (F4 or Alt+D)"
                                 style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             >
-                                <span>🏷️ {discount !== '0' || coupon ? `${t('Discount')}/${t('Coupon')} Active` : `+ ${t('Add Discount / Coupon')}`}</span>
+                                <span>🏷️ {(discount && discount !== '0' && discount !== '0%') || coupon ? `${t('Discount')}/${t('Coupon')} Active` : `+ ${t('Add Discount / Coupon')}`}</span>
                                 <kbd className="pos-kbd-badge">F4</kbd>
                             </button>
                         </div>
 
                         {showDiscounts && (
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'var(--bg)', padding: '6px 8px', borderRadius: '8px', border: '1px solid var(--line)' }}>
-                                <label style={{ margin: 0, fontSize: '11px' }}>
-                                    {t('Discount')}
-                                    <input
-                                        ref={discountInputRef}
-                                        value={discount}
-                                        inputMode="decimal"
-                                        style={{ padding: '4px 6px', fontSize: '12px' }}
-                                        onChange={(event) => patchOrder((order) => ({ ...order, discount: event.target.value }))}
-                                    />
-                                </label>
-                                <label style={{ margin: 0, fontSize: '11px' }}>
-                                    {t('Coupon')}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px', background: 'var(--bg)', padding: '8px', borderRadius: '8px', border: '1px solid var(--line)' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                                        <span style={{ fontSize: '11px', fontWeight: 600 }}>{t('Discount')}</span>
+                                        <div style={{ display: 'inline-flex', background: 'var(--panel)', padding: '2px', borderRadius: '4px', border: '1px solid var(--line)', gap: '2px' }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    patchOrder((order) => ({
+                                                        ...order,
+                                                        discount_type: 'fixed',
+                                                        discount: String(order.discount || '').replace('%', '').trim(),
+                                                    }));
+                                                    setTimeout(() => discountInputRef.current?.focus(), 30);
+                                                }}
+                                                style={{
+                                                    padding: '2px 6px',
+                                                    fontSize: '10px',
+                                                    lineHeight: 1,
+                                                    border: 'none',
+                                                    borderRadius: '3px',
+                                                    cursor: 'pointer',
+                                                    fontWeight: discountType === 'fixed' ? '700' : '500',
+                                                    background: discountType === 'fixed' ? 'var(--primary, #0284c7)' : 'transparent',
+                                                    color: discountType === 'fixed' ? '#fff' : 'var(--text-dim, #64748b)',
+                                                }}
+                                                title="Fixed Amount Discount"
+                                            >
+                                                {activeCurrencySymbol || '৳'} Fixed
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    patchOrder((order) => ({
+                                                        ...order,
+                                                        discount_type: 'percent',
+                                                        discount: String(order.discount || '').replace('%', '').trim(),
+                                                    }));
+                                                    setTimeout(() => discountInputRef.current?.focus(), 30);
+                                                }}
+                                                style={{
+                                                    padding: '2px 6px',
+                                                    fontSize: '10px',
+                                                    lineHeight: 1,
+                                                    border: 'none',
+                                                    borderRadius: '3px',
+                                                    cursor: 'pointer',
+                                                    fontWeight: discountType === 'percent' ? '700' : '500',
+                                                    background: discountType === 'percent' ? 'var(--primary, #0284c7)' : 'transparent',
+                                                    color: discountType === 'percent' ? '#fff' : 'var(--text-dim, #64748b)',
+                                                }}
+                                                title="Percentage Discount (%)"
+                                            >
+                                                % Percent
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                        <input
+                                            ref={discountInputRef}
+                                            value={discount}
+                                            inputMode="decimal"
+                                            placeholder={discountType === 'percent' ? 'e.g. 10' : '0.00'}
+                                            style={{ padding: '4px 22px 4px 6px', fontSize: '12px', width: '100%' }}
+                                            onChange={(event) => {
+                                                const val = event.target.value;
+                                                const hasPercent = val.includes('%');
+                                                patchOrder((order) => ({
+                                                    ...order,
+                                                    discount: val,
+                                                    discount_type: hasPercent ? 'percent' : (order.discount_type || 'fixed'),
+                                                }));
+                                            }}
+                                        />
+                                        <span style={{ position: 'absolute', right: '6px', fontSize: '11px', color: 'var(--text-dim, #94a3b8)', pointerEvents: 'none' }}>
+                                            {discountType === 'percent' ? '%' : (activeCurrencySymbol || '৳')}
+                                        </span>
+                                    </div>
+                                    {discountType === 'percent' && discountPercentNum > 0 && subtotal > 0 && (
+                                        <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 500 }}>
+                                            = − {money(discountCents)} ({discountPercentNum}%)
+                                        </span>
+                                    )}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <span style={{ fontSize: '11px', fontWeight: 600 }}>{t('Coupon')}</span>
                                     <input
                                         value={coupon}
                                         placeholder="SAVE10"
-                                        style={{ padding: '4px 6px', fontSize: '12px' }}
+                                        style={{ padding: '4px 6px', fontSize: '12px', marginTop: '17px' }}
                                         onChange={(event) => patchOrder((order) => ({ ...order, coupon: event.target.value }))}
                                     />
-                                </label>
+                                </div>
                             </div>
                         )}
 
@@ -1466,7 +1548,10 @@ export default function Pos() {
                             </p>
                             {discountCents > 0 && (
                                 <p className="pos-total" style={{ color: '#16a34a' }}>
-                                    <span>{t('Discount')}</span>
+                                    <span>
+                                        {t('Discount')}
+                                        {discountType === 'percent' && discountPercentNum > 0 ? ` (${discountPercentNum}%)` : ''}
+                                    </span>
                                     <b>− {money(discountCents)}</b>
                                 </p>
                             )}

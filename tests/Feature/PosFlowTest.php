@@ -178,6 +178,72 @@ class PosFlowTest extends TestCase
         $this->assertEquals('৳', $store->fresh()->currency_symbol);
     }
 
+    public function test_pos_checkout_with_fixed_discount(): void
+    {
+        [$owner, $store, $product] = $this->shop();
+        $product->update(['stock_qty' => 10]);
+
+        $res = $this->actingAs($owner)->postJson('/pos', [
+            'idempotency_key' => 'fixed-disc-1',
+            'status' => 'completed',
+            'payment_method' => 'Cash',
+            'discount' => '2.00',
+            'discount_type' => 'fixed',
+            'amount_paid' => '6.00',
+            'items' => [['product_id' => $product->id, 'qty' => 1]],
+        ]);
+
+        $res->assertOk();
+        $sale = Sale::where('idempotency_key', 'fixed-disc-1')->firstOrFail();
+        $this->assertSame(200, $sale->discount_cents);
+        $this->assertSame(800, $sale->subtotal_cents);
+        $this->assertSame(600, $sale->grand_cents);
+        $this->assertSame(600, $sale->paid_cents);
+    }
+
+    public function test_pos_checkout_with_percentage_discount(): void
+    {
+        [$owner, $store, $product] = $this->shop();
+        $product->update(['stock_qty' => 10]);
+
+        $res = $this->actingAs($owner)->postJson('/pos', [
+            'idempotency_key' => 'percent-disc-1',
+            'status' => 'completed',
+            'payment_method' => 'Cash',
+            'discount' => '25',
+            'discount_type' => 'percent',
+            'amount_paid' => '6.00',
+            'items' => [['product_id' => $product->id, 'qty' => 1]],
+        ]);
+
+        $res->assertOk();
+        $sale = Sale::where('idempotency_key', 'percent-disc-1')->firstOrFail();
+        $this->assertSame(200, $sale->discount_cents); // 25% of 800 = 200
+        $this->assertSame(800, $sale->subtotal_cents);
+        $this->assertSame(600, $sale->grand_cents);
+    }
+
+    public function test_pos_checkout_with_percent_symbol_in_discount(): void
+    {
+        [$owner, $store, $product] = $this->shop();
+        $product->update(['stock_qty' => 10]);
+
+        $res = $this->actingAs($owner)->postJson('/pos', [
+            'idempotency_key' => 'percent-sym-1',
+            'status' => 'completed',
+            'payment_method' => 'Cash',
+            'discount' => '50%',
+            'amount_paid' => '4.00',
+            'items' => [['product_id' => $product->id, 'qty' => 1]],
+        ]);
+
+        $res->assertOk();
+        $sale = Sale::where('idempotency_key', 'percent-sym-1')->firstOrFail();
+        $this->assertSame(400, $sale->discount_cents); // 50% of 800 = 400
+        $this->assertSame(800, $sale->subtotal_cents);
+        $this->assertSame(400, $sale->grand_cents);
+    }
+
     private function shop(string $name = 'Demo Shop', string $email = 'owner@bornopos.test'): array
     {
         $store = Store::create([

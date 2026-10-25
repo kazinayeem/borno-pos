@@ -47,7 +47,8 @@ class PurchaseController extends Controller
         $purchases = $query->paginate($perPage)->withQueryString();
 
         if ($request->expectsJson()) {
-            $storeId = $request->user()->store_id;
+            $user = $request->user();
+            $storeId = $user?->store_id ?? (int) $request->input('store_id') ?: Store::withoutGlobalScopes()->value('id');
 
             return response()->json([
                 'data' => $purchases->getCollection()->map(fn (Purchase $purchase) => [
@@ -81,7 +82,13 @@ class PurchaseController extends Controller
                 'filters' => [
                     'suppliers' => Supplier::where('store_id', $storeId)->orderBy('name')->get(['id', 'name', 'company', 'phone']),
                     'warehouses' => Warehouse::where('store_id', $storeId)->orderBy('name')->get(['id', 'name']),
-                    'accounts' => Account::where('store_id', $storeId)->orderBy('name')->get(['id', 'name', 'account_number', 'type']),
+                    'accounts' => Account::where('store_id', $storeId)->orderBy('name')->get(['id', 'name', 'number', 'type'])->map(fn ($acc) => [
+                        'id' => $acc->id,
+                        'name' => $acc->name,
+                        'number' => $acc->number,
+                        'account_number' => $acc->number,
+                        'type' => $acc->type,
+                    ]),
                 ],
             ]);
         }
@@ -466,9 +473,27 @@ class PurchaseController extends Controller
                         $item->where('batch_no', 'like', "%{$term}%")
                             ->orWhere('serial', 'like', "%{$term}%")
                             ->orWhereHas('product', function (Builder $prod) use ($term) {
-                                $prod->where('name', 'like', "%{$term}%")
-                                    ->orWhere('code', 'like', "%{$term}%")
-                                    ->orWhere('barcode', 'like', "%{$term}%");
+                                $prod->where(function (Builder $p) use ($term) {
+                                    $p->where('name', 'like', "%{$term}%")
+                                        ->orWhere('generic_name', 'like', "%{$term}%")
+                                        ->orWhere('strength', 'like', "%{$term}%")
+                                        ->orWhere('dosage_form', 'like', "%{$term}%")
+                                        ->orWhere('code', 'like', "%{$term}%")
+                                        ->orWhere('barcode', 'like', "%{$term}%");
+
+                                    $tokens = array_filter(explode(' ', $term));
+                                    if (count($tokens) > 1) {
+                                        $p->orWhere(function (Builder $sub) use ($tokens) {
+                                            foreach ($tokens as $token) {
+                                                $sub->where(function (Builder $w) use ($token) {
+                                                    $w->where('name', 'like', "%{$token}%")
+                                                        ->orWhere('generic_name', 'like', "%{$token}%")
+                                                        ->orWhere('strength', 'like', "%{$token}%");
+                                                });
+                                            }
+                                        });
+                                    }
+                                });
                             });
                     });
 
