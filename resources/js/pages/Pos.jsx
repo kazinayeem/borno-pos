@@ -666,7 +666,7 @@ export default function Pos() {
     const activeCurrencyCode = data?.currency_code || window.BornoPos?.currency_code || 'BDT';
 
     return (
-        <div className={`pos-container ${isFullscreen ? 'is-fullscreen' : ''}`}>
+        <div className={`pos-container ${isFullscreen ? 'is-fullscreen' : ''}`} data-tour="pos-container">
             {paidNotice && (
                 <div className="note flash" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 0, padding: '8px 14px' }}>
                     <span>
@@ -775,7 +775,7 @@ export default function Pos() {
                 {/* 1. Left/Main Column: Product Catalog & Search */}
                 <section className="card pos-catalog">
                     <div className="pos-catalog-head">
-                        <div className="pos-search-bar" style={{ position: 'relative' }}>
+                        <div className="pos-search-bar" style={{ position: 'relative' }} data-tour="pos-search">
                             <input
                                 ref={searchInputRef}
                                 value={q}
@@ -903,7 +903,7 @@ export default function Pos() {
                 </section>
 
                 {/* 3. Right Column: Cart & Checkout (Sticky bottom & Customer search by phone) */}
-                <aside className="card cart">
+                <aside className="card cart" data-tour="pos-cart">
                     <div className="cart-head">
                         <div className="cart-title-row">
                             <h2>🛒 {t('Cart')} · {t('Order')} #{active.number}</h2>
@@ -928,7 +928,7 @@ export default function Pos() {
                         )}
 
                         {/* Customer Search & Selection Box (Supports Phone Number) */}
-                        <div className="pos-cust-box" ref={custDropdownRef}>
+                        <div className="pos-cust-box" ref={custDropdownRef} data-tour="pos-customer">
                             {selectedCustomer ? (
                                 <div className="pos-cust-active">
                                     <div className="pos-cust-info">
@@ -1115,7 +1115,7 @@ export default function Pos() {
                     </div>
 
                     {/* Fixed / Sticky Cart Footer (Always reachable) */}
-                    <footer className="cart-footer">
+                    <footer className="cart-footer" data-tour="pos-checkout">
                         {/* Collapsible Discount & Coupon bar */}
                         <div className="pos-extra-toggle">
                             <button

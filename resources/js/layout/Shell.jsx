@@ -109,14 +109,14 @@ export default function Shell({ children }) {
                     />
                 )}
             </AnimatePresence>
-            <aside className={`sidebar ${ui.sidebar ? 'open' : ''}`}>
+            <aside className={`sidebar ${ui.sidebar ? 'open' : ''}`} data-tour="sidebar">
                 <Link className="brand" to={user?.role === 'super_admin' ? '/dashboard' : '/store-dashboard'}>
                     <Logo />
                     <div><strong>BornoPos</strong><span>{t('Powering Your Business')}</span></div>
                 </Link>
-                <nav className="nav">
+                <nav className="nav" data-tour="sidebar-nav">
                     {items.map((item) => <Item key={item.label} item={item} path={location.pathname} />)}
-                    <a href="/tour"><Icon name="chart" /><span>{t('Take a Tour')}</span></a>
+                    <Link to="/tour" data-tour="nav-tour"><Icon name="chart" /><span>{t('Take a Tour')}</span></Link>
                 </nav>
                 {user?.role !== 'super_admin' && (
                     <div className="upgrade">
@@ -126,23 +126,25 @@ export default function Shell({ children }) {
                     </div>
                 )}
                 <div className="side-tools">
-                    <a href="/tour" title="Tour">⌘</a>
+                    <Link to="/tour" title="Tour">⌘</Link>
                     <Link to={user?.role === 'super_admin' ? '/user/profile' : '/settings/general-settings'} title="Settings">⚙</Link>
                     <Link to="/user/profile" title="Profile">☺</Link>
                     <button type="button" title="Logout" onClick={(event) => { event.stopPropagation(); dispatch(logout()).then(() => navigate('/signin')); }}>↪</button>
                 </div>
             </aside>
             <div className="main" onClick={() => { dispatch(closeMenus()); dispatch(closeSidebar()); }}>
-                <header className="topbar" onClick={(event) => event.stopPropagation()}>
+                <header className="topbar" data-tour="topbar" onClick={(event) => event.stopPropagation()}>
                     <button className="icon-btn" type="button" aria-label="Menu" aria-expanded={ui.sidebar || ui.narrow} onClick={toggleNav}>☰</button>
-                    <GlobalSearch />
-                    {user?.role !== 'super_admin' && (isOwner || userPerms.includes('pos.view')) && <Link className="pos-btn" to="/pos"><Icon name="cart" /> {t('POS')}</Link>}
-                    <button className="icon-btn round" type="button" title={ui.theme === 'dark' ? t('Light') : t('Dark')} onClick={(event) => { event.stopPropagation(); dispatch(toggleTheme()); }}>{ui.theme === 'dark' ? '☀' : '☾'}</button>
+                    <div data-tour="global-search" style={{ flex: '1 1 auto', display: 'flex' }}>
+                        <GlobalSearch />
+                    </div>
+                    {user?.role !== 'super_admin' && (isOwner || userPerms.includes('pos.view')) && <Link className="pos-btn" to="/pos" data-tour="topbar-pos"><Icon name="cart" /> {t('POS')}</Link>}
+                    <button className="icon-btn round" data-tour="theme-toggle" type="button" title={ui.theme === 'dark' ? t('Light') : t('Dark')} onClick={(event) => { event.stopPropagation(); dispatch(toggleTheme()); }}>{ui.theme === 'dark' ? '☀' : '☾'}</button>
                     <div className={`menu ${ui.noticeOpen ? 'open' : ''}`}>
                         <button className="icon-btn round" type="button" aria-label="Notifications" aria-expanded={ui.noticeOpen} onClick={(event) => { event.stopPropagation(); dispatch(toggleMenu('notice')); }}>🔔</button>
                         <Popover open={ui.noticeOpen}><div className="muted">{t('No notifications')}</div></Popover>
                     </div>
-                    <div className={`menu ${ui.langOpen ? 'open' : ''}`}>
+                    <div className={`menu ${ui.langOpen ? 'open' : ''}`} data-tour="lang-toggle">
                         <button className="lang" type="button" aria-expanded={ui.langOpen} onClick={(event) => { event.stopPropagation(); dispatch(toggleMenu('lang')); }}><span className="flag">{current.flag}</span> {current.label}</button>
                         <Popover open={ui.langOpen} onClick={(event) => event.stopPropagation()}>
                             {languages.map((item) => (
@@ -150,7 +152,7 @@ export default function Shell({ children }) {
                             ))}
                         </Popover>
                     </div>
-                    <div className={`menu ${ui.userOpen ? 'open' : ''}`}>
+                    <div className={`menu ${ui.userOpen ? 'open' : ''}`} data-tour="user-menu">
                         <button className="user-chip" type="button" aria-expanded={ui.userOpen} onClick={(event) => { event.stopPropagation(); dispatch(toggleMenu('user')); }}>
                             <span className="avatar">{(user?.name || 'A').slice(0, 1).toUpperCase()}</span>
                             <span className="who"><b>{user?.name}</b><small>{t(user?.role_title || user?.role || role)}</small></span>

@@ -49,11 +49,11 @@ export default function Products() {
                 </div>
                 <div className="actions">
                     <button className="btn" type="button" onClick={exportCsv}>{t('Export')}</button>
-                    <button className="btn primary" type="button" onClick={() => navigate('/products/create')}>{t('+ Add Product')}</button>
+                    <button className="btn primary" data-tour="add-product-btn" type="button" onClick={() => navigate('/products/create')}>{t('+ Add Product')}</button>
                 </div>
             </div>
-            <section className="card table-card">
-                <div className="toolbar">
+            <section className="card table-card" data-tour="products-view">
+                <div className="toolbar" data-tour="products-filter">
                     <input value={filters.q} placeholder={t('Search products by name, code, brand...')} onChange={(event) => update({ q: event.target.value })} />
                     <select value={filters.category_id} onChange={(event) => update({ category_id: event.target.value })}>
                         <option value="">{t('All Categories')}</option>
@@ -77,7 +77,7 @@ export default function Products() {
                         {Array.from({ length: 6 }, (_, index) => <span key={index} className="skeleton block" />)}
                     </div>
                 )}
-                <table className="grid">
+                <table className="grid" data-tour="products-table">
                     <thead>
                         <tr>
                             <th>{t('SL')}</th><th>{t('Image')}</th><th>{t('Name')}</th><th>{t('Code')}</th><th>{t('Brand')}</th><th>{t('Category')}</th><th>{t('Product Type')}</th><th>{t('Unit Purchase Price')}</th><th>{t('Selling Price')}</th><th>{t('Current stock')}</th><th>{t('Action')}</th>

@@ -22,7 +22,7 @@ export default function Batches() {
                     <div className="crumbs">Stock still on hand, with expiry status from each product’s near-expiry window.</div>
                 </div>
             </div>
-            <section className="card">
+            <section className="card" data-tour="batches-view">
                 <div className="tabs">
                     {filters.map(([value, label]) => (
                         <button type="button" key={label} className={`chip ${status === value ? 'active' : ''}`} onClick={() => { setStatus(value); setPage(1); }}>{label}</button>

@@ -105,7 +105,7 @@ export default function BarcodePrint() {
     }
 
     return (
-        <section>
+        <section data-tour="barcode-print-view">
             <div className="page-title no-print">
                 <div>
                     <h1>{t('Print Barcode')}</h1>

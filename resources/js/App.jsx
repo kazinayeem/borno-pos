@@ -44,6 +44,9 @@ import {
     SubscriptionPurchasePage,
     SubscriptionReportPage,
 } from './pages/SettingsAndStorePages';
+import TourCenterPage from './pages/TourCenterPage';
+import { TourProvider } from './tour/TourContext';
+import BornoPosGuidedTour from './tour/BornoPosGuidedTour';
 
 const catalogs = [
     '/categories', '/unit', '/brand', '/warehouse', '/tax', '/coupons', '/departments',
@@ -113,11 +116,13 @@ function Missing() {
 
 export default function App() {
     return (
-        <>
+        <TourProvider>
             <DocumentSync />
+            <BornoPosGuidedTour />
             <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/signin" element={<SignIn />} />
+                <Route path="/tour" element={<Guard><TourCenterPage /></Guard>} />
                 <Route path="/store-dashboard" element={<Guard ability="dashboard.view"><Dashboard /></Guard>} />
                 <Route path="/dashboard" element={<Guard><Dashboard platform /></Guard>} />
                 <Route path="/products" element={<Guard ability="products.view"><Products /></Guard>} />
@@ -165,6 +170,6 @@ export default function App() {
                 ))}
                 <Route path="*" element={<Missing />} />
             </Routes>
-        </>
+        </TourProvider>
     );
 }

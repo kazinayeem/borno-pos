@@ -263,7 +263,7 @@ export default function StaffManagement() {
             </div>
 
             {/* Staff Table */}
-            <div className="table-responsive" style={{ overflowX: 'auto', border: '1px solid var(--line)', borderRadius: '10px' }}>
+            <div className="table-responsive" style={{ overflowX: 'auto', border: '1px solid var(--line)', borderRadius: '10px' }} data-tour="staff-table">
                 <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                     <thead>
                         <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--line)' }}>

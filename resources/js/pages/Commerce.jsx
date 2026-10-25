@@ -51,7 +51,7 @@ export function Records({ kind }) {
                 </div>
             </div>
             {actionMsg && <div className="status" style={{ marginBottom: '12px' }}>{actionMsg}</div>}
-            <section className="card table-card">
+            <section className="card table-card" data-tour={kind === 'drafts' ? 'drafts-table' : (kind === 'purchases' ? 'purchases-table' : 'sales-table')}>
                 <div className="toolbar"><input value={q} placeholder="Search" onChange={(event) => { setQ(event.target.value); setPage(1); }} /></div>
                 <table className="grid">
                     <thead>

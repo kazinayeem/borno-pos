@@ -74,7 +74,7 @@ export function AccountsPage() {
             {msg && <div className="flash note" style={{ marginBottom: '16px' }}>{msg}<button type="button" onClick={() => setMsg('')}>×</button></div>}
             {err && <div className="errors note" style={{ marginBottom: '16px' }}>{err}</div>}
 
-            <section className="card">
+            <section className="card" data-tour="accounts-table">
                 <table className="grid">
                     <thead>
                         <tr>
@@ -230,7 +230,7 @@ export function MoneyTransfersPage() {
             {msg && <div className="flash note" style={{ marginBottom: '16px' }}>{msg}<button type="button" onClick={() => setMsg('')}>×</button></div>}
             {err && <div className="errors note" style={{ marginBottom: '16px' }}>{err}</div>}
 
-            <section className="card">
+            <section className="card" data-tour="transfers-card">
                 <table className="grid">
                     <thead>
                         <tr>
@@ -339,7 +339,7 @@ export function BalanceSheetPage() {
             {loading ? (
                 <p className="muted">{t('Calculating financial metrics…')}</p>
             ) : data ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }} data-tour="balancesheet-card">
                     <section className="card">
                         <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '10px', marginBottom: '14px' }}>
                             <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#10b981' }}>📊 {t('Assets')}</h2>
@@ -479,7 +479,7 @@ export function TransactionsPage() {
                 </div>
             </section>
 
-            <section className="card">
+            <section className="card" data-tour="transactions-table">
                 <table className="grid">
                     <thead>
                         <tr>
@@ -607,7 +607,7 @@ export function ExpensesPage() {
             {msg && <div className="flash note" style={{ marginBottom: '16px' }}>{msg}<button type="button" onClick={() => setMsg('')}>×</button></div>}
             {err && <div className="errors note" style={{ marginBottom: '16px' }}>{err}</div>}
 
-            <section className="card">
+            <section className="card" data-tour="expenses-table">
                 <table className="grid">
                     <thead>
                         <tr>

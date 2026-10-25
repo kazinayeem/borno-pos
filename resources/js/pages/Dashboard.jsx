@@ -173,7 +173,7 @@ export default function Dashboard({ platform = false }) {
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                <div data-tour="dashboard-filters" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                         {ranges.map(([key, text]) => (
                             <button
@@ -491,10 +491,11 @@ export default function Dashboard({ platform = false }) {
             )}
 
             {/* KPI Cards Grid */}
-            <div className={`kpis ${!data && loading ? 'is-loading' : ''}`}>
+            <div className={`kpis ${!data && loading ? 'is-loading' : ''}`} data-tour="dashboard-summary">
                 {cards.map(([key, label, bg, color, icon], index) => (
                     <motion.article
                         className="kpi"
+                        data-tour={index === 0 ? 'dashboard-sales-card' : undefined}
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.35, delay: index * 0.05 }}
@@ -514,7 +515,7 @@ export default function Dashboard({ platform = false }) {
             </div>
 
             {/* Charts & Flow */}
-            <div className="grid-2">
+            <div className="grid-2" data-tour="dashboard-charts">
                 <section className="card">
                     <div className="card-head">
                         <h2>{t('Purchase and Sale Flow')}</h2>
@@ -634,7 +635,7 @@ export default function Dashboard({ platform = false }) {
                 </section>
             )}
 
-            <div className="grid-3">
+            <div className="grid-3" data-tour="dashboard-shortcuts">
                 <section className="card">
                     <div className="card-head">
                         <h2>{t('Top Selling Products')}</h2>

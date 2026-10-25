@@ -110,7 +110,7 @@ export function AttendancePage() {
                 </div>
             </section>
 
-            <section className="card">
+            <section className="card" data-tour="attendance-card">
                 <table className="grid">
                     <thead>
                         <tr>
@@ -316,7 +316,7 @@ export function PayrollsPage() {
                 </div>
             </section>
 
-            <section className="card">
+            <section className="card" data-tour="payrolls-card">
                 <table className="grid">
                     <thead>
                         <tr>

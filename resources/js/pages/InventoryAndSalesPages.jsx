@@ -84,7 +84,7 @@ export function StockCountPage() {
             {err && <div className="errors note" style={{ marginBottom: '16px' }}>{err}</div>}
 
             <form onSubmit={handleSubmit}>
-                <section className="card" style={{ marginBottom: '20px', padding: '20px' }}>
+                <section className="card" data-tour="stock-count-card" style={{ marginBottom: '20px', padding: '20px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
                         <div className="field">
                             <label>{t('Audit Warehouse')}</label>

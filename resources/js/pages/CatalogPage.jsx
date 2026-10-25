@@ -180,7 +180,7 @@ export default function CatalogPage({ endpoint }) {
                     </div>
                 </form>
             )}
-            <section className="card table-card">
+            <section className="card table-card" data-tour={endpoint === '/categories' ? 'categories-view' : 'catalog-card'}>
                 <div className="toolbar">
                     <input value={q} placeholder="Search" onChange={(event) => { setQ(event.target.value); setPage(1); }} />
                 </div>

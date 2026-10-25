@@ -322,6 +322,7 @@ export default function PurchaseList() {
 
                     <Link
                         to="/purchase/create"
+                        data-tour="add-purchase-btn"
                         className="btn btn-primary"
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                     >
@@ -1070,7 +1071,7 @@ export default function PurchaseList() {
                     {/* Purchases Table */}
                     <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
                         <div className="table-responsive">
-                            <table className="grid" style={{ margin: 0 }}>
+                            <table className="grid" data-tour="purchases-table" style={{ margin: 0 }}>
                                 <thead>
                                     <tr>
                                         <th style={{ width: '48px', textAlign: 'center' }}>#</th>

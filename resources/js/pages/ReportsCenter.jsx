@@ -76,7 +76,7 @@ export default function ReportsCenter() {
     }
 
     return (
-        <>
+        <div data-tour="reports-center">
             {/* Header */}
             <div className="page-title" style={{ flexWrap: 'wrap', gap: '16px' }}>
                 <div>
@@ -727,6 +727,6 @@ export default function ReportsCenter() {
                     </div>
                 </>
             )}
-        </>
+        </div>
     );
 }

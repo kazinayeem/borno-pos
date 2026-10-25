@@ -66,7 +66,7 @@ export function GeneralSettingsPage() {
     };
 
     return (
-        <section className="card" style={{ maxWidth: '840px', margin: '0 auto' }}>
+        <section className="card" style={{ maxWidth: '840px', margin: '0 auto' }} data-tour="general-settings-form">
             <div className="section-title">
                 <h2>{t('General Settings')}</h2>
                 <p className="muted">{t('Configure your business details, default currency, and invoice messages.')}</p>
@@ -216,7 +216,7 @@ export function BusinessModulesPage() {
     };
 
     return (
-        <section className="card" style={{ maxWidth: '840px', margin: '0 auto' }}>
+        <section className="card" style={{ maxWidth: '840px', margin: '0 auto' }} data-tour="business-modules-form">
             <div className="section-title">
                 <h2>{t('Business Modules')}</h2>
                 <p className="muted">{t('Enable or disable business modules for this store.')}</p>
@@ -408,7 +408,7 @@ export function StoresPage() {
             ) : stores.length === 0 ? (
                 <div style={{ padding: '32px', textAlign: 'center' }} className="muted">{t('No stores found.')}</div>
             ) : (
-                <div className="table-responsive">
+                <div className="table-responsive" data-tour="stores-table">
                     <table className="table">
                         <thead>
                             <tr>
@@ -614,7 +614,7 @@ export function SubscriptionPurchasePage() {
             {loading ? (
                 <div style={{ padding: '32px', textAlign: 'center' }} className="muted">{t('Loading plans...')}</div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px', margin: '24px 0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px', margin: '24px 0' }} data-tour="subscription-plans">
                     {plans.map((p) => (
                         <div key={p.id} style={{ border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                             <div>

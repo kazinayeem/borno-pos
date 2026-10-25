@@ -206,9 +206,15 @@ class ShopController extends Controller
         return view('search.index', compact('term', 'products', 'customers', 'sales'));
     }
 
-    public function tour()
+    public function tour(Request $request)
     {
-        return view('tour');
+        if ($request->expectsJson()) {
+            return response()->json([
+                'title' => 'System Guided Tour & Onboarding',
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function readNotices(Request $request)
