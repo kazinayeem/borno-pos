@@ -33,7 +33,8 @@ class CatalogController extends Controller
     {
         $def = $this->definition($request);
         $query = $def['model']::query()->latest();
-        if ($search = trim($request->string('q'))) {
+        $search = trim((string) ($request->input('search') ?? $request->input('q', '')));
+        if ($search !== '') {
             $query->where(function ($inner) use ($def, $search) {
                 foreach ($def['search'] as $column) {
                     $inner->orWhere($column, 'like', "%{$search}%");
@@ -44,7 +45,8 @@ class CatalogController extends Controller
             $query->with($def['with']);
         }
 
-        $rows = $query->paginate(15)->withQueryString();
+        $perPage = max(5, min(100, $request->integer('per_page', 15)));
+        $rows = $query->paginate($perPage)->withQueryString();
 
         if ($request->expectsJson()) {
             return response()->json($this->payload($def, $rows));

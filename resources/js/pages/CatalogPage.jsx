@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, money, setCurrency } from '../api';
 import { useT } from '../i18n';
 import { useDeleteCatalogMutation, useGetCatalogQuery, useSaveCatalogMutation } from '../services/bornoposApi';
+import { SearchInput, PrimaryButton, SecondaryButton } from '../components/ui';
 
 function display(row, field) {
     const value = row[field.name];
@@ -125,26 +126,27 @@ export default function CatalogPage({ endpoint }) {
                     className="card form-grid"
                     onSubmit={submit}
                     style={{
-                        border: '2px solid var(--primary, #4f46e5)',
+                        border: '1px solid var(--line, #e2e8f0)',
                         marginBottom: '20px',
-                        boxShadow: '0 4px 12px rgba(79, 70, 229, 0.08)',
+                        boxShadow: '0 4px 16px rgba(15, 23, 42, 0.05)',
+                        borderRadius: '16px',
                     }}
                 >
                     <div className="wide" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>
+                        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--text-heading, #0f172a)' }}>
                             {editing?.id ? t('Edit {item}', { item: data?.singular || 'Item' }) : t('Add New {item}', { item: data?.singular || 'Item' })}
                         </h2>
                         <button
                             type="button"
                             onClick={() => setEditing(null)}
-                            style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}
+                            style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--muted, #64748b)' }}
                             title="Close"
                         >
                             ✕
                         </button>
                     </div>
                     {fields.map((field) => (
-                        <label key={field.name} className={field.type === 'checks' ? 'wide' : ''}>
+                        <label key={field.name} className={field.type === 'checks' ? 'wide' : ''} style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text-heading, #0f172a)' }}>
                             {field.label}
                             {field.type === 'select' && (
                                 <select value={form[field.name] ?? ''} onChange={(event) => setForm({ ...form, [field.name]: event.target.value })}>
@@ -153,9 +155,9 @@ export default function CatalogPage({ endpoint }) {
                                 </select>
                             )}
                             {field.type === 'checks' && (
-                                <div className="checks">
+                                <div className="checks" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
                                     {Object.entries(field.choices || {}).map(([id, name]) => (
-                                        <label key={id} className="check">
+                                        <label key={id} className="check" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 600 }}>
                                             <input type="checkbox" checked={(form[field.name] || []).includes(id)} onChange={(event) => {
                                                 const current = new Set(form[field.name] || []);
                                                 event.target.checked ? current.add(id) : current.delete(id);
@@ -172,17 +174,25 @@ export default function CatalogPage({ endpoint }) {
                             )}
                         </label>
                     ))}
-                    <div className="wide actions" style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                        <button className="btn primary" type="submit" disabled={saveState.isLoading}>
+                    <div className="wide actions" style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                        <PrimaryButton type="submit" loading={saveState.isLoading}>
                             {saveState.isLoading ? t('Saving...') : t('Save')}
-                        </button>
-                        <button className="btn" type="button" onClick={() => setEditing(null)}>{t('Cancel')}</button>
+                        </PrimaryButton>
+                        <SecondaryButton type="button" onClick={() => setEditing(null)}>
+                            {t('Cancel')}
+                        </SecondaryButton>
                     </div>
                 </form>
             )}
             <section className="card table-card" data-tour={endpoint === '/categories' ? 'categories-view' : 'catalog-card'}>
-                <div className="toolbar">
-                    <input value={q} placeholder="Search" onChange={(event) => { setQ(event.target.value); setPage(1); }} />
+                <div className="toolbar" style={{ marginBottom: '14px' }}>
+                    <SearchInput
+                        value={q}
+                        placeholder={t('Search {item}...', { item: data?.title || 'records' })}
+                        onChange={(event) => { setQ(event.target.value); setPage(1); }}
+                        onClear={() => { setQ(''); setPage(1); }}
+                        style={{ maxWidth: '360px' }}
+                    />
                 </div>
                 {isError && <p className="error">This list could not be loaded.</p>}
                 <table className="grid">

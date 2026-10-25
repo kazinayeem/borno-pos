@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, money } from '../api';
 import { useT } from '../i18n';
+import { Modal, PrimaryButton, SecondaryButton } from '../components/ui';
 
 export function AccountsPage() {
     const t = useT();
@@ -111,39 +112,41 @@ export function AccountsPage() {
                 {!loading && accounts.length === 0 && <p className="empty">{t('No accounts found.')}</p>}
             </section>
 
-            {showModal && (
-                <div className="modal-backdrop" onClick={() => setShowModal(false)}>
-                    <div className="modal card" style={{ maxWidth: '480px', margin: '40px auto' }} onClick={(e) => e.stopPropagation()}>
-                        <h2>{t('Create New Account')}</h2>
-                        <form onSubmit={handleCreate}>
-                            <div className="field">
-                                <label>{t('Account Name')}</label>
-                                <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. City Bank" />
-                            </div>
-                            <div className="field">
-                                <label>{t('Account Number')}</label>
-                                <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="e.g. 10203040" />
-                            </div>
-                            <div className="field">
-                                <label>{t('Account Type')}</label>
-                                <select value={type} onChange={(e) => setType(e.target.value)}>
-                                    <option value="cash">{t('Cash')}</option>
-                                    <option value="bank">{t('Bank')}</option>
-                                    <option value="mobile">{t('Mobile Banking')}</option>
-                                </select>
-                            </div>
-                            <div className="field">
-                                <label>{t('Opening Balance')}</label>
-                                <input type="number" step="0.01" value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="0.00" />
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-                                <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('Cancel')}</button>
-                                <button type="submit" className="btn primary">{t('Save Account')}</button>
-                            </div>
-                        </form>
+            <Modal
+                isOpen={showModal}
+                onClose={() => setShowModal(false)}
+                title={t('Create New Account')}
+                icon="🏦"
+                footer={
+                    <>
+                        <SecondaryButton type="button" onClick={() => setShowModal(false)}>{t('Cancel')}</SecondaryButton>
+                        <PrimaryButton type="submit" form="create-account-form">{t('Save Account')}</PrimaryButton>
+                    </>
+                }
+            >
+                <form id="create-account-form" onSubmit={handleCreate}>
+                    <div className="field">
+                        <label>{t('Account Name')}</label>
+                        <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. City Bank" />
                     </div>
-                </div>
-            )}
+                    <div className="field">
+                        <label>{t('Account Number')}</label>
+                        <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="e.g. 10203040" />
+                    </div>
+                    <div className="field">
+                        <label>{t('Account Type')}</label>
+                        <select value={type} onChange={(e) => setType(e.target.value)}>
+                            <option value="cash">{t('Cash')}</option>
+                            <option value="bank">{t('Bank')}</option>
+                            <option value="mobile">{t('Mobile Banking')}</option>
+                        </select>
+                    </div>
+                    <div className="field">
+                        <label>{t('Opening Balance')}</label>
+                        <input type="number" step="0.01" value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="0.00" />
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 }
@@ -263,47 +266,47 @@ export function MoneyTransfersPage() {
                 {!loading && transfers.length === 0 && <p className="empty">{t('No money transfers recorded yet.')}</p>}
             </section>
 
-            {showModal && (
-                <div className="modal-backdrop" onClick={() => setShowModal(false)}>
-                    <div className="modal card" style={{ maxWidth: '480px', margin: '40px auto' }} onClick={(e) => e.stopPropagation()}>
-                        <h2>{t('Transfer Money Between Accounts')}</h2>
-                        <form onSubmit={handleTransfer}>
-                            <div className="field">
-                                <label>{t('Source Account (From)')}</label>
-                                <select value={fromAccount} onChange={(e) => setFromAccount(e.target.value)} required>
-                                    {accounts.map((a) => (
-                                        <option key={a.id} value={a.id}>{a.name} ({money(a.balance_cents)})</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="field">
-                                <label>{t('Destination Account (To)')}</label>
-                                <select value={toAccount} onChange={(e) => setToAccount(e.target.value)} required>
-                                    {accounts.filter((a) => String(a.id) !== String(fromAccount)).map((a) => (
-                                        <option key={a.id} value={a.id}>{a.name} ({money(a.balance_cents)})</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="field">
-                                <label>{t('Amount')}</label>
-                                <input type="number" step="0.01" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} required placeholder="0.00" />
-                            </div>
-                            <div className="field">
-                                <label>{t('Date')}</label>
-                                <input type="date" value={transferredOn} onChange={(e) => setTransferredOn(e.target.value)} required />
-                            </div>
-                            <div className="field">
-                                <label>{t('Note')}</label>
-                                <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. ATM withdrawal" />
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-                                <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('Cancel')}</button>
-                                <button type="submit" className="btn primary">{t('Confirm Transfer')}</button>
-                            </div>
-                        </form>
+            <Modal
+                isOpen={showModal}
+                onClose={() => setShowModal(false)}
+                title={t('Transfer Money Between Accounts')}
+                size="sm"
+            >
+                <form onSubmit={handleTransfer}>
+                    <div className="field">
+                        <label>{t('Source Account (From)')}</label>
+                        <select value={fromAccount} onChange={(e) => setFromAccount(e.target.value)} required>
+                            {accounts.map((a) => (
+                                <option key={a.id} value={a.id}>{a.name} ({money(a.balance_cents)})</option>
+                            ))}
+                        </select>
                     </div>
-                </div>
-            )}
+                    <div className="field">
+                        <label>{t('Destination Account (To)')}</label>
+                        <select value={toAccount} onChange={(e) => setToAccount(e.target.value)} required>
+                            {accounts.filter((a) => String(a.id) !== String(fromAccount)).map((a) => (
+                                <option key={a.id} value={a.id}>{a.name} ({money(a.balance_cents)})</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="field">
+                        <label>{t('Amount')}</label>
+                        <input type="number" step="0.01" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} required placeholder="0.00" />
+                    </div>
+                    <div className="field">
+                        <label>{t('Date')}</label>
+                        <input type="date" value={transferredOn} onChange={(e) => setTransferredOn(e.target.value)} required />
+                    </div>
+                    <div className="field">
+                        <label>{t('Note')}</label>
+                        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. ATM withdrawal" />
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                        <SecondaryButton type="button" onClick={() => setShowModal(false)}>{t('Cancel')}</SecondaryButton>
+                        <PrimaryButton type="submit">{t('Confirm Transfer')}</PrimaryButton>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 }
@@ -647,43 +650,45 @@ export function ExpensesPage() {
                 )}
             </section>
 
-            {showModal && (
-                <div className="modal-backdrop" onClick={() => setShowModal(false)}>
-                    <div className="modal card" style={{ maxWidth: '480px', margin: '40px auto' }} onClick={(e) => e.stopPropagation()}>
-                        <h2>{t('Record New Expense')}</h2>
-                        <form onSubmit={handleCreate}>
-                            <div className="field">
-                                <label>{t('Expense Category')}</label>
-                                <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
-                                    {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="field">
-                                <label>{t('Payment Account')}</label>
-                                <select value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
-                                    {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="field">
-                                <label>{t('Amount')}</label>
-                                <input type="number" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required placeholder="0.00" />
-                            </div>
-                            <div className="field">
-                                <label>{t('Date')}</label>
-                                <input type="date" value={spentOn} onChange={(e) => setSpentOn(e.target.value)} required />
-                            </div>
-                            <div className="field">
-                                <label>{t('Note / Description')}</label>
-                                <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Utility bill" />
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-                                <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('Cancel')}</button>
-                                <button type="submit" className="btn primary">{t('Save Expense')}</button>
-                            </div>
-                        </form>
+            <Modal
+                isOpen={showModal}
+                onClose={() => setShowModal(false)}
+                title={t('Record New Expense')}
+                icon="🧾"
+                footer={
+                    <>
+                        <SecondaryButton type="button" onClick={() => setShowModal(false)}>{t('Cancel')}</SecondaryButton>
+                        <PrimaryButton type="submit" form="create-expense-form">{t('Save Expense')}</PrimaryButton>
+                    </>
+                }
+            >
+                <form id="create-expense-form" onSubmit={handleCreate}>
+                    <div className="field">
+                        <label>{t('Expense Category')}</label>
+                        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
+                            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
                     </div>
-                </div>
-            )}
+                    <div className="field">
+                        <label>{t('Payment Account')}</label>
+                        <select value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
+                            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="field">
+                        <label>{t('Amount')}</label>
+                        <input type="number" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required placeholder="0.00" />
+                    </div>
+                    <div className="field">
+                        <label>{t('Date')}</label>
+                        <input type="date" value={spentOn} onChange={(e) => setSpentOn(e.target.value)} required />
+                    </div>
+                    <div className="field">
+                        <label>{t('Note / Description')}</label>
+                        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Utility bill" />
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 }

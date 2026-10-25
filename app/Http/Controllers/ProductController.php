@@ -27,8 +27,8 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $products = Product::query()->with(['brand', 'category', 'unit'])
-            ->when($request->filled('q'), function ($query) use ($request) {
-                $term = $request->string('q');
+            ->when($request->filled('q') || $request->filled('search'), function ($query) use ($request) {
+                $term = trim((string) ($request->input('search') ?? $request->input('q')));
                 $query->where(function ($inner) use ($term) {
                     $inner->where('name', 'like', "%{$term}%")
                         ->orWhere('code', 'like', "%{$term}%")
@@ -38,9 +38,17 @@ class ProductController extends Controller
             ->when($request->filled('category_id'), fn ($q) => $q->where('category_id', $request->integer('category_id')))
             ->when($request->filled('brand_id'), fn ($q) => $q->where('brand_id', $request->integer('brand_id')))
             ->when($request->string('status') == 'active', fn ($q) => $q->where('is_active', true))
-            ->when($request->string('status') == 'inactive', fn ($q) => $q->where('is_active', false))
-            ->latest()
-            ->paginate(max(1, min(100, $request->integer('per_page', 10))))
+            ->when($request->string('status') == 'inactive', fn ($q) => $q->where('is_active', false));
+
+        $sortBy = $request->input('sort_by');
+        $sortDir = strtolower((string) ($request->input('sort_dir', $request->input('sort_direction', 'desc')))) === 'asc' ? 'asc' : 'desc';
+        if (in_array($sortBy, ['name', 'code', 'price_cents', 'cost_cents', 'stock_qty', 'created_at'], true)) {
+            $products->orderBy($sortBy, $sortDir);
+        } else {
+            $products->latest();
+        }
+
+        $products = $products->paginate(max(1, min(100, $request->integer('per_page', 10))))
             ->withQueryString();
 
         if ($request->expectsJson()) {

@@ -234,30 +234,30 @@ export default function Dashboard({ platform = false }) {
                         }}
                     >
                         {/* Custom Date Range */}
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
-                                {t('From Date')}
+                        <div className="field" style={{ margin: 0 }}>
+                            <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-heading, #0f172a)', marginBottom: '4px' }}>
+                                📅 {t('From Date')}
                             </label>
-                            <input type="date" name="from" defaultValue={from || data?.from || ''} style={{ width: '100%', padding: '7px 10px', fontSize: '13px' }} />
+                            <input type="date" name="from" defaultValue={from || data?.from || ''} style={{ width: '100%' }} />
                         </div>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
-                                {t('To Date')}
+                        <div className="field" style={{ margin: 0 }}>
+                            <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-heading, #0f172a)', marginBottom: '4px' }}>
+                                📅 {t('To Date')}
                             </label>
-                            <input type="date" name="to" defaultValue={to || data?.to || ''} style={{ width: '100%', padding: '7px 10px', fontSize: '13px' }} />
+                            <input type="date" name="to" defaultValue={to || data?.to || ''} style={{ width: '100%' }} />
                         </div>
 
                         {/* Searchable Staff Selector (Owner Controls) */}
                         {canViewAllStaff && (
-                            <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
+                            <div className="field" style={{ margin: 0 }}>
+                                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-heading, #0f172a)', marginBottom: '4px' }}>
                                     👤 {t('Staff Member')}
                                 </label>
                                 <select
                                     name="staff_id"
                                     value={staffId}
                                     onChange={(e) => updateFilter({ staff_id: e.target.value })}
-                                    style={{ width: '100%', padding: '7px 10px', fontSize: '13px' }}
+                                    style={{ width: '100%' }}
                                 >
                                     <option value="">{t('👥 All Staff (Aggregated)')}</option>
                                     {(lookups.staff || []).map((s) => (
@@ -270,15 +270,15 @@ export default function Dashboard({ platform = false }) {
                         )}
 
                         {/* Branch / Warehouse */}
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
+                        <div className="field" style={{ margin: 0 }}>
+                            <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-heading, #0f172a)', marginBottom: '4px' }}>
                                 🏢 {t('Branch / Warehouse')}
                             </label>
                             <select
                                 name="warehouse_id"
                                 value={warehouseId}
                                 onChange={(e) => updateFilter({ warehouse_id: e.target.value })}
-                                style={{ width: '100%', padding: '7px 10px', fontSize: '13px' }}
+                                style={{ width: '100%' }}
                             >
                                 <option value="">{t('All Warehouses')}</option>
                                 {(lookups.warehouses || []).map((w) => (
@@ -288,15 +288,15 @@ export default function Dashboard({ platform = false }) {
                         </div>
 
                         {/* Payment Method */}
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
+                        <div className="field" style={{ margin: 0 }}>
+                            <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-heading, #0f172a)', marginBottom: '4px' }}>
                                 💳 {t('Payment Method')}
                             </label>
                             <select
                                 name="payment_method"
                                 value={paymentMethod}
                                 onChange={(e) => updateFilter({ payment_method: e.target.value })}
-                                style={{ width: '100%', padding: '7px 10px', fontSize: '13px' }}
+                                style={{ width: '100%' }}
                             >
                                 <option value="">{t('All Methods')}</option>
                                 {(lookups.payment_methods || []).map((pm) => (
@@ -306,15 +306,15 @@ export default function Dashboard({ platform = false }) {
                         </div>
 
                         {/* Filter Buttons */}
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button className="btn primary" type="submit" style={{ padding: '8px 16px', fontSize: '13px' }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                            <button className="btn primary" type="submit" style={{ flex: 1 }}>
                                 {t('Apply')}
                             </button>
                             <button
                                 className="btn"
                                 type="button"
                                 onClick={resetFilters}
-                                style={{ padding: '8px 14px', fontSize: '13px' }}
+                                style={{ flex: 1 }}
                             >
                                 {t('Reset')}
                             </button>
@@ -330,19 +330,19 @@ export default function Dashboard({ platform = false }) {
                                 gap: '12px',
                                 marginTop: '14px',
                                 paddingTop: '14px',
-                                borderTop: '1px solid var(--border)',
+                                borderTop: '1px solid var(--line, #e2e8f0)',
                             }}
                         >
                             {canViewAllStaff && (
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
-                                        {t('Role')}
+                                <div className="field" style={{ margin: 0 }}>
+                                    <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-heading, #0f172a)', marginBottom: '4px' }}>
+                                        🛡️ {t('Role')}
                                     </label>
                                     <select
                                         name="role_id"
                                         value={roleId}
                                         onChange={(e) => updateFilter({ role_id: e.target.value })}
-                                        style={{ width: '100%', padding: '7px 10px', fontSize: '13px' }}
+                                        style={{ width: '100%' }}
                                     >
                                         <option value="">{t('All Roles')}</option>
                                         {(lookups.roles || []).map((r) => (
@@ -352,15 +352,15 @@ export default function Dashboard({ platform = false }) {
                                 </div>
                             )}
 
-                            <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
-                                    {t('Product Category')}
+                            <div className="field" style={{ margin: 0 }}>
+                                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-heading, #0f172a)', marginBottom: '4px' }}>
+                                    📦 {t('Product Category')}
                                 </label>
                                 <select
                                     name="category_id"
                                     value={categoryId}
                                     onChange={(e) => updateFilter({ category_id: e.target.value })}
-                                    style={{ width: '100%', padding: '7px 10px', fontSize: '13px' }}
+                                    style={{ width: '100%' }}
                                 >
                                     <option value="">{t('All Categories')}</option>
                                     {(lookups.categories || []).map((c) => (
@@ -369,15 +369,15 @@ export default function Dashboard({ platform = false }) {
                                 </select>
                             </div>
 
-                            <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
-                                    {t('Customer')}
+                            <div className="field" style={{ margin: 0 }}>
+                                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-heading, #0f172a)', marginBottom: '4px' }}>
+                                    👥 {t('Customer')}
                                 </label>
                                 <select
                                     name="customer_id"
                                     value={customerId}
                                     onChange={(e) => updateFilter({ customer_id: e.target.value })}
-                                    style={{ width: '100%', padding: '7px 10px', fontSize: '13px' }}
+                                    style={{ width: '100%' }}
                                 >
                                     <option value="">{t('All Customers')}</option>
                                     {(lookups.customers || []).map((c) => (
@@ -386,15 +386,15 @@ export default function Dashboard({ platform = false }) {
                                 </select>
                             </div>
 
-                            <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
-                                    {t('Payment Status')}
+                            <div className="field" style={{ margin: 0 }}>
+                                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-heading, #0f172a)', marginBottom: '4px' }}>
+                                    📑 {t('Payment Status')}
                                 </label>
                                 <select
                                     name="payment_status"
                                     value={paymentStatus}
                                     onChange={(e) => updateFilter({ payment_status: e.target.value })}
-                                    style={{ width: '100%', padding: '7px 10px', fontSize: '13px' }}
+                                    style={{ width: '100%' }}
                                 >
                                     <option value="">{t('All Statuses')}</option>
                                     <option value="paid">{t('Paid in Full')}</option>

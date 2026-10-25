@@ -25,7 +25,7 @@ class PurchaseController extends Controller
 
         // Sorting
         $sortBy = $request->input('sort_by', 'purchased_on');
-        $sortDirection = strtolower($request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $sortDirection = strtolower((string) ($request->input('sort_direction') ?? $request->input('sort_dir', 'desc'))) === 'asc' ? 'asc' : 'desc';
 
         if ($sortBy === 'supplier') {
             $query->leftJoin('suppliers', 'purchases.supplier_id', '=', 'suppliers.id')
@@ -446,8 +446,9 @@ class PurchaseController extends Controller
         $query = Purchase::with(['supplier', 'user', 'warehouse', 'items']);
 
         // Universal search box
-        if ($request->filled('q')) {
-            $term = trim((string) $request->input('q'));
+        $rawSearch = $request->input('search') ?? $request->input('q');
+        if ($rawSearch !== null && trim((string) $rawSearch) !== '') {
+            $term = trim((string) $rawSearch);
             $lowerTerm = strtolower($term);
 
             $query->where(function (Builder $builder) use ($term, $lowerTerm) {
@@ -541,11 +542,13 @@ class PurchaseController extends Controller
         } elseif ($preset === 'this_month') {
             $query->whereBetween('purchased_on', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()]);
         } else {
-            if ($request->filled('from')) {
-                $query->whereDate('purchased_on', '>=', $request->input('from'));
+            $fromDate = $request->input('from') ?? $request->input('from_date');
+            if ($fromDate) {
+                $query->whereDate('purchased_on', '>=', $fromDate);
             }
-            if ($request->filled('to')) {
-                $query->whereDate('purchased_on', '<=', $request->input('to'));
+            $toDate = $request->input('to') ?? $request->input('to_date');
+            if ($toDate) {
+                $query->whereDate('purchased_on', '<=', $toDate);
             }
         }
 

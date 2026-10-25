@@ -803,7 +803,7 @@ export default function PurchaseList() {
                             >
                                 {/* Date Range Preset */}
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--muted)' }}>
                                         {t('Date Range')}
                                     </label>
                                     <select
@@ -812,7 +812,7 @@ export default function PurchaseList() {
                                             setDatePreset(e.target.value);
                                             setPage(1);
                                         }}
-                                        style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                        style={{ width: '100%' }}
                                     >
                                         <option value="">{t('All Time')}</option>
                                         <option value="today">{t('Today')}</option>
@@ -825,7 +825,7 @@ export default function PurchaseList() {
 
                                 {/* From Date */}
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--muted)' }}>
                                         {t('From Date')}
                                     </label>
                                     <input
@@ -836,13 +836,13 @@ export default function PurchaseList() {
                                             setDatePreset('custom');
                                             setPage(1);
                                         }}
-                                        style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                        style={{ width: '100%' }}
                                     />
                                 </div>
 
                                 {/* To Date */}
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--muted)' }}>
                                         {t('To Date')}
                                     </label>
                                     <input
@@ -853,13 +853,13 @@ export default function PurchaseList() {
                                             setDatePreset('custom');
                                             setPage(1);
                                         }}
-                                        style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                        style={{ width: '100%' }}
                                     />
                                 </div>
 
                                 {/* Supplier Filter */}
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--muted)' }}>
                                         {t('Supplier')}
                                     </label>
                                     <select
@@ -868,7 +868,7 @@ export default function PurchaseList() {
                                             setSupplierId(e.target.value);
                                             setPage(1);
                                         }}
-                                        style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                        style={{ width: '100%' }}
                                     >
                                         <option value="">{t('All Suppliers')}</option>
                                         {filtersData.suppliers.map((s) => (
@@ -881,7 +881,7 @@ export default function PurchaseList() {
 
                                 {/* Warehouse Filter */}
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--muted)' }}>
                                         {t('Warehouse')}
                                     </label>
                                     <select
@@ -890,7 +890,7 @@ export default function PurchaseList() {
                                             setWarehouseId(e.target.value);
                                             setPage(1);
                                         }}
-                                        style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                        style={{ width: '100%' }}
                                     >
                                         <option value="">{t('All Warehouses')}</option>
                                         {filtersData.warehouses.map((w) => (
@@ -903,7 +903,7 @@ export default function PurchaseList() {
 
                                 {/* Purchase Status */}
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--muted)' }}>
                                         {t('Purchase Status')}
                                     </label>
                                     <select
@@ -912,7 +912,7 @@ export default function PurchaseList() {
                                             setStatus(e.target.value);
                                             setPage(1);
                                         }}
-                                        style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                        style={{ width: '100%' }}
                                     >
                                         <option value="">{t('All Statuses')}</option>
                                         <option value="received">{t('Received')}</option>
@@ -922,7 +922,7 @@ export default function PurchaseList() {
 
                                 {/* Payment Status */}
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--muted)' }}>
                                         {t('Payment Status')}
                                     </label>
                                     <select
@@ -931,7 +931,7 @@ export default function PurchaseList() {
                                             setPaymentStatus(e.target.value);
                                             setPage(1);
                                         }}
-                                        style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                        style={{ width: '100%' }}
                                     >
                                         <option value="">{t('All Payment Statuses')}</option>
                                         <option value="paid">{t('Fully Paid')}</option>
@@ -944,46 +944,46 @@ export default function PurchaseList() {
 
                                 {/* Min & Max Amount */}
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--muted)' }}>
                                         {t('Total Amount Range (BDT)')}
                                     </label>
-                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
                                         <input
                                             type="number"
                                             placeholder={t('Min')}
                                             value={minAmount}
                                             onChange={(e) => setMinAmount(e.target.value)}
-                                            style={{ width: '50%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                            style={{ width: '50%' }}
                                         />
                                         <input
                                             type="number"
                                             placeholder={t('Max')}
                                             value={maxAmount}
                                             onChange={(e) => setMaxAmount(e.target.value)}
-                                            style={{ width: '50%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                            style={{ width: '50%' }}
                                         />
                                     </div>
                                 </div>
 
                                 {/* Min & Max Due */}
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--muted)' }}>
                                         {t('Outstanding Due Range (BDT)')}
                                     </label>
-                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
                                         <input
                                             type="number"
                                             placeholder={t('Min Due')}
                                             value={minDue}
                                             onChange={(e) => setMinDue(e.target.value)}
-                                            style={{ width: '50%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                            style={{ width: '50%' }}
                                         />
                                         <input
                                             type="number"
                                             placeholder={t('Max Due')}
                                             value={maxDue}
                                             onChange={(e) => setMaxDue(e.target.value)}
-                                            style={{ width: '50%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                            style={{ width: '50%' }}
                                         />
                                     </div>
                                 </div>
@@ -1605,10 +1605,7 @@ function RecordPaymentModal({ purchase, accounts, onClose, onSuccess }) {
                             onChange={(e) => setAmount(e.target.value)}
                             style={{
                                 width: '100%',
-                                padding: '8px 12px',
-                                borderRadius: '6px',
-                                border: '1px solid #cbd5e1',
-                                fontSize: '1rem',
+                                fontSize: '1.05rem',
                                 fontWeight: 700,
                             }}
                         />
@@ -1616,13 +1613,13 @@ function RecordPaymentModal({ purchase, accounts, onClose, onSuccess }) {
 
                     {/* Payment Account */}
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>
+                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
                             {t('Paid From Account *')}
                         </label>
                         <select
                             value={accountId}
                             onChange={(e) => setAccountId(e.target.value)}
-                            style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                            style={{ width: '100%' }}
                         >
                             {accounts.map((acc) => (
                                 <option key={acc.id} value={acc.id}>
@@ -1635,13 +1632,13 @@ function RecordPaymentModal({ purchase, accounts, onClose, onSuccess }) {
                     {/* Method & Date */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                         <div>
-                            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>
+                            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
                                 {t('Payment Method')}
                             </label>
                             <select
                                 value={paymentMethod}
                                 onChange={(e) => setPaymentMethod(e.target.value)}
-                                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                style={{ width: '100%' }}
                             >
                                 <option value="Cash">{t('Cash')}</option>
                                 <option value="Bank Transfer">{t('Bank Transfer')}</option>
@@ -1653,21 +1650,21 @@ function RecordPaymentModal({ purchase, accounts, onClose, onSuccess }) {
                         </div>
 
                         <div>
-                            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>
+                            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
                                 {t('Payment Date')}
                             </label>
                             <input
                                 type="date"
                                 value={paidAt}
                                 onChange={(e) => setPaidAt(e.target.value)}
-                                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                style={{ width: '100%' }}
                             />
                         </div>
                     </div>
 
                     {/* Note */}
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>
+                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
                             {t('Notes / Reference')}
                         </label>
                         <input
@@ -1675,7 +1672,7 @@ function RecordPaymentModal({ purchase, accounts, onClose, onSuccess }) {
                             placeholder={t('e.g. Cheque # or Bank Txn ID')}
                             value={note}
                             onChange={(e) => setNote(e.target.value)}
-                            style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                            style={{ width: '100%' }}
                         />
                     </div>
 

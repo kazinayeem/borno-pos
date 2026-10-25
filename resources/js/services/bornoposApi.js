@@ -69,7 +69,13 @@ export const bornoposApi = createApi({
             invalidatesTags: [{ type: 'Products', id: 'LIST' }, 'Pos', 'Dashboard'],
         }),
         getCatalog: builder.query({
-            query: ({ endpoint, page = 1, q = '' }) => `${endpoint}${queryString({ page, q })}`,
+            query: ({ endpoint, page = 1, q = '', search = '', per_page }) => {
+                const queryObj = { page };
+                const s = search || q;
+                if (s) queryObj.q = s;
+                if (per_page) queryObj.per_page = per_page;
+                return `${endpoint}${queryString(queryObj)}`;
+            },
             providesTags: (result, error, { endpoint }) => [{ type: 'Catalog', id: endpoint }],
         }),
         saveCatalog: builder.mutation({
@@ -97,7 +103,14 @@ export const bornoposApi = createApi({
             invalidatesTags: ['Pos', 'Sales', 'Products', 'Dashboard'],
         }),
         getSales: builder.query({
-            query: ({ drafts, page = 1, q = '' }) => `${drafts ? '/sales/draft' : '/sales'}${queryString({ page, q })}`,
+            query: ({ drafts, page = 1, q = '', search = '', per_page, status }) => {
+                const queryObj = { page };
+                const s = search || q;
+                if (s) queryObj.q = s;
+                if (per_page) queryObj.per_page = per_page;
+                if (status) queryObj.status = status;
+                return `${drafts ? '/sales/draft' : '/sales'}${queryString(queryObj)}`;
+            },
             providesTags: ['Sales'],
         }),
         getSale: builder.query({

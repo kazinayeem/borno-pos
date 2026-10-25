@@ -327,7 +327,14 @@ export default function ProductForm({ readOnly = false }) {
                 )}
 
                 {readOnly && active === 'pricing' && <p className="muted wide">Selling price {money(Math.round(Number(form.price || 0) * 100))} · Cost {money(Math.round(Number(form.cost || 0) * 100))}</p>}
-                {!readOnly && <div className="wide actions"><button className="btn primary" type="submit" disabled={saveState.isLoading}>{saveState.isLoading ? t('Loading') : 'Save product'}</button></div>}
+                {!readOnly && (
+                    <div className="wide actions" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                        <Link to="/products" className="btn">{t('Cancel')}</Link>
+                        <button className="btn primary" type="submit" disabled={saveState.isLoading}>
+                            {saveState.isLoading ? t('Loading') : t('Save product')}
+                        </button>
+                    </div>
+                )}
             </form>
         </>
     );

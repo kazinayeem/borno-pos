@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, money } from '../api';
 import { useT } from '../i18n';
+import { Modal, PrimaryButton, SecondaryButton } from '../components/ui';
 
 export function AttendancePage() {
     const t = useT();
@@ -152,47 +153,48 @@ export function AttendancePage() {
                 )}
             </section>
 
-            {showModal && (
-                <div className="modal-backdrop" onClick={() => setShowModal(false)}>
-                    <div className="modal card" style={{ maxWidth: '480px', margin: '40px auto' }} onClick={(e) => e.stopPropagation()}>
-                        <h2>{t('Record Staff Attendance')}</h2>
-                        <form onSubmit={handleSave}>
-                            <div className="field">
-                                <label>{t('Employee')}</label>
-                                <select value={targetEmp} onChange={(e) => setTargetEmp(e.target.value)} required>
-                                    {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="field">
-                                <label>{t('Date')}</label>
-                                <input type="date" value={attendedOn} onChange={(e) => setAttendedOn(e.target.value)} required />
-                            </div>
-                            <div className="field">
-                                <label>{t('Status')}</label>
-                                <select value={attStatus} onChange={(e) => setAttStatus(e.target.value)} required>
-                                    <option value="present">{t('Present')}</option>
-                                    <option value="absent">{t('Absent')}</option>
-                                    <option value="leave">{t('Leave')}</option>
-                                </select>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                                <div className="field">
-                                    <label>{t('Check In (HH:MM)')}</label>
-                                    <input type="time" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
-                                </div>
-                                <div className="field">
-                                    <label>{t('Check Out (HH:MM)')}</label>
-                                    <input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-                                <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('Cancel')}</button>
-                                <button type="submit" className="btn primary">{t('Save Attendance')}</button>
-                            </div>
-                        </form>
+            <Modal
+                isOpen={showModal}
+                onClose={() => setShowModal(false)}
+                title={t('Record Staff Attendance')}
+                icon="🕒"
+                size="sm"
+            >
+                <form onSubmit={handleSave}>
+                    <div className="field">
+                        <label>{t('Employee')}</label>
+                        <select value={targetEmp} onChange={(e) => setTargetEmp(e.target.value)} required>
+                            {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                        </select>
                     </div>
-                </div>
-            )}
+                    <div className="field">
+                        <label>{t('Date')}</label>
+                        <input type="date" value={attendedOn} onChange={(e) => setAttendedOn(e.target.value)} required />
+                    </div>
+                    <div className="field">
+                        <label>{t('Status')}</label>
+                        <select value={attStatus} onChange={(e) => setAttStatus(e.target.value)} required>
+                            <option value="present">{t('Present')}</option>
+                            <option value="absent">{t('Absent')}</option>
+                            <option value="leave">{t('Leave')}</option>
+                        </select>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div className="field">
+                            <label>{t('Check In (HH:MM)')}</label>
+                            <input type="time" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
+                        </div>
+                        <div className="field">
+                            <label>{t('Check Out (HH:MM)')}</label>
+                            <input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                        <SecondaryButton type="button" onClick={() => setShowModal(false)}>{t('Cancel')}</SecondaryButton>
+                        <PrimaryButton type="submit">{t('Save Attendance')}</PrimaryButton>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 }
@@ -356,41 +358,42 @@ export function PayrollsPage() {
                 )}
             </section>
 
-            {showModal && (
-                <div className="modal-backdrop" onClick={() => setShowModal(false)}>
-                    <div className="modal card" style={{ maxWidth: '480px', margin: '40px auto' }} onClick={(e) => e.stopPropagation()}>
-                        <h2>{t('Disburse Staff Salary')}</h2>
-                        <form onSubmit={handleSave}>
-                            <div className="field">
-                                <label>{t('Employee')}</label>
-                                <select value={targetEmp} onChange={(e) => onSelectEmployee(e.target.value)} required>
-                                    {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="field">
-                                <label>{t('Salary Month')}</label>
-                                <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} required />
-                            </div>
-                            <div className="field">
-                                <label>{t('Amount')}</label>
-                                <input type="number" step="0.01" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} required />
-                            </div>
-                            <div className="field">
-                                <label>{t('Payment Date')}</label>
-                                <input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} required />
-                            </div>
-                            <div className="field">
-                                <label>{t('Note')}</label>
-                                <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Bank transfer reference" />
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-                                <button type="button" className="btn" onClick={() => setShowModal(false)}>{t('Cancel')}</button>
-                                <button type="submit" className="btn primary">{t('Record Payment')}</button>
-                            </div>
-                        </form>
+            <Modal
+                isOpen={showModal}
+                onClose={() => setShowModal(false)}
+                title={t('Disburse Staff Salary')}
+                icon="💵"
+                size="sm"
+            >
+                <form onSubmit={handleSave}>
+                    <div className="field">
+                        <label>{t('Employee')}</label>
+                        <select value={targetEmp} onChange={(e) => onSelectEmployee(e.target.value)} required>
+                            {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                        </select>
                     </div>
-                </div>
-            )}
+                    <div className="field">
+                        <label>{t('Salary Month')}</label>
+                        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} required />
+                    </div>
+                    <div className="field">
+                        <label>{t('Amount')}</label>
+                        <input type="number" step="0.01" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+                    </div>
+                    <div className="field">
+                        <label>{t('Payment Date')}</label>
+                        <input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} required />
+                    </div>
+                    <div className="field">
+                        <label>{t('Note')}</label>
+                        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Bank transfer reference" />
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                        <SecondaryButton type="button" onClick={() => setShowModal(false)}>{t('Cancel')}</SecondaryButton>
+                        <PrimaryButton type="submit">{t('Record Payment')}</PrimaryButton>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 }
