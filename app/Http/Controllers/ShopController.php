@@ -210,7 +210,10 @@ class ShopController extends Controller
     {
         if ($request->expectsJson()) {
             return response()->json([
+                'success' => true,
                 'title' => 'System Guided Tour & Onboarding',
+                'message' => 'Guided tour center',
+                'route' => '/tour',
             ]);
         }
 
