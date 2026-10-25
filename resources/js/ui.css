@@ -1993,3 +1993,561 @@ html.dark nav[role="navigation"] span.relative {
   border-color: #2a3548;
   color: #e5e7eb;
 }
+
+/* ==========================================================================
+   BornoPos Responsive & Mobile Optimization (Desktop, Tablet, Mobile)
+   ========================================================================== */
+
+/* Universal Touch & Scrolling Enhancement */
+.card:has(table), .table-responsive, .table-card, .table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Sidebar Brand Row & Mobile Drawer Close */
+.sidebar-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+.sidebar-close-btn {
+  display: none;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 8px 12px;
+  line-height: 1;
+  border-radius: 8px;
+}
+.sidebar-close-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+}
+html.dark .sidebar-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Global Search Dropdown Mobile Overlay */
+@media (max-width: 768px) {
+  .global-search-dropdown {
+    position: fixed !important;
+    top: 62px !important;
+    left: 10px !important;
+    right: 10px !important;
+    max-height: calc(100vh - 80px) !important;
+    width: auto !important;
+  }
+}
+
+/* Responsive Pagination */
+.pagination-pages-mobile {
+  display: none;
+}
+@media (max-width: 640px) {
+  .pagination-pages-desktop {
+    display: none !important;
+  }
+  .pagination-pages-mobile {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+  }
+  .pagination-bar {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+}
+
+/* Mobile Modal Enhancements */
+@media (max-width: 640px) {
+  .bp-modal-backdrop {
+    padding: 8px !important;
+  }
+  .bp-modal {
+    max-height: calc(100vh - 16px) !important;
+    border-radius: 14px !important;
+    width: 100% !important;
+  }
+  .bp-modal > div:last-child {
+    flex-wrap: wrap !important;
+  }
+  .bp-modal > div:last-child > * {
+    flex: 1 1 auto;
+    min-height: 40px;
+  }
+}
+
+/* Mobile Input Zoom Prevention (iOS 16px threshold) */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* ==========================================================================
+   Mobile POS (Highest Priority Workflow)
+   ========================================================================== */
+
+/* Top Camera Button */
+.pos-top-camera-btn {
+  background: var(--blue) !important;
+  color: #fff !important;
+  border-color: var(--blue) !important;
+  font-weight: 700 !important;
+}
+
+/* Mobile View Switcher Tab Bar */
+.pos-mobile-nav-switcher {
+  display: none;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.pos-mobile-nav-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pos-mobile-nav-btn.active {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(47, 128, 237, 0.3);
+}
+
+.pos-mobile-badge {
+  background: var(--bg);
+  color: var(--text);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-weight: 800;
+}
+.pos-mobile-nav-btn.active .pos-mobile-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.pos-mobile-badge-units {
+  background: #16a34a;
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-weight: 800;
+}
+
+/* In-Cart Count Pill on Product Cards */
+.pos-incart-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.4);
+  z-index: 2;
+}
+
+/* Mobile Floating Cart Action Bar (Catalog View) */
+.pos-mobile-floating-cart-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #0f172a;
+  color: #fff;
+  border-radius: 14px;
+  padding: 10px 14px;
+  margin-top: 8px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.35);
+  flex-shrink: 0;
+  animation: page-in 0.2s ease;
+}
+
+html.dark .pos-mobile-floating-cart-bar {
+  background: #1e293b;
+  border: 1px solid #334155;
+}
+
+.pos-mobile-floating-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pos-mobile-cart-circle {
+  background: var(--blue);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 6px 10px;
+  border-radius: 20px;
+}
+
+.pos-mobile-floating-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.pos-mobile-floating-text strong {
+  font-size: 16px;
+  color: #fff;
+}
+
+.pos-mobile-floating-text small {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.pos-mobile-checkout-now-btn {
+  background: #16a34a;
+  color: #fff;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 13px;
+  padding: 9px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.4);
+}
+
+/* Mobile Cart Back Navigation Row */
+.pos-mobile-cart-back-row {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* Quick Cash Tender Row */
+.pos-quick-cash-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0 4px;
+}
+
+.pos-quick-cash-chip {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s ease;
+}
+
+.pos-quick-cash-chip:hover,
+.pos-quick-cash-chip:active {
+  background: rgba(47, 128, 237, 0.1);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+/* Camera Barcode Scanner Modal */
+.pos-scanner-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  animation: page-in 0.2s ease;
+}
+
+.pos-scanner-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.pos-scanner-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card-head);
+}
+
+.pos-scanner-viewport-wrap {
+  position: relative;
+  width: 100%;
+  background: #000;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pos-scanner-viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pos-scanner-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pos-scanner-reticle {
+  position: absolute;
+  inset: 15%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pos-scanner-laser {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+  animation: scan-laser 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes scan-laser {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(160px); }
+}
+
+.pos-scanner-no-camera {
+  color: #fff;
+  text-align: center;
+  padding: 24px;
+}
+
+.pos-scanner-feedback {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  background: #fef2f2;
+  color: #dc2626;
+  border-bottom: 1px solid #fee2e2;
+  text-align: center;
+}
+
+.pos-scanner-feedback.ok {
+  background: #f0fdf4;
+  color: #16a34a;
+  border-bottom-color: #dcfce7;
+}
+
+.pos-scanner-manual-row {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.pos-scanner-manual-row input {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 15px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.pos-scanner-footer {
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--line);
+}
+
+/* ==========================================================================
+   Responsive Breakpoints for POS & Shell
+   ========================================================================== */
+
+@media (max-width: 1023px) {
+  .pos-container {
+    max-height: 100vh;
+    height: 100vh;
+    padding: 6px;
+  }
+  .pos-top-bar {
+    padding: 6px 10px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .pos-top-left .pos-clock {
+    display: none;
+  }
+  .pos-top-btn-text,
+  .pos-shortcuts-btn kbd,
+  .pos-fullscreen-btn kbd {
+    display: none;
+  }
+  .pos-mobile-nav-switcher {
+    display: flex;
+  }
+  .pos-shell {
+    display: flex;
+    flex-direction: column;
+    height: calc(100% - 96px);
+    min-height: 0;
+    overflow: hidden;
+  }
+  .pos-catalog {
+    display: none;
+    height: 100%;
+    max-height: 100%;
+    flex: 1;
+    padding: 8px;
+  }
+  .pos-catalog.mobile-active {
+    display: flex;
+  }
+  .cart {
+    display: none;
+    height: 100%;
+    max-height: 100%;
+    flex: 1;
+    padding: 8px;
+  }
+  .cart.mobile-active {
+    display: flex;
+  }
+  .pos-mobile-cart-back-row {
+    display: flex;
+  }
+  .pos-qty-stepper {
+    padding: 2px;
+    gap: 4px;
+  }
+  .pos-qty-btn {
+    width: 38px;
+    height: 38px;
+    font-size: 18px;
+  }
+  .pos-qty-input {
+    width: 40px;
+    height: 38px;
+    font-size: 16px;
+  }
+  .pos-del-btn {
+    min-width: 38px;
+    min-height: 38px;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pos-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  .pos-mobile-nav-switcher,
+  .pos-mobile-floating-cart-bar,
+  .pos-mobile-cart-back-row {
+    display: none !important;
+  }
+  .pos-catalog,
+  .cart {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .sidebar-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .pos-brand-pill span:last-child {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .product-tiles {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .tile {
+    padding: 8px;
+  }
+}
+
+/* Dark Mode Overrides for Mobile POS Elements */
+html.dark .pos-mobile-nav-switcher,
+html.dark .pos-scanner-card,
+html.dark .pos-scanner-head,
+html.dark .pos-quick-cash-chip {
+  background: #162033;
+  color: #e5e7eb;
+  border-color: #2a3548;
+}
+html.dark .pos-mobile-badge {
+  background: #0f172a;
+  color: #cbd5e1;
+}
+html.dark .pos-scanner-manual-row input {
+  background: #0f172a;
+  border-color: #2a3548;
+  color: #e5e7eb;
+}
+

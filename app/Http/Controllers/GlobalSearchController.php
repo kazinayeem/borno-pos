@@ -6,6 +6,9 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
+use App\Models\Store;
+use App\Models\SubscriptionInvoice;
+use App\Models\SubscriptionPayment;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -241,6 +244,86 @@ class GlobalSearchController extends Controller
             }
         }
 
+        // 8. Super Admin Platform Search: Shops, Invoices, Payments
+        if ($user->isSuperAdmin()) {
+            if (in_array($filterType, ['all', 'shops', 'shop', 'tenants'], true)) {
+                $shops = Store::withoutGlobalScopes()
+                    ->where(function ($q) use ($term) {
+                        $q->where('name', 'like', "%{$term}%")
+                            ->orWhere('slug', 'like', "%{$term}%")
+                            ->orWhere('email', 'like', "%{$term}%")
+                            ->orWhere('phone', 'like', "%{$term}%")
+                            ->orWhere('subscription_status', 'like', "%{$term}%")
+                            ->orWhereHas('owner', fn ($oq) => $oq->where('name', 'like', "%{$term}%"));
+                    })
+                    ->with('owner')
+                    ->limit(6)
+                    ->get();
+
+                foreach ($shops as $s) {
+                    $results[] = [
+                        'id' => 'shop-'.$s->id,
+                        'type' => 'shops',
+                        'category' => 'Shop / Tenant',
+                        'title' => $s->name,
+                        'subtitle' => 'Status: '.ucfirst($s->subscription_status).' · Owner: '.($s->owner?->name ?: 'N/A').' · Phone: '.($s->phone ?: 'N/A'),
+                        'badge' => ucfirst($s->subscription_status),
+                        'url' => '/stores',
+                        'icon' => '🏬',
+                    ];
+                }
+            }
+
+            if (in_array($filterType, ['all', 'payments', 'payment'], true)) {
+                $subPayments = SubscriptionPayment::withoutGlobalScopes()
+                    ->where(function ($q) use ($term) {
+                        $q->where('transaction_id', 'like', "%{$term}%")
+                            ->orWhere('sender_phone', 'like', "%{$term}%")
+                            ->orWhereHas('store', fn ($sq) => $sq->where('name', 'like', "%{$term}%"));
+                    })
+                    ->with('store')
+                    ->limit(6)
+                    ->get();
+
+                foreach ($subPayments as $pmt) {
+                    $results[] = [
+                        'id' => 'sub-payment-'.$pmt->id,
+                        'type' => 'payments',
+                        'category' => 'Subscription Payment',
+                        'title' => 'TrxID: '.$pmt->transaction_id,
+                        'subtitle' => 'Shop: '.($pmt->store?->name ?: 'N/A').' · Method: '.strtoupper($pmt->payment_method).' · Amount: ৳'.number_format($pmt->amount_cents / 100, 2),
+                        'badge' => ucfirst($pmt->status),
+                        'url' => '/dashboard',
+                        'icon' => '💳',
+                    ];
+                }
+            }
+
+            if (in_array($filterType, ['all', 'invoices', 'invoice'], true)) {
+                $subInvoices = SubscriptionInvoice::withoutGlobalScopes()
+                    ->where(function ($q) use ($term) {
+                        $q->where('invoice_no', 'like', "%{$term}%")
+                            ->orWhereHas('store', fn ($sq) => $sq->where('name', 'like', "%{$term}%"));
+                    })
+                    ->with('store')
+                    ->limit(6)
+                    ->get();
+
+                foreach ($subInvoices as $inv) {
+                    $results[] = [
+                        'id' => 'sub-invoice-'.$inv->id,
+                        'type' => 'invoices',
+                        'category' => 'Subscription Invoice',
+                        'title' => 'Invoice: '.$inv->invoice_no,
+                        'subtitle' => 'Shop: '.($inv->store?->name ?: 'N/A').' · Total: ৳'.number_format($inv->total_cents / 100, 2),
+                        'badge' => ucfirst($inv->status),
+                        'url' => '/subscription/report',
+                        'icon' => '🧾',
+                    ];
+                }
+            }
+        }
+
         return response()->json([
             'query' => $term,
             'total' => count($results),
@@ -270,6 +353,11 @@ class GlobalSearchController extends Controller
         }
         if ($user->isOwner() || $user->isSuperAdmin() || $user->canDo('reports.view')) {
             $cats['reports'] = 'Reports';
+        }
+        if ($user->isSuperAdmin()) {
+            $cats['shops'] = 'Shops';
+            $cats['payments'] = 'Payments';
+            $cats['invoices'] = 'Invoices';
         }
 
         return $cats;

@@ -110,10 +110,23 @@ export default function Shell({ children }) {
                 )}
             </AnimatePresence>
             <aside className={`sidebar ${ui.sidebar ? 'open' : ''}`} data-tour="sidebar">
-                <Link className="brand" to={user?.role === 'super_admin' ? '/dashboard' : '/store-dashboard'}>
-                    <Logo />
-                    <div><strong>BornoPos</strong><span>{t('Powering Your Business')}</span></div>
-                </Link>
+                <div className="sidebar-brand-row">
+                    <Link className="brand" to={user?.role === 'super_admin' ? '/dashboard' : '/store-dashboard'}>
+                        <Logo />
+                        <div><strong>BornoPos</strong><span>{t('Powering Your Business')}</span></div>
+                    </Link>
+                    <button
+                        type="button"
+                        className="sidebar-close-btn"
+                        aria-label={t('Close menu')}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            dispatch(closeSidebar());
+                        }}
+                    >
+                        ✕
+                    </button>
+                </div>
                 <nav className="nav" data-tour="sidebar-nav">
                     {items.map((item) => <Item key={item.label} item={item} path={location.pathname} />)}
                     <Link to="/tour" data-tour="nav-tour"><Icon name="chart" /><span>{t('Take a Tour')}</span></Link>

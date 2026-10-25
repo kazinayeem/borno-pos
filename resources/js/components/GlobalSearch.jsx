@@ -118,6 +118,7 @@ export default function GlobalSearch() {
                         onClick={() => setOpen(false)}
                     />
                     <div
+                        className="global-search-dropdown"
                         style={{
                             position: 'absolute',
                             top: '100%',

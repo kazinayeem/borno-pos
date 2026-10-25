@@ -14,8 +14,11 @@ use App\Models\SaleItem;
 use App\Models\SaleReturn;
 use App\Models\SaleReturnItem;
 use App\Models\ShopRole;
+use App\Models\Plan;
 use App\Models\Store;
 use App\Models\Subscription;
+use App\Models\SubscriptionInvoice;
+use App\Models\SubscriptionPayment;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Database\Eloquent\Builder;
@@ -250,17 +253,166 @@ class DashboardService
 
     public function platform(Carbon $from, Carbon $to): array
     {
-        $subs = Subscription::query()
-            ->whereBetween('created_at', [$from, $to]);
+        $approvedPaymentsCents = (int) SubscriptionPayment::where('status', 'approved')
+            ->whereBetween('created_at', [$from, $to])
+            ->sum('amount_cents');
+
+        $legacyPaidCents = (int) Subscription::where('payment_status', 'paid')
+            ->whereDoesntHave('payments')
+            ->whereBetween('created_at', [$from, $to])
+            ->sum('amount_cents');
+
+        $totalRevenueCents = $approvedPaymentsCents + $legacyPaidCents;
+
+        $totalShops = Store::whereNull('parent_id')->count();
+        $activeShops = Store::whereNull('parent_id')
+            ->where('is_active', true)
+            ->where('subscription_status', 'active')
+            ->count();
+
+        $trialShops = Store::whereNull('parent_id')
+            ->where('subscription_status', 'trial')
+            ->count();
+
+        $expiredSubs = Store::whereNull('parent_id')
+            ->where(function ($q) {
+                $q->where('subscription_status', 'expired')
+                    ->orWhere(fn ($sq) => $sq->whereNotNull('subscription_expires_at')->where('subscription_expires_at', '<', now()));
+            })
+            ->count();
+
+        $suspendedShops = Store::whereNull('parent_id')
+            ->where(function ($q) {
+                $q->where('subscription_status', 'suspended')
+                    ->orWhereNotNull('suspended_at')
+                    ->orWhere('is_active', false);
+            })
+            ->count();
+
+        $totalSubscribers = User::where('role', 'owner')->count();
+        $activeSubscriptions = Subscription::where('status', 'active')->count();
+
+        $expiringSoon = Store::whereNull('parent_id')
+            ->where('subscription_status', 'active')
+            ->whereBetween('subscription_expires_at', [now(), now()->addDays(7)])
+            ->count();
+
+        $paymentsPending = SubscriptionPayment::where('status', 'pending')->count();
+        $paymentsApproved = SubscriptionPayment::where('status', 'approved')->whereBetween('created_at', [$from, $to])->count();
+        $paymentsRejected = SubscriptionPayment::where('status', 'rejected')->whereBetween('created_at', [$from, $to])->count();
+
+        $outstandingInvoicesCents = (int) SubscriptionInvoice::whereIn('status', ['unpaid', 'overdue', 'partially_paid'])
+            ->sum('due_cents');
+
+        $plans = Plan::withCount(['stores as subscribers_count'])->get();
+        $totalSubscribedStores = max(1, $plans->sum('subscribers_count'));
+        $planDistribution = $plans->map(fn ($p) => [
+            'id' => $p->id,
+            'name' => $p->name,
+            'count' => $p->subscribers_count,
+            'percent' => (int) round(($p->subscribers_count / $totalSubscribedStores) * 100),
+            'price_cents' => $p->price_cents,
+        ]);
+
+        $paymentMethods = SubscriptionPayment::where('status', 'approved')
+            ->selectRaw('payment_method, count(*) as count, sum(amount_cents) as total_cents')
+            ->groupBy('payment_method')
+            ->get();
+
+        $flow = $this->platformFlow($from, $to);
+
+        $pendingQueue = SubscriptionPayment::with(['store', 'plan', 'user'])
+            ->where('status', 'pending')
+            ->latest()
+            ->limit(6)
+            ->get();
+
+        $recentShops = Store::with(['owner', 'plan'])
+            ->whereNull('parent_id')
+            ->latest()
+            ->limit(6)
+            ->get();
+
+        $recentPayments = SubscriptionPayment::with(['store', 'plan', 'user'])
+            ->latest()
+            ->limit(8)
+            ->get();
 
         return [
-            'subscription_sale' => (int) (clone $subs)->where('payment_status', 'paid')->sum('amount_cents'),
-            'subscribers' => (int) (clone $subs)->where('status', 'active')->count(),
+            // Comprehensive SaaS KPIs
+            'total_shops' => $totalShops,
+            'active_shops' => $activeShops,
+            'trial_shops' => $trialShops,
+            'expired_subscriptions' => $expiredSubs,
+            'suspended_shops' => $suspendedShops,
+            'total_subscribers' => $totalSubscribers,
+            'active_subscriptions' => $activeSubscriptions,
+            'expiring_soon' => $expiringSoon,
+            'total_revenue' => $totalRevenueCents,
+            'payments_pending' => $paymentsPending,
+            'payments_approved' => $paymentsApproved,
+            'payments_rejected' => $paymentsRejected,
+            'outstanding_invoices' => $outstandingInvoicesCents,
+
+            // Backwards-compatible KPIs
+            'subscription_sale' => $totalRevenueCents,
+            'subscribers' => $activeSubscriptions ?: $totalSubscribers,
             'shops' => Store::whereNull('parent_id')->whereBetween('created_at', [$from, $to])->count(),
             'stores' => Store::whereBetween('created_at', [$from, $to])->count(),
-            'recent_shops' => Store::latest()->limit(6)->get(),
+
+            // Charts & Distributions
+            'chart' => $flow,
+            'plan_distribution' => $planDistribution,
+            'payment_method_distribution' => $paymentMethods,
+            'status_distribution' => [
+                ['name' => 'Active', 'count' => $activeShops, 'color' => '#16a34a'],
+                ['name' => 'Trial', 'count' => $trialShops, 'color' => '#3b82f6'],
+                ['name' => 'Expired', 'count' => $expiredSubs, 'color' => '#ef4444'],
+                ['name' => 'Suspended', 'count' => $suspendedShops, 'color' => '#f59e0b'],
+            ],
+            'pending_queue' => $pendingQueue,
+            'recent_shops' => $recentShops,
+            'recent_payments' => $recentPayments,
             'recent_subscriptions' => Subscription::with(['store', 'plan'])->latest()->limit(8)->get(),
         ];
+    }
+
+    private function platformFlow(Carbon $from, Carbon $to): array
+    {
+        $labels = [];
+        $revenue = [];
+        $registrations = [];
+        $cursor = $from->copy()->startOfDay();
+        $days = $from->diffInDays($to);
+        $monthly = $days > 31;
+
+        while ($cursor <= $to) {
+            $start = $cursor->copy();
+            $end = $monthly ? $cursor->copy()->endOfMonth() : $cursor->copy()->endOfDay();
+            if ($end->gt($to)) {
+                $end = $to->copy();
+            }
+            $labels[] = $monthly ? $start->format('M Y') : $start->format('d M');
+
+            $revCents = (int) SubscriptionPayment::where('status', 'approved')
+                ->whereBetween('created_at', [$start, $end])
+                ->sum('amount_cents');
+
+            $revCents += (int) Subscription::where('payment_status', 'paid')
+                ->whereDoesntHave('payments')
+                ->whereBetween('created_at', [$start, $end])
+                ->sum('amount_cents');
+
+            $revenue[] = round($revCents / 100, 2);
+
+            $registrations[] = Store::whereNull('parent_id')
+                ->whereBetween('created_at', [$start, $end])
+                ->count();
+
+            $cursor = $monthly ? $cursor->addMonth()->startOfMonth() : $cursor->addDay();
+        }
+
+        return compact('labels', 'revenue', 'registrations');
     }
 
     private function topProducts(Collection $items, Collection $returnItems): Collection

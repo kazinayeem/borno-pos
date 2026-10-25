@@ -36,6 +36,188 @@ function blankOrder(number) {
     };
 }
 
+function CameraScannerModal({ isOpen, onClose, onScan, products = [] }) {
+    const t = useT();
+    const videoRef = useRef(null);
+    const streamRef = useRef(null);
+    const [manualCode, setManualCode] = useState('');
+    const [statusMsg, setStatusMsg] = useState('');
+    const [cameraSupported, setCameraSupported] = useState(true);
+    const lastScanRef = useRef({ code: '', time: 0 });
+    const manualInputRef = useRef(null);
+
+    function triggerBeep() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            gain.gain.setValueAtTime(0.2, ctx.currentTime);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.1);
+        } catch (e) {}
+        if (navigator.vibrate) navigator.vibrate(60);
+    }
+
+    function handleDetectedCode(rawCode) {
+        const code = String(rawCode || '').trim();
+        if (!code) return;
+
+        const now = Date.now();
+        if (lastScanRef.current.code === code && (now - lastScanRef.current.time) < 1400) {
+            return;
+        }
+        lastScanRef.current = { code, time: now };
+
+        triggerBeep();
+        const success = onScan(code);
+        if (success) {
+            setStatusMsg(`✓ Added: ${success.name}`);
+        } else {
+            setStatusMsg(`⚠️ Scanned: ${code} (No matching product)`);
+        }
+    }
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        let active = true;
+        let animationFrameId;
+
+        async function initCamera() {
+            if (!navigator.mediaDevices?.getUserMedia) {
+                setCameraSupported(false);
+                setStatusMsg(t('Camera not supported by browser. Enter barcode below.'));
+                setTimeout(() => manualInputRef.current?.focus(), 80);
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: 'environment' } },
+                    audio: false,
+                });
+                if (!active) {
+                    stream.getTracks().forEach((track) => track.stop());
+                    return;
+                }
+                streamRef.current = stream;
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                    await videoRef.current.play().catch(() => {});
+                }
+
+                if ('BarcodeDetector' in window) {
+                    try {
+                        const formats = ['code_128', 'ean_13', 'ean_8', 'qr_code', 'upc_a', 'upc_e'];
+                        const barcodeDetector = new window.BarcodeDetector({ formats });
+
+                        const scanLoop = async () => {
+                            if (!active || !videoRef.current) return;
+                            if (videoRef.current.readyState >= 2) {
+                                try {
+                                    const barcodes = await barcodeDetector.detect(videoRef.current);
+                                    if (barcodes?.length > 0) {
+                                        handleDetectedCode(barcodes[0].rawValue);
+                                    }
+                                } catch (err) {}
+                            }
+                            animationFrameId = setTimeout(scanLoop, 200);
+                        };
+                        scanLoop();
+                    } catch (e) {
+                        setStatusMsg(t('Point camera at barcode or enter code below.'));
+                    }
+                } else {
+                    setStatusMsg(t('Camera active. Point at barcode or enter code below.'));
+                }
+            } catch (err) {
+                setCameraSupported(false);
+                setStatusMsg(t('Camera permission denied or camera unavailable. Enter barcode below.'));
+                setTimeout(() => manualInputRef.current?.focus(), 80);
+            }
+        }
+
+        initCamera();
+
+        return () => {
+            active = false;
+            if (animationFrameId) clearTimeout(animationFrameId);
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach((t) => t.stop());
+                streamRef.current = null;
+            }
+        };
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    function handleManualSubmit(e) {
+        e.preventDefault();
+        if (!manualCode.trim()) return;
+        handleDetectedCode(manualCode.trim());
+        setManualCode('');
+    }
+
+    return (
+        <div className="pos-scanner-modal-backdrop" onClick={onClose}>
+            <div className="pos-scanner-card" onClick={(e) => e.stopPropagation()}>
+                <div className="pos-scanner-head">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '20px' }}>📷</span>
+                        <strong>{t('Barcode & QR Scanner')}</strong>
+                    </div>
+                    <button type="button" className="x" onClick={onClose} style={{ fontSize: '20px', border: 0, background: 'transparent', cursor: 'pointer', padding: '4px 8px' }}>✕</button>
+                </div>
+
+                <div className="pos-scanner-viewport-wrap">
+                    {cameraSupported ? (
+                        <div className="pos-scanner-viewport">
+                            <video ref={videoRef} playsInline autoPlay muted className="pos-scanner-video" />
+                            <div className="pos-scanner-reticle">
+                                <div className="pos-scanner-laser" />
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="pos-scanner-no-camera">
+                            <span style={{ fontSize: '36px' }}>📷</span>
+                            <p style={{ margin: '8px 0 0', fontSize: '13px' }}>{statusMsg || t('Camera unavailable on this device.')}</p>
+                        </div>
+                    )}
+                </div>
+
+                {statusMsg && (
+                    <div className={`pos-scanner-feedback ${statusMsg.startsWith('✓') ? 'ok' : ''}`}>
+                        {statusMsg}
+                    </div>
+                )}
+
+                <form onSubmit={handleManualSubmit} className="pos-scanner-manual-row">
+                    <input
+                        ref={manualInputRef}
+                        value={manualCode}
+                        onChange={(e) => setManualCode(e.target.value)}
+                        placeholder={t('Type or scan barcode number…')}
+                        inputMode="numeric"
+                        autoFocus
+                    />
+                    <button type="submit" className="btn primary" disabled={!manualCode.trim()}>
+                        + {t('Add')}
+                    </button>
+                </form>
+
+                <div className="pos-scanner-footer">
+                    <button type="button" className="btn" onClick={onClose} style={{ width: '100%', minHeight: '44px' }}>
+                        {t('Done / Close Scanner')}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function Pos() {
     const t = useT();
     const navigate = useNavigate();
@@ -89,6 +271,10 @@ export default function Pos() {
 
     // Extra discount & coupon fold state
     const [showDiscounts, setShowDiscounts] = useState(false);
+
+    // Mobile POS active view ('catalog' vs 'cart') & Camera scanner modal state
+    const [mobileTab, setMobileTab] = useState('catalog');
+    const [showCameraScanner, setShowCameraScanner] = useState(false);
 
     const [session, setSession] = useState(() => {
         const order = blankOrder(1);
@@ -227,6 +413,32 @@ export default function Pos() {
     const tendered = cents(paid);
     const change = method === 'Cash' ? Math.max(0, tendered - grand) : 0;
     const units = cart.reduce((sum, line) => sum + line.qty, 0);
+
+    const cartItemCounts = useMemo(() => {
+        const map = {};
+        for (const line of cart) {
+            map[line.id] = (map[line.id] || 0) + line.qty;
+        }
+        return map;
+    }, [cart]);
+
+    function handleBarcodeScan(rawCode) {
+        const term = String(rawCode || '').trim().toLowerCase();
+        if (!term) return null;
+
+        const exact = (data?.products || []).find((p) => {
+            const barcodeMatch = p.barcode && String(p.barcode).toLowerCase() === term;
+            const codeMatch = p.code && String(p.code).toLowerCase() === term;
+            const skuMatch = p.sku && String(p.sku).toLowerCase() === term;
+            return barcodeMatch || codeMatch || skuMatch;
+        });
+
+        if (exact) {
+            add(exact);
+            return exact;
+        }
+        return null;
+    }
 
     function add(product, variant = null) {
         const allocated = (product.variants || []).reduce((sum, row) => sum + Number(row.stock_qty || 0), 0);
@@ -453,6 +665,8 @@ export default function Pos() {
     qRef.current = q;
     const productsRef = useRef(products);
     productsRef.current = products;
+    const showCameraScannerRef = useRef(showCameraScanner);
+    showCameraScannerRef.current = showCameraScanner;
 
     // Fast Barcode Scanner and Search Enter Handler
     function handleSearchKeyDown(e) {
@@ -624,6 +838,11 @@ export default function Pos() {
 
             // Escape: Dismiss active modals or clear search
             if (key === 'Escape') {
+                if (showCameraScannerRef.current) {
+                    e.preventDefault();
+                    setShowCameraScanner(false);
+                    return;
+                }
                 if (showShortcutsModalRef.current) {
                     e.preventDefault();
                     setShowShortcutsModal(false);
@@ -729,13 +948,23 @@ export default function Pos() {
                 <div className="pos-top-right">
                     <button
                         type="button"
-                        className="btn"
+                        className="btn pos-top-camera-btn"
+                        onClick={() => setShowCameraScanner(true)}
+                        title={t('Scan Barcode with Camera')}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', padding: '6px 10px' }}
+                    >
+                        <span>📷</span>
+                        <b className="pos-top-btn-text">{t('Scan')}</b>
+                    </button>
+                    <button
+                        type="button"
+                        className="btn pos-shortcuts-btn"
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px' }}
                         onClick={() => setShowShortcutsModal(true)}
                         title="Keyboard Shortcuts Cheat Sheet (F10 or ?)"
                     >
                         <span>⌨️</span>
-                        <b>{t('Shortcuts')}</b>
+                        <b className="pos-top-btn-text">{t('Shortcuts')}</b>
                         <kbd className="pos-kbd-badge">F10</kbd>
                     </button>
                     <button
@@ -749,13 +978,13 @@ export default function Pos() {
                     </button>
                     <button
                         type="button"
-                        className={`btn ${isFullscreen ? 'primary' : ''}`}
+                        className={`btn pos-fullscreen-btn ${isFullscreen ? 'primary' : ''}`}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px' }}
                         onClick={toggleFullscreen}
                         title="Toggle full screen mode (F11)"
                     >
                         <span>{isFullscreen ? '🗗' : '⛶'}</span>
-                        <b>{isFullscreen ? t('Exit Fullscreen') : t('Fullscreen')}</b>
+                        <b className="pos-top-btn-text">{isFullscreen ? t('Exit Fullscreen') : t('Fullscreen')}</b>
                         <kbd className={isFullscreen ? 'pos-kbd-badge-light' : 'pos-kbd-badge'}>F11</kbd>
                     </button>
                     <button
@@ -765,15 +994,36 @@ export default function Pos() {
                         onClick={() => navigate('/store-dashboard')}
                         title="Back to Dashboard"
                     >
-                        ← {t('Dashboard')}
+                        ← <span className="pos-top-btn-text">{t('Dashboard')}</span>
                     </button>
                 </div>
             </header>
 
+            {/* Mobile View Switcher Tab Bar (Visible on <= 1023px) */}
+            <div className="pos-mobile-nav-switcher">
+                <button
+                    type="button"
+                    className={`pos-mobile-nav-btn ${mobileTab === 'catalog' ? 'active' : ''}`}
+                    onClick={() => setMobileTab('catalog')}
+                >
+                    <span>🛍️ {t('Products')}</span>
+                    <span className="pos-mobile-badge">{products.length}</span>
+                </button>
+                <button
+                    type="button"
+                    className={`pos-mobile-nav-btn ${mobileTab === 'cart' ? 'active' : ''}`}
+                    onClick={() => setMobileTab('cart')}
+                >
+                    <span>🛒 {t('Cart')}</span>
+                    {units > 0 && <span className="pos-mobile-badge-units">{units}</span>}
+                    <b>{money(grand)}</b>
+                </button>
+            </div>
+
             {/* Main 2-Column One-Page POS Shell */}
             <div className="pos-shell">
                 {/* 1. Left/Main Column: Product Catalog & Search */}
-                <section className="card pos-catalog">
+                <section className={`card pos-catalog ${mobileTab === 'catalog' ? 'mobile-active' : ''}`}>
                     <div className="pos-catalog-head">
                         <div className="pos-search-bar" style={{ position: 'relative' }} data-tour="pos-search">
                             <input
@@ -784,7 +1034,16 @@ export default function Pos() {
                                 onKeyDown={handleSearchKeyDown}
                                 autoFocus
                             />
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'absolute', right: q ? '44px' : '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                            <button
+                                type="button"
+                                className="btn pos-camera-scan-btn"
+                                onClick={() => setShowCameraScanner(true)}
+                                title={t('Scan barcode with camera')}
+                                style={{ padding: '8px 12px', fontSize: '15px' }}
+                            >
+                                📷
+                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'absolute', right: q ? '86px' : '52px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
                                 <kbd className="pos-kbd-badge" title="Press F1 to focus search">F1</kbd>
                             </div>
                             {q && (
@@ -848,7 +1107,13 @@ export default function Pos() {
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ duration: 0.2, delay: Math.min(index, 10) * 0.02 }}
                                 whileTap={{ scale: 0.95 }}
+                                style={{ position: 'relative' }}
                             >
+                                {cartItemCounts[product.id] > 0 && (
+                                    <span className="pos-incart-badge" title={`${cartItemCounts[product.id]} in cart`}>
+                                        {cartItemCounts[product.id]}
+                                    </span>
+                                )}
                                 {product.image ? (
                                     <img src={product.image} alt={product.name} loading="lazy" />
                                 ) : (
@@ -900,10 +1165,50 @@ export default function Pos() {
                             </div>
                         )}
                     </div>
+
+                    {/* Mobile Floating Cart Summary Bar (Catalog View) */}
+                    {cart.length > 0 && (
+                        <div className="pos-mobile-floating-cart-bar">
+                            <div className="pos-mobile-floating-left">
+                                <span className="pos-mobile-cart-circle">🛒 {units}</span>
+                                <div className="pos-mobile-floating-text">
+                                    <strong>{money(grand)}</strong>
+                                    <small>{units} {units === 1 ? t('item') : t('items')} {t('in cart')}</small>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                className="pos-mobile-checkout-now-btn"
+                                onClick={() => setMobileTab('cart')}
+                            >
+                                {t('View Cart & Pay')} →
+                            </button>
+                        </div>
+                    )}
                 </section>
 
                 {/* 3. Right Column: Cart & Checkout (Sticky bottom & Customer search by phone) */}
-                <aside className="card cart" data-tour="pos-cart">
+                <aside className={`card cart ${mobileTab === 'cart' ? 'mobile-active' : ''}`} data-tour="pos-cart">
+                    {/* Mobile Back to Products header row */}
+                    <div className="pos-mobile-cart-back-row">
+                        <button
+                            type="button"
+                            className="btn"
+                            style={{ padding: '6px 12px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                            onClick={() => setMobileTab('catalog')}
+                        >
+                            ← {t('Back to Products')}
+                        </button>
+                        <button
+                            type="button"
+                            className="btn"
+                            style={{ padding: '6px 12px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                            onClick={() => setShowCameraScanner(true)}
+                        >
+                            📷 {t('Scan')}
+                        </button>
+                    </div>
+
                     <div className="cart-head">
                         <div className="cart-title-row">
                             <h2>🛒 {t('Cart')} · {t('Order')} #{active.number}</h2>
@@ -1203,26 +1508,52 @@ export default function Pos() {
 
                         {/* Cash calculator if cash method is active */}
                         {method === 'Cash' && (
-                            <div className="pos-cash-calc">
-                                <span>💵 {t('Received')}:</span>
-                                <input
-                                    ref={paidInputRef}
-                                    value={paid}
-                                    inputMode="decimal"
-                                    placeholder={(grand / 100).toFixed(2)}
-                                    onChange={(event) => patchOrder((order) => ({ ...order, paid: event.target.value }))}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            submit('completed');
-                                        }
-                                    }}
-                                    title="Type amount & press Enter to Pay"
-                                />
-                                <span style={{ marginLeft: 'auto', fontWeight: 700, color: change > 0 ? '#16a34a' : 'inherit' }}>
-                                    {t('Change')}: {money(change)}
-                                </span>
-                            </div>
+                            <>
+                                <div className="pos-quick-cash-row">
+                                    <button
+                                        type="button"
+                                        className="pos-quick-cash-chip"
+                                        onClick={() => patchOrder((order) => ({ ...order, paid: (grand / 100).toFixed(2) }))}
+                                        title={t('Set exact amount')}
+                                    >
+                                        {t('Exact')} ({money(grand)})
+                                    </button>
+                                    {[10, 50, 100, 500].map((extra) => (
+                                        <button
+                                            key={extra}
+                                            type="button"
+                                            className="pos-quick-cash-chip"
+                                            onClick={() => {
+                                                const currentVal = Number(String(paid || '0').replace(/,/g, '')) || 0;
+                                                patchOrder((order) => ({ ...order, paid: (currentVal + extra).toFixed(2) }));
+                                            }}
+                                            title={`+${extra}`}
+                                        >
+                                            +{extra}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="pos-cash-calc">
+                                    <span>💵 {t('Received')}:</span>
+                                    <input
+                                        ref={paidInputRef}
+                                        value={paid}
+                                        inputMode="decimal"
+                                        placeholder={(grand / 100).toFixed(2)}
+                                        onChange={(event) => patchOrder((order) => ({ ...order, paid: event.target.value }))}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                submit('completed');
+                                            }
+                                        }}
+                                        title="Type amount & press Enter to Pay"
+                                    />
+                                    <span style={{ marginLeft: 'auto', fontWeight: 700, color: change > 0 ? '#16a34a' : 'inherit' }}>
+                                        {t('Change')}: {money(change)}
+                                    </span>
+                                </div>
+                            </>
                         )}
 
                         {/* Action buttons: Draft and Pay */}
@@ -1781,6 +2112,14 @@ export default function Pos() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Camera Barcode Scanner Modal */}
+            <CameraScannerModal
+                isOpen={showCameraScanner}
+                onClose={() => setShowCameraScanner(false)}
+                onScan={handleBarcodeScan}
+                products={data?.products || []}
+            />
         </div>
     );
 }

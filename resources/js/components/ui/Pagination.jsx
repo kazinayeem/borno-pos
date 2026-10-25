@@ -102,56 +102,84 @@ export function Pagination({
 
             {/* Page Buttons */}
             {lastPage > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <button
-                        type="button"
-                        className="btn"
-                        disabled={currentPage <= 1}
-                        onClick={() => onPageChange(currentPage - 1)}
-                        style={{ height: '32px', padding: '0 10px', fontSize: '12px' }}
-                    >
-                        {t('Previous')}
-                    </button>
+                <>
+                    {/* Desktop Full Page Number Navigation */}
+                    <div className="pagination-pages-desktop" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <button
+                            type="button"
+                            className="btn"
+                            disabled={currentPage <= 1}
+                            onClick={() => onPageChange(currentPage - 1)}
+                            style={{ height: '32px', padding: '0 10px', fontSize: '12px' }}
+                        >
+                            {t('Previous')}
+                        </button>
 
-                    {pages.map((p, idx) => {
-                        if (p === '...') {
+                        {pages.map((p, idx) => {
+                            if (p === '...') {
+                                return (
+                                    <span key={`dots-${idx}`} style={{ padding: '0 6px', color: 'var(--muted)' }}>
+                                        …
+                                    </span>
+                                );
+                            }
+
+                            const isCurrent = p === currentPage;
                             return (
-                                <span key={`dots-${idx}`} style={{ padding: '0 6px', color: 'var(--muted)' }}>
-                                    …
-                                </span>
+                                <button
+                                    key={`page-${p}`}
+                                    type="button"
+                                    className={`btn ${isCurrent ? 'primary' : ''}`}
+                                    onClick={() => onPageChange(p)}
+                                    style={{
+                                        height: '32px',
+                                        minWidth: '32px',
+                                        padding: '0 8px',
+                                        fontSize: '12px',
+                                        fontWeight: isCurrent ? 700 : 500,
+                                    }}
+                                >
+                                    {p}
+                                </button>
                             );
-                        }
+                        })}
 
-                        const isCurrent = p === currentPage;
-                        return (
-                            <button
-                                key={`page-${p}`}
-                                type="button"
-                                className={`btn ${isCurrent ? 'primary' : ''}`}
-                                onClick={() => onPageChange(p)}
-                                style={{
-                                    height: '32px',
-                                    minWidth: '32px',
-                                    padding: '0 8px',
-                                    fontSize: '12px',
-                                    fontWeight: isCurrent ? 700 : 500,
-                                }}
-                            >
-                                {p}
-                            </button>
-                        );
-                    })}
+                        <button
+                            type="button"
+                            className="btn"
+                            disabled={currentPage >= lastPage}
+                            onClick={() => onPageChange(currentPage + 1)}
+                            style={{ height: '32px', padding: '0 10px', fontSize: '12px' }}
+                        >
+                            {t('Next')}
+                        </button>
+                    </div>
 
-                    <button
-                        type="button"
-                        className="btn"
-                        disabled={currentPage >= lastPage}
-                        onClick={() => onPageChange(currentPage + 1)}
-                        style={{ height: '32px', padding: '0 10px', fontSize: '12px' }}
-                    >
-                        {t('Next')}
-                    </button>
-                </div>
+                    {/* Mobile Compact Page Navigation */}
+                    <div className="pagination-pages-mobile" style={{ alignItems: 'center', gap: '8px' }}>
+                        <button
+                            type="button"
+                            className="btn"
+                            disabled={currentPage <= 1}
+                            onClick={() => onPageChange(currentPage - 1)}
+                            style={{ height: '36px', padding: '0 12px', fontSize: '13px' }}
+                        >
+                            ← {t('Prev')}
+                        </button>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
+                            {currentPage} / {lastPage}
+                        </span>
+                        <button
+                            type="button"
+                            className="btn"
+                            disabled={currentPage >= lastPage}
+                            onClick={() => onPageChange(currentPage + 1)}
+                            style={{ height: '36px', padding: '0 12px', fontSize: '13px' }}
+                        >
+                            {t('Next')} →
+                        </button>
+                    </div>
+                </>
             )}
         </div>
     );

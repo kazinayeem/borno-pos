@@ -18,6 +18,7 @@ use App\Http\Controllers\SerialController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\StaffController;
+use App\Http\Controllers\SuperAdminSubscriptionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -59,6 +60,32 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/mail-settings', [SettingsController::class, 'updateMail'])->name('mail.update');
         Route::get('/language', [SettingsController::class, 'language'])->name('language');
         Route::post('/subscriptions/{subscription}/activate', [ShopController::class, 'activate'])->name('subscriptions.activate');
+
+        // Super Admin SaaS Management APIs & Views
+        Route::get('/api/admin/shops', [SuperAdminSubscriptionController::class, 'shops'])->name('admin.shops.index');
+        Route::get('/api/admin/shops/{shop}', [SuperAdminSubscriptionController::class, 'showShop'])->name('admin.shops.show');
+        Route::post('/api/admin/shops', [SuperAdminSubscriptionController::class, 'storeShop'])->name('admin.shops.store');
+        Route::post('/api/admin/shops/{shop}/toggle-status', [SuperAdminSubscriptionController::class, 'toggleShopStatus'])->name('admin.shops.status');
+        Route::post('/api/admin/shops/{shop}/extend-subscription', [SuperAdminSubscriptionController::class, 'extendSubscription'])->name('admin.shops.extend');
+        Route::post('/api/admin/shops/{shop}/change-plan', [SuperAdminSubscriptionController::class, 'changePlan'])->name('admin.shops.plan');
+        Route::post('/api/admin/shops/{shop}/modules', [SuperAdminSubscriptionController::class, 'updateModules'])->name('admin.shops.modules');
+        Route::post('/api/admin/shops/{shop}/notify', [SuperAdminSubscriptionController::class, 'notifyOwner'])->name('admin.shops.notify');
+
+        Route::get('/api/admin/plans', [SuperAdminSubscriptionController::class, 'plans'])->name('admin.plans.index');
+        Route::post('/api/admin/plans', [SuperAdminSubscriptionController::class, 'storePlan'])->name('admin.plans.store');
+        Route::put('/api/admin/plans/{plan}', [SuperAdminSubscriptionController::class, 'updatePlan'])->name('admin.plans.update');
+        Route::post('/api/admin/plans/{plan}/toggle', [SuperAdminSubscriptionController::class, 'togglePlan'])->name('admin.plans.toggle');
+
+        Route::get('/api/admin/payment-settings', [SuperAdminSubscriptionController::class, 'getPaymentSettings'])->name('admin.payments.settings');
+        Route::post('/api/admin/payment-settings', [SuperAdminSubscriptionController::class, 'updatePaymentSettings'])->name('admin.payments.settings.update');
+
+        Route::get('/api/admin/subscription-payments', [SuperAdminSubscriptionController::class, 'payments'])->name('admin.payments.index');
+        Route::get('/api/admin/subscription-payments/{payment}', [SuperAdminSubscriptionController::class, 'showPayment'])->name('admin.payments.show');
+        Route::post('/api/admin/subscription-payments/{payment}/approve', [SuperAdminSubscriptionController::class, 'approvePayment'])->name('admin.payments.approve');
+        Route::post('/api/admin/subscription-payments/{payment}/reject', [SuperAdminSubscriptionController::class, 'rejectPayment'])->name('admin.payments.reject');
+
+        Route::get('/api/admin/subscription-invoices', [SuperAdminSubscriptionController::class, 'invoices'])->name('admin.invoices.index');
+        Route::get('/api/admin/subscription-invoices/{invoice}', [SuperAdminSubscriptionController::class, 'showInvoice'])->name('admin.invoices.show');
     });
 
     Route::middleware('shop')->group(function () {
@@ -178,6 +205,9 @@ Route::middleware('auth')->group(function () {
             Route::post('/stores', [ShopController::class, 'store'])->name('stores.store');
             Route::get('/subscription-purchase', [ShopController::class, 'plans'])->name('subscriptions.purchase');
             Route::post('/subscription-purchase', [ShopController::class, 'buy'])->name('subscriptions.buy');
+            Route::get('/api/subscription/checkout-info', [ShopController::class, 'plans'])->name('subscriptions.checkout-info');
+            Route::post('/api/subscription/submit-payment', [ShopController::class, 'submitPayment'])->name('subscriptions.submit-payment');
+            Route::get('/api/subscription/my-history', [ShopController::class, 'myHistory'])->name('subscriptions.my-history');
 
             Route::get('/settings/general-settings', [SettingsController::class, 'general'])->name('settings.general');
             Route::post('/settings/general-settings', [SettingsController::class, 'updateGeneral'])->name('settings.general.update');
