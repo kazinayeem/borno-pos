@@ -1,73 +1,79 @@
 @php
-    $modules = \App\Http\Controllers\SettingsController::modulesFor(auth()->user()->store_id);
+    $user = auth()->user();
+    $isOwnerOrSuper = $user->isSuperAdmin() || $user->isOwner();
+    $modules = \App\Http\Controllers\SettingsController::modulesFor($user->store_id);
     $shop = [
-        ['label' => __('Dashboard'), 'href' => route('store.dashboard'), 'active' => request()->routeIs('store.dashboard'), 'icon' => 'grid'],
-        ['label' => __('Product'), 'show' => $modules['product'], 'active' => request()->is('categories*','products*','barcode*','unit*','brand*','warehouse*'), 'icon' => 'box', 'children' => [
-            [__('Categories'), route('categories.index'), request()->is('categories*')],
-            [__('Products'), route('products.index'), request()->is('products*')],
-            [__('Print Barcode'), route('barcode'), request()->is('barcode*')],
-            [__('Units'), route('units.index'), request()->is('unit*')],
-            [__('Brands'), route('brands.index'), request()->is('brand*')],
-            [__('Warehouses'), route('warehouses.index'), request()->is('warehouse*')],
+        ['label' => __('Dashboard'), 'href' => route('store.dashboard'), 'active' => request()->routeIs('store.dashboard'), 'icon' => 'grid', 'permission' => 'dashboard.view'],
+        ['label' => __('Product'), 'show' => $modules['product'], 'permission' => 'products.view', 'active' => request()->is('categories*','products*','barcode*','unit*','brand*','warehouse*'), 'icon' => 'box', 'children' => [
+            [__('Categories'), route('categories.index'), request()->is('categories*'), 'products.view'],
+            [__('Products'), route('products.index'), request()->is('products*'), 'products.view'],
+            [__('Print Barcode'), route('barcode'), request()->is('barcode*'), 'products.view'],
+            [__('Units'), route('units.index'), request()->is('unit*'), 'products.view'],
+            [__('Brands'), route('brands.index'), request()->is('brand*'), 'products.view'],
+            [__('Warehouses'), route('warehouses.index'), request()->is('warehouse*'), 'products.view'],
         ]],
-        ['label' => __('Purchase'), 'show' => $modules['purchase'], 'active' => request()->is('purchase*','stock*'), 'icon' => 'cart', 'children' => [
-            [__('Purchases'), route('purchases.index'), request()->is('purchase/list','purchase/*') && !request()->is('purchase/create','purchase/batch')],
-            [__('Add Purchase'), route('purchases.create'), request()->is('purchase/create')],
-            [__('Stock Count'), route('stock.index'), request()->is('stock*')],
-            [__('Batches'), route('batches'), request()->is('purchase/batch')],
+        ['label' => __('Purchase'), 'show' => $modules['purchase'], 'permission' => 'purchases.view', 'active' => request()->is('purchase*','stock*'), 'icon' => 'cart', 'children' => [
+            [__('Purchases'), route('purchases.index'), request()->is('purchase/list','purchase/*') && !request()->is('purchase/create','purchase/batch'), 'purchases.view'],
+            [__('Add Purchase'), route('purchases.create'), request()->is('purchase/create'), 'purchases.create'],
+            [__('Stock Count'), route('stock.index'), request()->is('stock*'), 'purchases.view'],
+            [__('Batches'), route('batches'), request()->is('purchase/batch'), 'purchases.view'],
         ]],
-        ['label' => __('Accounting'), 'show' => $modules['accounting'], 'active' => request()->is('accounts*','money-transfers*','account*'), 'icon' => 'wallet', 'children' => [
-            [__('Accounts'), route('accounts.index'), request()->is('accounts*')],
-            [__('Money Transfer'), route('transfers.index'), request()->is('money-transfers*')],
-            [__('Balance Sheet'), route('balance'), request()->is('account/balancesheet')],
-            [__('Transactions'), route('transactions'), request()->is('account/transactions')],
+        ['label' => __('Accounting'), 'show' => $modules['accounting'], 'permission' => 'accounting.view', 'active' => request()->is('accounts*','money-transfers*','account*'), 'icon' => 'wallet', 'children' => [
+            [__('Accounts'), route('accounts.index'), request()->is('accounts*'), 'accounting.view'],
+            [__('Money Transfer'), route('transfers.index'), request()->is('money-transfers*'), 'accounting.view'],
+            [__('Balance Sheet'), route('balance'), request()->is('account/balancesheet'), 'accounting.view'],
+            [__('Transactions'), route('transactions'), request()->is('account/transactions'), 'accounting.view'],
         ]],
-        ['label' => __('Sales'), 'show' => $modules['sales'], 'active' => request()->is('sales*','sale-returns*'), 'icon' => 'tag', 'children' => [
-            [__('Sales'), route('sales.index'), request()->routeIs('sales.index','sales.show','sales.print')],
-            [__('Drafts'), route('sales.drafts'), request()->routeIs('sales.drafts')],
-            [__('Sale Returns'), route('sales.returns'), request()->is('sale-returns*')],
+        ['label' => __('Sales'), 'show' => $modules['sales'], 'permission' => 'sales.view', 'active' => request()->is('sales*','sale-returns*'), 'icon' => 'tag', 'children' => [
+            [__('Sales'), route('sales.index'), request()->routeIs('sales.index','sales.show','sales.print'), 'sales.view'],
+            [__('Drafts'), route('sales.drafts'), request()->routeIs('sales.drafts'), 'sales.view'],
+            [__('Sale Returns'), route('sales.returns'), request()->is('sale-returns*'), 'sales.view'],
         ]],
-        ['label' => __('Expense'), 'show' => $modules['expense'], 'active' => request()->is('expense*'), 'icon' => 'receipt', 'children' => [
-            [__('Expense Category'), route('expense-categories.index'), request()->is('expense-categories*')],
-            [__('Expense'), route('expenses.index'), request()->is('expense')],
+        ['label' => __('Expense'), 'show' => $modules['expense'], 'permission' => 'accounting.view', 'active' => request()->is('expense*'), 'icon' => 'receipt', 'children' => [
+            [__('Expense Category'), route('expense-categories.index'), request()->is('expense-categories*'), 'accounting.view'],
+            [__('Expense'), route('expenses.index'), request()->is('expense'), 'accounting.view'],
         ]],
-        ['label' => __('HRM'), 'show' => $modules['hrm'], 'active' => request()->is('departments*','role*','employees*','attendance*','payrolls*','holidays*'), 'icon' => 'users', 'children' => [
-            [__('Departments'), route('departments.index'), request()->is('departments*')],
-            [__('Role Permission'), route('roles.index'), request()->is('role*')],
-            [__('Employees'), route('employees.index'), request()->is('employees*')],
-            [__('Attendance'), route('attendance'), request()->is('attendance*')],
-            [__('Payrolls'), route('payrolls'), request()->is('payrolls*')],
-            [__('Holidays'), route('holidays.index'), request()->is('holidays*')],
+        ['label' => __('Staff & Roles'), 'show' => true, 'permission' => 'staff.view', 'active' => request()->is('staff*','role*'), 'icon' => 'users', 'children' => [
+            [__('Staff Members'), route('staff.index'), request()->is('staff*'), 'staff.view'],
+            [__('Roles & Permissions'), route('roles.index'), request()->is('role*'), 'roles.view'],
         ]],
-        ['label' => __('People'), 'show' => $modules['people'], 'active' => request()->is('customer*','supplier*'), 'icon' => 'user', 'children' => [
-            [__('Customers'), route('customers.index'), request()->is('customer') || request()->is('customer/*')],
-            [__('Customer Groups'), route('customer-groups.index'), request()->is('customer-group*')],
-            [__('Suppliers'), route('suppliers.index'), request()->is('supplier*')],
+        ['label' => __('HRM'), 'show' => $modules['hrm'], 'permission' => 'staff.view', 'active' => request()->is('departments*','employees*','attendance*','payrolls*','holidays*'), 'icon' => 'users', 'children' => [
+            [__('Departments'), route('departments.index'), request()->is('departments*'), 'staff.view'],
+            [__('Employees'), route('employees.index'), request()->is('employees*'), 'staff.view'],
+            [__('Attendance'), route('attendance'), request()->is('attendance*'), 'staff.view'],
+            [__('Payrolls'), route('payrolls'), request()->is('payrolls*'), 'staff.view'],
+            [__('Holidays'), route('holidays.index'), request()->is('holidays*'), 'staff.view'],
         ]],
-        ['label' => __('Reports'), 'show' => $modules['reports'], 'active' => request()->is('report*'), 'icon' => 'chart', 'children' => [
-            [__('Summary'), route('reports.summary'), request()->is('report/summary')],
-            [__('Profit Loss'), route('reports.profit'), request()->is('report/profit-loss')],
-            [__('Purchases'), route('reports.purchases'), request()->is('report/purchases')],
-            [__('Sales'), route('reports.sales'), request()->is('report/sales')],
-            [__('Products'), route('reports.products'), request()->is('report/product')],
-            [__('Expense'), route('reports.expenses'), request()->is('report/expense')],
+        ['label' => __('People'), 'show' => $modules['people'], 'permission' => 'customers.view', 'active' => request()->is('customer*','supplier*'), 'icon' => 'user', 'children' => [
+            [__('Customers'), route('customers.index'), request()->is('customer') || request()->is('customer/*'), 'customers.view'],
+            [__('Customer Groups'), route('customer-groups.index'), request()->is('customer-group*'), 'customers.view'],
+            [__('Suppliers'), route('suppliers.index'), request()->is('supplier*'), 'suppliers.view'],
         ]],
-        ['label' => __('Subscriptions'), 'show' => $modules['subscriptions'], 'active' => request()->is('subscription*'), 'icon' => 'card', 'children' => [
-            [__('Purchase'), route('subscriptions.purchase'), request()->is('subscription-purchase')],
-            [__('Reports'), route('subscriptions.report'), request()->is('subscription/report')],
+        ['label' => __('Reports'), 'show' => $modules['reports'], 'permission' => 'reports.view', 'active' => request()->is('report*','reports*'), 'icon' => 'chart', 'children' => [
+            [__('Reports Center'), route('reports.center'), request()->is('reports/center*'), 'reports.view'],
+            [__('Summary'), route('reports.summary'), request()->is('report/summary'), 'reports.view'],
+            [__('Profit Loss'), route('reports.profit'), request()->is('report/profit-loss'), 'reports.view'],
+            [__('Purchases'), route('reports.purchases'), request()->is('report/purchases'), 'reports.view'],
+            [__('Sales'), route('reports.sales'), request()->is('report/sales'), 'reports.view'],
+            [__('Products'), route('reports.products'), request()->is('report/product'), 'reports.view'],
+            [__('Expense'), route('reports.expenses'), request()->is('report/expense'), 'reports.view'],
         ]],
-        ['label' => __('Store'), 'show' => $modules['store'], 'active' => request()->is('stores*'), 'icon' => 'shop', 'children' => [
-            [__('List'), route('stores.index'), request()->routeIs('stores.index')],
-            [__('Create'), route('stores.create'), request()->routeIs('stores.create')],
+        ['label' => __('Subscriptions'), 'show' => $modules['subscriptions'] && $isOwnerOrSuper, 'permission' => 'settings.view', 'active' => request()->is('subscription*'), 'icon' => 'card', 'children' => [
+            [__('Purchase'), route('subscriptions.purchase'), request()->is('subscription-purchase'), 'settings.view'],
+            [__('Reports'), route('subscriptions.report'), request()->is('subscription/report'), 'settings.view'],
+        ]],
+        ['label' => __('Store'), 'show' => $modules['store'] && $isOwnerOrSuper, 'permission' => 'settings.view', 'active' => request()->is('stores*'), 'icon' => 'shop', 'children' => [
+            [__('List'), route('stores.index'), request()->routeIs('stores.index'), 'settings.view'],
+            [__('Create'), route('stores.create'), request()->routeIs('stores.create'), 'settings.view'],
         ]],
         ['label' => __('Settings'), 'active' => request()->is('coupons*','currency*','tax*','user/profile*','settings*','shop-payment-gateway*'), 'icon' => 'gear', 'children' => [
-            [__('Coupon'), route('coupons.index'), request()->is('coupons*')],
-            [__('Currencies'), route('currencies.index'), request()->is('currency*')],
-            [__('Taxes'), route('taxes.index'), request()->is('tax*')],
+            [__('Coupon'), route('coupons.index'), request()->is('coupons*'), 'settings.view'],
+            [__('Currencies'), route('currencies.index'), request()->is('currency*'), 'settings.view'],
+            [__('Taxes'), route('taxes.index'), request()->is('tax*'), 'settings.view'],
             [__('Profile'), route('profile'), request()->is('user/profile*')],
-            [__('General Settings'), route('settings.general'), request()->is('settings/general-settings')],
-            [__('Business Modules'), route('settings.modules'), request()->is('settings/business-modules')],
-            [__('Payment Gateway'), route('settings.gateway'), request()->is('shop-payment-gateway*')],
+            [__('General Settings'), route('settings.general'), request()->is('settings/general-settings'), 'settings.view'],
+            [__('Business Modules'), route('settings.modules'), request()->is('settings/business-modules'), 'settings.view'],
+            [__('Payment Gateway'), route('settings.gateway'), request()->is('shop-payment-gateway*'), 'settings.view'],
         ]],
     ];
     $admin = [
@@ -88,16 +94,33 @@
             [__('Language'), route('language'), request()->is('language')],
         ]],
     ];
-    $items = auth()->user()->isSuperAdmin() ? $admin : $shop;
+    $items = $user->isSuperAdmin() ? $admin : $shop;
 @endphp
 <aside class="sidebar">
-    <a class="brand" href="{{ auth()->user()->isSuperAdmin() ? route('dashboard') : route('store.dashboard') }}">
+    <a class="brand" href="{{ $user->isSuperAdmin() ? route('dashboard') : route('store.dashboard') }}">
         @include('partials.logo')
         <div><strong>BornoPos</strong><span>Powering Your Business</span></div>
     </a>
     <nav class="nav">
         @foreach ($items as $item)
             @continue(isset($item['show']) && !$item['show'])
+            @php
+                if (!$isOwnerOrSuper) {
+                    if (isset($item['permission']) && !$user->canDo($item['permission']) && empty($item['children'])) {
+                        continue;
+                    }
+                    if (!empty($item['children'])) {
+                        $allowedChildren = array_filter($item['children'], function ($c) use ($user) {
+                            $childPerm = $c[3] ?? null;
+                            return empty($childPerm) || $user->canDo($childPerm);
+                        });
+                        if (empty($allowedChildren)) {
+                            continue;
+                        }
+                        $item['children'] = array_values($allowedChildren);
+                    }
+                }
+            @endphp
             @if (empty($item['children']))
                 <a href="{{ $item['href'] }}" class="{{ $item['active'] ? 'active' : '' }}">@include('partials.icon', ['name' => $item['icon'] ?? 'grid'])<span>{{ $item['label'] }}</span></a>
             @else
@@ -122,7 +145,9 @@
     @endunless
     <div class="side-tools">
         <a href="{{ route('tour') }}" title="Tour">?</a>
-        <a href="{{ auth()->user()->isSuperAdmin() ? route('profile') : route('settings.general') }}" title="Settings">⚙</a>
+        @if ($isOwnerOrSuper || $user->canDo('settings.view'))
+            <a href="{{ $user->isSuperAdmin() ? route('profile') : route('settings.general') }}" title="Settings">⚙</a>
+        @endif
         <a href="{{ route('profile') }}" title="Profile">☺</a>
         <form method="post" action="{{ route('logout') }}">@csrf<button title="Logout">↪</button></form>
     </div>

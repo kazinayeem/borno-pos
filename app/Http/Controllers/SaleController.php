@@ -130,7 +130,27 @@ class SaleController extends Controller
             ->latest()
             ->paginate(10);
 
-        return view('sales.returns', compact('returns', 'from', 'to'));
+        if ($request->expectsJson()) {
+            return response()->json([
+                'returns' => $returns->getCollection()->map(fn ($r) => [
+                    'id' => $r->id,
+                    'sale_id' => $r->sale_id,
+                    'invoice_no' => $r->sale?->invoice_no,
+                    'returned_on' => optional($r->returned_on)->format('Y-m-d'),
+                    'total_cents' => (int) $r->total_cents,
+                    'note' => $r->note,
+                ]),
+                'meta' => [
+                    'current_page' => $returns->currentPage(),
+                    'last_page' => $returns->lastPage(),
+                    'total' => $returns->total(),
+                ],
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString(),
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function returnStore(Request $request, Sale $sale, ReturnService $returns)

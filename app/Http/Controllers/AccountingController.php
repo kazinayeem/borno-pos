@@ -19,11 +19,24 @@ use Illuminate\Support\Facades\Storage;
 
 class AccountingController extends Controller
 {
-    public function accounts()
+    public function accounts(Request $request)
     {
         $accounts = Account::latest()->get()->each(fn ($account) => $account->balance = $account->balanceCents());
 
-        return view('accounting.accounts', compact('accounts'));
+        if ($request->expectsJson()) {
+            return response()->json([
+                'accounts' => $accounts->map(fn ($account) => [
+                    'id' => $account->id,
+                    'name' => $account->name,
+                    'number' => $account->number,
+                    'type' => $account->type,
+                    'balance_cents' => (int) $account->balanceCents(),
+                    'is_default' => (bool) $account->is_default,
+                ]),
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function storeAccount(Request $request, LedgerService $ledger)
@@ -35,13 +48,17 @@ class AccountingController extends Controller
             'opening' => ['nullable'],
         ]);
         $opening = Money::parse($data['opening'] ?? 0);
-        Account::create([
+        $account = Account::create([
             'name' => $data['name'],
             'number' => $data['number'] ?? null,
             'type' => $data['type'],
             'opening_cents' => $opening,
             'is_default' => Account::count() === 0,
         ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Account saved successfully.', 'account' => $account]);
+        }
 
         return back()->with('status', 'Account saved.');
     }
@@ -55,25 +72,60 @@ class AccountingController extends Controller
         ]);
         $account->update($data);
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Account updated successfully.', 'account' => $account]);
+        }
+
         return back()->with('status', 'Account updated.');
     }
 
     public function destroyAccount(Request $request, Account $account)
     {
         if (AccountTransaction::where('account_id', $account->id)->exists()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Cannot delete account with existing transactions.'], 422);
+            }
+
             return back()->withErrors(['account' => 'Cannot delete account with existing transactions.']);
         }
         $account->delete();
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Account deleted successfully.']);
+        }
+
         return back()->with('status', 'Account deleted.');
     }
 
-    public function transfers()
+    public function transfers(Request $request)
     {
-        return view('accounting.transfers', [
-            'transfers' => MoneyTransfer::with(['fromAccount', 'toAccount'])->latest()->paginate(10),
-            'accounts' => Account::orderBy('name')->get(),
-        ]);
+        $transfers = MoneyTransfer::with(['fromAccount', 'toAccount'])->latest('transferred_on')->latest('id')->paginate(15);
+        $accounts = Account::orderBy('name')->get();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'transfers' => $transfers->getCollection()->map(fn ($t) => [
+                    'id' => $t->id,
+                    'from_account' => $t->fromAccount?->name,
+                    'to_account' => $t->toAccount?->name,
+                    'amount_cents' => (int) $t->amount_cents,
+                    'transferred_on' => optional($t->transferred_on)->format('Y-m-d'),
+                    'note' => $t->note,
+                ]),
+                'meta' => [
+                    'current_page' => $transfers->currentPage(),
+                    'last_page' => $transfers->lastPage(),
+                    'total' => $transfers->total(),
+                ],
+                'accounts' => $accounts->map(fn ($acc) => [
+                    'id' => $acc->id,
+                    'name' => $acc->name,
+                    'balance_cents' => (int) $acc->balanceCents(),
+                ]),
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function storeTransfer(Request $request, LedgerService $ledger)
@@ -87,6 +139,10 @@ class AccountingController extends Controller
         ]);
         $amount = Money::parse($data['amount']);
         if ($amount < 1) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Enter an amount greater than zero.'], 422);
+            }
+
             return back()->withErrors(['amount' => 'Enter an amount greater than zero.'])->withInput();
         }
 
@@ -108,6 +164,10 @@ class AccountingController extends Controller
             $ledger->post($to, 'debit', $amount, 'transfer:'.$transfer->id.':in', 'Transfer in', $transfer, $transfer->transferred_on, $request->user());
         });
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Money transferred successfully.']);
+        }
+
         return back()->with('status', 'Money transferred.');
     }
 
@@ -115,6 +175,10 @@ class AccountingController extends Controller
     {
         $transfer->load(['fromAccount', 'toAccount']);
         if ($transfer->toAccount->balanceCents() < $transfer->amount_cents) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Destination account does not have enough balance to reverse this transfer.'], 422);
+            }
+
             return back()->withErrors(['transfer' => 'Destination account does not have enough balance to reverse this transfer.']);
         }
 
@@ -124,10 +188,14 @@ class AccountingController extends Controller
             $transfer->delete();
         });
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Money transfer reversed and balances restored.']);
+        }
+
         return back()->with('status', 'Money transfer reversed and balances restored.');
     }
 
-    public function balance()
+    public function balance(Request $request)
     {
         $accounts = Account::get();
         $cash = $accounts->sum(fn ($account) => $account->balanceCents());
@@ -135,25 +203,75 @@ class AccountingController extends Controller
         $purchaseDue = Purchase::where('status', 'received')->get()->sum(fn ($purchase) => $purchase->dueCents());
         $salesDue = Sale::where('status', 'completed')->get()->sum(fn ($sale) => $sale->dueCents());
 
-        return view('accounting.balance', compact('accounts', 'cash', 'inventory', 'purchaseDue', 'salesDue'));
+        if ($request->expectsJson()) {
+            return response()->json([
+                'accounts' => $accounts->map(fn ($acc) => [
+                    'id' => $acc->id,
+                    'name' => $acc->name,
+                    'type' => $acc->type,
+                    'number' => $acc->number,
+                    'balance_cents' => (int) $acc->balanceCents(),
+                ]),
+                'cash_cents' => (int) $cash,
+                'inventory_cents' => (int) $inventory,
+                'purchase_due_cents' => (int) $purchaseDue,
+                'sales_due_cents' => (int) $salesDue,
+                'total_assets_cents' => (int) ($cash + $inventory + $salesDue),
+                'total_liabilities_cents' => (int) $purchaseDue,
+                'net_equity_cents' => (int) ($cash + $inventory + $salesDue - $purchaseDue),
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function expenses(Request $request)
     {
         [$from, $to] = DateRange::fromRequest($request);
-        $expenses = Expense::with('category')
-            ->whereBetween('spent_on', [$from->toDateString(), $to->toDateString()])
-            ->latest()
-            ->paginate(10)
-            ->withQueryString();
+        $query = Expense::with(['category', 'account']);
+        if ($request->filled('q')) {
+            $term = $request->string('q');
+            $query->where(function ($q) use ($term) {
+                $q->where('note', 'like', "%{$term}%")
+                    ->orWhereHas('category', fn ($cq) => $cq->where('name', 'like', "%{$term}%"));
+            });
+        }
+        if ($request->filled('category_id')) {
+            $query->where('expense_category_id', $request->integer('category_id'));
+        }
+        if ($request->filled('from') || $request->filled('to')) {
+            $query->whereBetween('spent_on', [$from->toDateString(), $to->toDateString()]);
+        }
 
-        return view('accounting.expenses', [
-            'expenses' => $expenses,
-            'categories' => ExpenseCategory::orderBy('name')->get(),
-            'accounts' => Account::orderBy('name')->get(),
-            'from' => $from,
-            'to' => $to,
-        ]);
+        $expenses = $query->latest('spent_on')->paginate(15)->withQueryString();
+        $categories = ExpenseCategory::orderBy('name')->get();
+        $accounts = Account::orderBy('name')->get();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'expenses' => $expenses->getCollection()->map(fn ($exp) => [
+                    'id' => $exp->id,
+                    'category' => $exp->category?->name,
+                    'category_id' => $exp->expense_category_id,
+                    'account' => $exp->account?->name,
+                    'account_id' => $exp->account_id,
+                    'amount_cents' => (int) $exp->amount_cents,
+                    'spent_on' => optional($exp->spent_on)->format('Y-m-d'),
+                    'note' => $exp->note,
+                    'attachment' => $exp->attachment,
+                ]),
+                'meta' => [
+                    'current_page' => $expenses->currentPage(),
+                    'last_page' => $expenses->lastPage(),
+                    'total' => $expenses->total(),
+                ],
+                'categories' => $categories,
+                'accounts' => $accounts->map(fn ($a) => ['id' => $a->id, 'name' => $a->name, 'balance_cents' => (int) $a->balanceCents()]),
+                'total_amount_cents' => (int) $expenses->sum('amount_cents'),
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function storeExpense(Request $request, LedgerService $ledger)
@@ -168,6 +286,10 @@ class AccountingController extends Controller
         ]);
         $amount = Money::parse($data['amount']);
         if ($amount < 1) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Enter an amount greater than zero.'], 422);
+            }
+
             return back()->withErrors(['amount' => 'Enter an amount greater than zero.'])->withInput();
         }
         $account = Account::find($data['account_id'] ?? null) ?? $ledger->defaultAccount((int) $request->user()->store_id);
@@ -181,6 +303,10 @@ class AccountingController extends Controller
             'attachment' => $request->file('attachment')?->store('expenses', 'public'),
         ]);
         $ledger->post($account, 'credit', $amount, 'expense:'.$expense->id, 'Expense', $expense, $expense->spent_on, $request->user());
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Expense recorded successfully.', 'expense' => $expense]);
+        }
 
         return back()->with('status', 'Expense recorded.');
     }
@@ -196,6 +322,10 @@ class AccountingController extends Controller
             $expense->delete();
         });
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Expense deleted and account balance restored.']);
+        }
+
         return back()->with('status', 'Expense deleted and account balance restored.');
     }
 
@@ -207,7 +337,7 @@ class AccountingController extends Controller
             $term = $request->string('q');
             $query->where(function ($q) use ($term) {
                 $q->where('description', 'like', "%{$term}%")
-                    ->orWhere('reference', 'like', "%{$term}%")
+                    ->orWhere('source_key', 'like', "%{$term}%")
                     ->orWhereHas('account', fn ($aq) => $aq->where('name', 'like', "%{$term}%")->orWhere('number', 'like', "%{$term}%"));
             });
         }
@@ -233,6 +363,35 @@ class AccountingController extends Controller
         $transactions = $query->latest('transacted_on')->latest('id')->paginate(15)->withQueryString();
         $accounts = Account::orderBy('name')->get();
 
-        return view('accounting.transactions', compact('transactions', 'accounts', 'totalDebit', 'totalCredit'));
+        if ($request->expectsJson()) {
+            return response()->json([
+                'transactions' => $transactions->getCollection()->map(fn ($txn) => [
+                    'id' => $txn->id,
+                    'account' => $txn->account?->name,
+                    'account_id' => $txn->account_id,
+                    'direction' => $txn->direction,
+                    'amount_cents' => (int) $txn->amount_cents,
+                    'transacted_on' => optional($txn->transacted_on)->format('Y-m-d'),
+                    'description' => $txn->description,
+                    'reference_type' => $txn->reference_type,
+                    'reference_id' => $txn->reference_id,
+                ]),
+                'meta' => [
+                    'current_page' => $transactions->currentPage(),
+                    'last_page' => $transactions->lastPage(),
+                    'total' => $transactions->total(),
+                ],
+                'accounts' => $accounts->map(fn ($a) => ['id' => $a->id, 'name' => $a->name]),
+                'total_debit_cents' => (int) $totalDebit,
+                'total_credit_cents' => (int) $totalCredit,
+                'net_movement_cents' => (int) ($totalDebit - $totalCredit),
+            ]);
+        }
+
+        if ($request->query('view') === 'blade') {
+            return view('accounting.transactions', compact('transactions', 'accounts', 'totalDebit', 'totalCredit'));
+        }
+
+        return view('spa');
     }
 }

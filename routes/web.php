@@ -148,15 +148,15 @@ Route::middleware('auth')->group(function () {
         Route::post('/expense', [AccountingController::class, 'storeExpense'])->middleware('ability:accounting.create')->name('expenses.store');
         Route::delete('/expense/{expense}', [AccountingController::class, 'destroyExpense'])->middleware('ability:accounting.create')->name('expenses.destroy');
 
-        Route::get('/attendance', [HrmController::class, 'attendance'])->name('attendance');
-        Route::post('/attendance', [HrmController::class, 'storeAttendance'])->name('attendance.store');
-        Route::delete('/attendance/{attendance}', [HrmController::class, 'destroyAttendance'])->name('attendance.destroy');
-        Route::get('/payrolls', [HrmController::class, 'payrolls'])->name('payrolls');
-        Route::post('/payrolls', [HrmController::class, 'storePayroll'])->name('payrolls.store');
-        Route::delete('/payrolls/{payroll}', [HrmController::class, 'destroyPayroll'])->name('payrolls.destroy');
+        Route::get('/attendance', [HrmController::class, 'attendance'])->middleware('ability:staff.view')->name('attendance');
+        Route::post('/attendance', [HrmController::class, 'storeAttendance'])->middleware('ability:staff.view')->name('attendance.store');
+        Route::delete('/attendance/{attendance}', [HrmController::class, 'destroyAttendance'])->middleware('ability:staff.view')->name('attendance.destroy');
+        Route::get('/payrolls', [HrmController::class, 'payrolls'])->middleware('ability:staff.view')->name('payrolls');
+        Route::post('/payrolls', [HrmController::class, 'storePayroll'])->middleware('ability:staff.view')->name('payrolls.store');
+        Route::delete('/payrolls/{payroll}', [HrmController::class, 'destroyPayroll'])->middleware('ability:staff.view')->name('payrolls.destroy');
 
-        Route::get('/stock/count', [ReportController::class, 'stockCount'])->name('stock.index');
-        Route::post('/stock/count', [ReportController::class, 'storeStockCount'])->name('stock.store');
+        Route::get('/stock/count', [ReportController::class, 'stockCount'])->middleware('ability:purchases.view')->name('stock.index');
+        Route::post('/stock/count', [ReportController::class, 'storeStockCount'])->middleware('ability:purchases.view')->name('stock.store');
 
         // Reports
         Route::middleware('ability:reports.view')->group(function () {
@@ -172,19 +172,21 @@ Route::middleware('auth')->group(function () {
             Route::get('/report/expense', [ReportController::class, 'expenses'])->name('reports.expenses');
         });
 
-        Route::get('/stores', [ShopController::class, 'index'])->name('stores.index');
-        Route::get('/stores/create', [ShopController::class, 'create'])->name('stores.create');
-        Route::post('/stores', [ShopController::class, 'store'])->name('stores.store');
-        Route::get('/subscription-purchase', [ShopController::class, 'plans'])->name('subscriptions.purchase');
-        Route::post('/subscription-purchase', [ShopController::class, 'buy'])->name('subscriptions.buy');
+        Route::middleware('ability:settings.view')->group(function () {
+            Route::get('/stores', [ShopController::class, 'index'])->name('stores.index');
+            Route::get('/stores/create', [ShopController::class, 'create'])->name('stores.create');
+            Route::post('/stores', [ShopController::class, 'store'])->name('stores.store');
+            Route::get('/subscription-purchase', [ShopController::class, 'plans'])->name('subscriptions.purchase');
+            Route::post('/subscription-purchase', [ShopController::class, 'buy'])->name('subscriptions.buy');
 
-        Route::get('/settings/general-settings', [SettingsController::class, 'general'])->name('settings.general');
-        Route::post('/settings/general-settings', [SettingsController::class, 'updateGeneral'])->name('settings.general.update');
-        Route::post('/settings/store-currency', [SettingsController::class, 'setStoreCurrency'])->name('settings.currency.update');
-        Route::get('/settings/business-modules', [SettingsController::class, 'modules'])->name('settings.modules');
-        Route::post('/settings/business-modules', [SettingsController::class, 'updateModules'])->name('settings.modules.update');
-        Route::get('/shop-payment-gateway', [SettingsController::class, 'gateway'])->name('settings.gateway');
-        Route::post('/shop-payment-gateway', [SettingsController::class, 'updateGateway'])->name('settings.gateway.update');
+            Route::get('/settings/general-settings', [SettingsController::class, 'general'])->name('settings.general');
+            Route::post('/settings/general-settings', [SettingsController::class, 'updateGeneral'])->name('settings.general.update');
+            Route::post('/settings/store-currency', [SettingsController::class, 'setStoreCurrency'])->name('settings.currency.update');
+            Route::get('/settings/business-modules', [SettingsController::class, 'modules'])->name('settings.modules');
+            Route::post('/settings/business-modules', [SettingsController::class, 'updateModules'])->name('settings.modules.update');
+            Route::get('/shop-payment-gateway', [SettingsController::class, 'gateway'])->name('settings.gateway');
+            Route::post('/shop-payment-gateway', [SettingsController::class, 'updateGateway'])->name('settings.gateway.update');
+        });
 
         $catalog = [
             'categories' => 'categories',

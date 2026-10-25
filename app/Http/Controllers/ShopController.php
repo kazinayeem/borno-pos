@@ -16,19 +16,46 @@ use Illuminate\Validation\Rule;
 
 class ShopController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $user = auth()->user();
+        $user = $request->user();
         $stores = $user->isSuperAdmin()
             ? Store::with('owner')->latest()->paginate(12)
             : Store::withoutGlobalScopes()->where('id', $user->store_id)->orWhere('parent_id', $user->store_id)->paginate(12);
 
-        return view('shops.index', compact('stores'));
+        if ($request->expectsJson()) {
+            return response()->json([
+                'stores' => $stores->getCollection()->map(fn ($s) => [
+                    'id' => $s->id,
+                    'name' => $s->name,
+                    'business_type' => $s->business_type,
+                    'phone' => $s->phone,
+                    'email' => $s->email,
+                    'address' => $s->address,
+                    'currency_code' => $s->currency_code,
+                    'currency_symbol' => $s->currency_symbol,
+                    'is_current' => $s->id === $user->store_id,
+                ]),
+                'meta' => [
+                    'current_page' => $stores->currentPage(),
+                    'last_page' => $stores->lastPage(),
+                    'total' => $stores->total(),
+                ],
+            ]);
+        }
+
+        return view('spa');
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        return view('shops.form', ['store' => new Store]);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'business_types' => ['all_in_one', 'grocery', 'pharmacy', 'electronics', 'restaurant'],
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function store(Request $request)
@@ -56,6 +83,10 @@ class ShopController extends Controller
             'is_default' => true,
         ]);
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Store saved successfully.', 'store' => $store]);
+        }
+
         return redirect()->route('stores.index')->with('status', 'Store saved.');
     }
 
@@ -66,12 +97,33 @@ class ShopController extends Controller
         ]);
     }
 
-    public function plans()
+    public function plans(Request $request)
     {
-        return view('subscriptions.purchase', [
-            'plans' => Plan::where('is_active', true)->get(),
-            'current' => Subscription::with('plan')->latest()->limit(5)->get(),
-        ]);
+        $plans = Plan::where('is_active', true)->get();
+        $current = Subscription::with('plan')->latest()->limit(5)->get();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'plans' => $plans->map(fn ($p) => [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'price_cents' => (int) $p->price_cents,
+                    'billing_interval' => $p->billing_interval,
+                    'features' => $p->features ?? [],
+                ]),
+                'current' => $current->map(fn ($c) => [
+                    'id' => $c->id,
+                    'plan_name' => $c->plan?->name,
+                    'status' => $c->status,
+                    'payment_status' => $c->payment_status,
+                    'starts_on' => optional($c->starts_on)->format('Y-m-d'),
+                    'ends_on' => optional($c->ends_on)->format('Y-m-d'),
+                    'amount_cents' => (int) $c->amount_cents,
+                ]),
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function buy(Request $request)
@@ -89,16 +141,40 @@ class ShopController extends Controller
             'amount_cents' => $plan->price_cents,
         ]);
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Subscription request recorded as unpaid. No external payment was charged.']);
+        }
+
         return back()->with('status', 'Subscription request recorded as unpaid. No external payment was charged.');
     }
 
-    public function report()
+    public function report(Request $request)
     {
-        $rows = auth()->user()->isSuperAdmin()
+        $rows = $request->user()->isSuperAdmin()
             ? Subscription::withoutGlobalScopes()->with(['plan', 'store'])->latest()->paginate(15)
             : Subscription::with('plan')->latest()->paginate(15);
 
-        return view('subscriptions.report', compact('rows'));
+        if ($request->expectsJson()) {
+            return response()->json([
+                'rows' => $rows->getCollection()->map(fn ($s) => [
+                    'id' => $s->id,
+                    'store_name' => $s->store?->name,
+                    'plan_name' => $s->plan?->name,
+                    'status' => $s->status,
+                    'payment_status' => $s->payment_status,
+                    'amount_cents' => (int) $s->amount_cents,
+                    'starts_on' => optional($s->starts_on)->format('Y-m-d'),
+                    'ends_on' => optional($s->ends_on)->format('Y-m-d'),
+                ]),
+                'meta' => [
+                    'current_page' => $rows->currentPage(),
+                    'last_page' => $rows->lastPage(),
+                    'total' => $rows->total(),
+                ],
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function activate(Subscription $subscription)

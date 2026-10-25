@@ -71,6 +71,17 @@
                 @endforeach
             </div>
         </div>
+        <div class="demo" style="margin-top: 14px;">
+            <div class="demo-head">
+                <strong style="color:#10b981">👥 Quick Staff Demo Login</strong>
+                <span class="muted">Click 1, 2, or 3 to test staff restricted permissions</span>
+            </div>
+            <div class="demo-grid">
+                <button type="button" data-demo data-login="manager@bornopos.test" data-password="{{ config('bornopos.demo_password') }}">1. Manager</button>
+                <button type="button" data-demo data-login="cashier@bornopos.test" data-password="{{ config('bornopos.demo_password') }}">2. Cashier</button>
+                <button type="button" data-demo data-login="inventory@bornopos.test" data-password="{{ config('bornopos.demo_password') }}">3. Inventory Staff</button>
+            </div>
+        </div>
         <p style="text-align:center;margin-top:16px">Register yourself as a shop owner <a href="{{ route('signup') }}" style="color:#2563eb;font-weight:800">Sign Up</a></p>
         <p class="muted" style="text-align:center;font-size:12px">© {{ date('Y') }} BornoPos. All rights reserved.</p>
     </section>

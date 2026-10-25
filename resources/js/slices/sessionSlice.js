@@ -35,6 +35,11 @@ const sessionSlice = createSlice({
         clearStatus(state) {
             state.status = '';
         },
+        updateUser(state, action) {
+            if (state.user) {
+                state.user = { ...state.user, ...action.payload };
+            }
+        },
     },
     extraReducers(builder) {
         builder
@@ -57,5 +62,5 @@ const sessionSlice = createSlice({
     },
 });
 
-export const { clearStatus } = sessionSlice.actions;
+export const { clearStatus, updateUser } = sessionSlice.actions;
 export default sessionSlice.reducer;

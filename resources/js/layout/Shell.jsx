@@ -18,7 +18,7 @@ function Item({ item, path }) {
     if (!item.children) {
         const className = active ? 'active' : '';
         const inner = (<><Icon name={item.icon} /><span>{t(item.label)}</span></>);
-        return item.spa
+        return item.spa !== false
             ? <Link className={className} to={item.href}>{inner}</Link>
             : <a className={className} href={item.href}>{inner}</a>;
     }
@@ -31,7 +31,7 @@ function Item({ item, path }) {
             <div className="sub">
                 {item.children.map(([label, href, spa]) => {
                     const on = path === href || path.startsWith(`${href}/`);
-                    return spa
+                    return spa !== false
                         ? <Link key={href} className={on ? 'active' : ''} to={href}>{t(label)}</Link>
                         : <a key={href} className={on ? 'active' : ''} href={href}>{t(label)}</a>;
                 })}
@@ -122,13 +122,13 @@ export default function Shell({ children }) {
                     <div className="upgrade">
                         <strong><span className="crown">♛</span> {t('BornoPos Pro')}</strong>
                         <p>{t('Unlock more features for your business')}</p>
-                        <a href="/subscription-purchase">{t('Upgrade Now →')}</a>
+                        <Link to="/subscription-purchase">{t('Upgrade Now →')}</Link>
                     </div>
                 )}
                 <div className="side-tools">
                     <a href="/tour" title="Tour">⌘</a>
-                    <a href={user?.role === 'super_admin' ? '/user/profile' : '/settings/general-settings'} title="Settings">⚙</a>
-                    <a href="/user/profile" title="Profile">☺</a>
+                    <Link to={user?.role === 'super_admin' ? '/user/profile' : '/settings/general-settings'} title="Settings">⚙</Link>
+                    <Link to="/user/profile" title="Profile">☺</Link>
                     <button type="button" title="Logout" onClick={(event) => { event.stopPropagation(); dispatch(logout()).then(() => navigate('/signin')); }}>↪</button>
                 </div>
             </aside>
@@ -156,7 +156,7 @@ export default function Shell({ children }) {
                             <span className="who"><b>{user?.name}</b><small>{t(user?.role_title || user?.role || role)}</small></span>
                         </button>
                         <Popover open={ui.userOpen}>
-                            <a href="/user/profile">{t('Profile')}</a>
+                            <Link to="/user/profile">{t('Profile')}</Link>
                             <button type="button" onClick={() => dispatch(logout()).then(() => navigate('/signin'))}>{t('Logout')}</button>
                         </Popover>
                     </div>

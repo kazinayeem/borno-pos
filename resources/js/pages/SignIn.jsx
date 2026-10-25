@@ -16,6 +16,12 @@ const demos = [
     ['Super Admin or SAAS', 'superadmin@bornopos.test'],
 ];
 
+const staffDemos = [
+    ['1. Manager', 'manager@bornopos.test', 'manager', 'POS, Products, Sales, Reports'],
+    ['2. Cashier', 'cashier@bornopos.test', 'cashier', 'POS, Sales, Products'],
+    ['3. Inventory Staff', 'inventory@bornopos.test', 'inventory', 'Products, Purchases'],
+];
+
 export default function SignIn() {
     const dispatch = useDispatch();
     const navigate = useNavigate();
@@ -182,16 +188,63 @@ export default function SignIn() {
                                 <div className="demo-head"><strong>{t('Demo Access')}</strong><span>{t('In the above button demo and local purpose')}</span></div>
                                 <div className="demo-grid">
                                     {demos.map(([label, email]) => (
-                                        <button key={email} type="button" onClick={() => { setLoginValue(email); setPassword(window.BornoPos?.demoPassword || ''); }}>{label}</button>
+                                        <button key={email} type="button" onClick={() => { setLoginValue(email); setPassword(window.BornoPos?.demoPassword || 'password'); }}>{label}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="demo" style={{ marginTop: '12px' }}>
+                                <div className="demo-head">
+                                    <strong style={{ color: '#10b981' }}>👥 {t('Or Quick Staff Demo Login')}</strong>
+                                    <span>{t('Click 1, 2, or 3 to test staff restricted permissions')}</span>
+                                </div>
+                                <div className="demo-grid">
+                                    {staffDemos.map(([label, email, username, permissions]) => (
+                                        <button
+                                            key={email}
+                                            type="button"
+                                            onClick={() => {
+                                                setLoginMode('staff');
+                                                setLoginValue(email);
+                                                setPassword(window.BornoPos?.demoPassword || 'password');
+                                            }}
+                                            title={`Username: ${username} | Access: ${permissions}`}
+                                        >
+                                            {label}
+                                        </button>
                                     ))}
                                 </div>
                             </div>
                             <p className="center foot">{t('Register yourself as a shop owner')} <a href="/signup">{t('Sign Up')}</a></p>
                         </>
                     ) : (
-                        <p className="center foot" style={{ marginTop: '20px', fontSize: '13px', color: 'var(--muted)' }}>
-                            {t('Need credentials? Contact your store owner or manager to create your account.')}
-                        </p>
+                        <>
+                            <div className="or"><span>{t('or')}</span></div>
+                            <div className="demo">
+                                <div className="demo-head">
+                                    <strong style={{ color: '#10b981' }}>👥 {t('Quick Staff Demo Login')}</strong>
+                                    <span>{t('Click 1, 2, or 3 for instant staff credentials')}</span>
+                                </div>
+                                <div className="demo-grid">
+                                    {staffDemos.map(([label, email, username, permissions]) => (
+                                        <button
+                                            key={email}
+                                            type="button"
+                                            onClick={() => {
+                                                setLoginValue(email);
+                                                setPassword(window.BornoPos?.demoPassword || 'password');
+                                            }}
+                                            title={`Username: ${username} | Access: ${permissions}`}
+                                        >
+                                            <span style={{ fontWeight: 700 }}>{label}</span>
+                                            <small style={{ display: 'block', fontSize: '11px', opacity: 0.75, marginTop: '2px' }}>{permissions}</small>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <p className="center foot" style={{ marginTop: '20px', fontSize: '13px', color: 'var(--muted)' }}>
+                                {t('Need credentials? Contact your store owner or manager to create your account.')}
+                            </p>
+                        </>
                     )}
                     <p className="muted center">© {new Date().getFullYear()} BornoPos. {t('All rights reserved.')}</p>
                 </motion.section>

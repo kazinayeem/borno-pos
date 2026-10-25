@@ -34,10 +34,36 @@ class HrmController extends Controller
             $query->whereDate('attended_on', '<=', $request->string('to')->toString());
         }
 
-        return view('hrm.attendance', [
-            'rows' => $query->latest('attended_on')->paginate(15)->withQueryString(),
-            'employees' => Employee::orderBy('name')->get(),
-        ]);
+        $rows = $query->latest('attended_on')->paginate(15)->withQueryString();
+        $employees = Employee::orderBy('name')->get();
+
+        if ($request->expectsJson()) {
+            $attendanceRows = $rows->getCollection()->map(fn ($r) => [
+                'id' => $r->id,
+                'employee_id' => $r->employee_id,
+                'employee_name' => $r->employee?->name,
+                'attended_on' => optional($r->attended_on)->format('Y-m-d'),
+                'status' => $r->status,
+                'check_in' => $r->check_in,
+                'check_out' => $r->check_out,
+            ]);
+
+            return response()->json([
+                'rows' => $attendanceRows,
+                'attendance' => $attendanceRows,
+                'summary' => [
+                    'total' => $rows->total(),
+                ],
+                'meta' => [
+                    'current_page' => $rows->currentPage(),
+                    'last_page' => $rows->lastPage(),
+                    'total' => $rows->total(),
+                ],
+                'employees' => $employees->map(fn ($e) => ['id' => $e->id, 'name' => $e->name]),
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function storeAttendance(Request $request)
@@ -58,12 +84,20 @@ class HrmController extends Controller
             $data,
         );
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Attendance saved.']);
+        }
+
         return back()->with('status', 'Attendance saved.');
     }
 
     public function destroyAttendance(Request $request, Attendance $attendance)
     {
         $attendance->delete();
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Attendance record deleted.']);
+        }
 
         return back()->with('status', 'Attendance record deleted.');
     }
@@ -80,10 +114,37 @@ class HrmController extends Controller
             $query->where('month', $request->string('month')->toString());
         }
 
-        return view('hrm.payrolls', [
-            'rows' => $query->latest('paid_on')->paginate(15)->withQueryString(),
-            'employees' => Employee::orderBy('name')->get(),
-        ]);
+        $rows = $query->latest('paid_on')->paginate(15)->withQueryString();
+        $employees = Employee::orderBy('name')->get();
+
+        if ($request->expectsJson()) {
+            $payrollRows = $rows->getCollection()->map(fn ($p) => [
+                'id' => $p->id,
+                'employee_id' => $p->employee_id,
+                'employee_name' => $p->employee?->name,
+                'month' => $p->month,
+                'amount_cents' => (int) $p->amount_cents,
+                'paid_on' => optional($p->paid_on)->format('Y-m-d'),
+                'note' => $p->note,
+            ]);
+
+            return response()->json([
+                'rows' => $payrollRows,
+                'payrolls' => $payrollRows,
+                'meta' => [
+                    'current_page' => $rows->currentPage(),
+                    'last_page' => $rows->lastPage(),
+                    'total' => $rows->total(),
+                ],
+                'employees' => $employees->map(fn ($e) => [
+                    'id' => $e->id,
+                    'name' => $e->name,
+                    'salary_cents' => (int) $e->salary_cents,
+                ]),
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function storePayroll(Request $request, LedgerService $ledger)
@@ -97,6 +158,10 @@ class HrmController extends Controller
         ]);
         $amount = Money::parse($data['amount']);
         if (Payroll::where('employee_id', $data['employee_id'])->where('month', $data['month'])->exists()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Payroll for that month already exists.', 'errors' => ['month' => ['Payroll for that month already exists.']]], 422);
+            }
+
             return back()->withErrors(['month' => 'Payroll for that month already exists.'])->withInput();
         }
         $account = $ledger->defaultAccount((int) $request->user()->store_id);
@@ -111,6 +176,10 @@ class HrmController extends Controller
         ]);
         $ledger->post($account, 'credit', $amount, 'payroll:'.$payroll->id, 'Salary '.$payroll->month, $payroll, $payroll->paid_on, $request->user());
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Payroll recorded. It is included in salary cost, not in expenses.']);
+        }
+
         return back()->with('status', 'Payroll recorded. It is included in salary cost, not in expenses.');
     }
 
@@ -121,6 +190,10 @@ class HrmController extends Controller
             $ledger->post($account, 'debit', $payroll->amount_cents, 'payroll:'.$payroll->id.':reversal', 'Reversal of Salary '.$payroll->month, $payroll, now()->toDateString(), $request->user());
             $payroll->delete();
         });
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Payroll deleted and ledger reversed.']);
+        }
 
         return back()->with('status', 'Payroll deleted and ledger reversed.');
     }

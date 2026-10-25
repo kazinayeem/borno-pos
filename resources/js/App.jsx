@@ -17,6 +17,33 @@ import StaffManagement from './pages/StaffManagement';
 import RoleManagement from './pages/RoleManagement';
 import ReportsCenter from './pages/ReportsCenter';
 import PurchaseList from './pages/PurchaseList';
+import Profile from './pages/Profile';
+import {
+    AccountsPage,
+    MoneyTransfersPage,
+    BalanceSheetPage,
+    TransactionsPage,
+    ExpensesPage,
+} from './pages/AccountingPages';
+import { StockCountPage, SaleReturnsPage } from './pages/InventoryAndSalesPages';
+import { AttendancePage, PayrollsPage } from './pages/HrmPages';
+import {
+    ReportSummaryPage,
+    ReportProfitLossPage,
+    ReportPurchasesPage,
+    ReportSalesPage,
+    ReportProductsPage,
+    ReportExpensesPage,
+} from './pages/ReportPages';
+import {
+    GeneralSettingsPage,
+    BusinessModulesPage,
+    PaymentGatewayPage,
+    StoresPage,
+    StoreCreatePage,
+    SubscriptionPurchasePage,
+    SubscriptionReportPage,
+} from './pages/SettingsAndStorePages';
 
 const catalogs = [
     '/categories', '/unit', '/brand', '/warehouse', '/tax', '/coupons', '/departments',
@@ -110,6 +137,29 @@ export default function App() {
                 <Route path="/staff" element={<Guard ability="staff.view"><StaffManagement /></Guard>} />
                 <Route path="/role" element={<Guard ability="roles.view"><RoleManagement /></Guard>} />
                 <Route path="/reports/center" element={<Guard ability="reports.view"><ReportsCenter /></Guard>} />
+                <Route path="/user/profile" element={<Guard><Profile /></Guard>} />
+                <Route path="/accounts" element={<Guard ability="accounting.view"><AccountsPage /></Guard>} />
+                <Route path="/money-transfers" element={<Guard ability="accounting.view"><MoneyTransfersPage /></Guard>} />
+                <Route path="/account/balancesheet" element={<Guard ability="accounting.view"><BalanceSheetPage /></Guard>} />
+                <Route path="/account/transactions" element={<Guard ability="accounting.view"><TransactionsPage /></Guard>} />
+                <Route path="/expense" element={<Guard ability="accounting.view"><ExpensesPage /></Guard>} />
+                <Route path="/stock/count" element={<Guard ability="purchases.view"><StockCountPage /></Guard>} />
+                <Route path="/sale-returns" element={<Guard ability="sales.view"><SaleReturnsPage /></Guard>} />
+                <Route path="/attendance" element={<Guard ability="staff.view"><AttendancePage /></Guard>} />
+                <Route path="/payrolls" element={<Guard ability="staff.view"><PayrollsPage /></Guard>} />
+                <Route path="/report/summary" element={<Guard ability="reports.view"><ReportSummaryPage /></Guard>} />
+                <Route path="/report/profit-loss" element={<Guard ability="reports.view"><ReportProfitLossPage /></Guard>} />
+                <Route path="/report/purchases" element={<Guard ability="reports.view"><ReportPurchasesPage /></Guard>} />
+                <Route path="/report/sales" element={<Guard ability="reports.view"><ReportSalesPage /></Guard>} />
+                <Route path="/report/product" element={<Guard ability="reports.view"><ReportProductsPage /></Guard>} />
+                <Route path="/report/expense" element={<Guard ability="reports.view"><ReportExpensesPage /></Guard>} />
+                <Route path="/settings/general-settings" element={<Guard ability="settings.view"><GeneralSettingsPage /></Guard>} />
+                <Route path="/settings/business-modules" element={<Guard ability="settings.view"><BusinessModulesPage /></Guard>} />
+                <Route path="/shop-payment-gateway" element={<Guard ability="settings.view"><PaymentGatewayPage /></Guard>} />
+                <Route path="/stores" element={<Guard ability="settings.view"><StoresPage /></Guard>} />
+                <Route path="/stores/create" element={<Guard ability="settings.view"><StoreCreatePage /></Guard>} />
+                <Route path="/subscription-purchase" element={<Guard ability="settings.view"><SubscriptionPurchasePage /></Guard>} />
+                <Route path="/subscription/report" element={<Guard ability="settings.view"><SubscriptionReportPage /></Guard>} />
                 {catalogs.map((path) => (
                     <Route key={path} path={path} element={<Guard><CatalogPage endpoint={path} /></Guard>} />
                 ))}

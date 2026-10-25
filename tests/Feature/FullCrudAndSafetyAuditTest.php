@@ -343,7 +343,7 @@ class FullCrudAndSafetyAuditTest extends TestCase
             'check_out' => '18:00',
         ]);
 
-        $resp = $this->actingAs($this->user)->get('/attendance?employee_id='.$employee->id);
+        $resp = $this->actingAs($this->user)->getJson('/attendance?employee_id='.$employee->id);
         $resp->assertOk();
         $resp->assertSee('John Doe Pharmacist');
 
@@ -373,7 +373,7 @@ class FullCrudAndSafetyAuditTest extends TestCase
             'transacted_on' => now()->toDateString(),
         ]);
 
-        $payList = $this->actingAs($this->user)->get('/payrolls?month='.now()->format('Y-m'));
+        $payList = $this->actingAs($this->user)->getJson('/payrolls?month='.now()->format('Y-m'));
         $payList->assertOk();
         $payList->assertSee('John Doe Pharmacist');
 

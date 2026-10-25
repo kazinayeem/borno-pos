@@ -62,9 +62,9 @@
                 </button>
                 <div class="menu-pop">
                     <a href="{{ route('profile') }}">Profile</a>
-                    @unless(auth()->user()->isSuperAdmin())
+                    @if(!auth()->user()->isSuperAdmin() && (auth()->user()->isOwner() || auth()->user()->canDo('settings.view')))
                         <a href="{{ route('settings.general') }}">Settings</a>
-                    @endunless
+                    @endif
                     <form method="post" action="{{ route('logout') }}">@csrf<button type="submit">Logout</button></form>
                 </div>
             </div>

@@ -9,9 +9,22 @@ use Illuminate\Validation\Rule;
 
 class SettingsController extends Controller
 {
-    public function profile()
+    public function profile(Request $request)
     {
-        return view('settings.profile');
+        $user = $request->user();
+        if ($request->expectsJson()) {
+            return response()->json([
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'role' => $user->role,
+                ],
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function updateProfile(Request $request)
@@ -33,16 +46,37 @@ class SettingsController extends Controller
         }
         $user->save();
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Profile updated.',
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'role' => $user->role,
+                ],
+            ]);
+        }
+
         return back()->with('status', 'Profile updated.');
     }
 
-    public function general()
+    public function general(Request $request)
     {
-        return view('settings.general', [
-            'settings' => $this->bag($requestStore = auth()->user()->store_id),
-            'store' => auth()->user()->store,
-            'currencies' => Currency::orderBy('name')->get(),
-        ]);
+        $store = $request->user()->store;
+        $settings = $this->bag($request->user()->store_id);
+        $currencies = Currency::orderBy('name')->get();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'settings' => $settings,
+                'store' => $store,
+                'currencies' => $currencies,
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function updateGeneral(Request $request)
@@ -66,6 +100,10 @@ class SettingsController extends Controller
             ]);
         }
         $this->put($request->user()->store_id, 'invoice_footer', $data['invoice_footer'] ?? '');
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'General settings saved.', 'store' => $store]);
+        }
 
         return back()->with('status', 'General settings saved.');
     }
@@ -91,13 +129,18 @@ class SettingsController extends Controller
         ]);
     }
 
-    public function modules()
+    public function modules(Request $request)
     {
-        $saved = json_decode((string) $this->get(auth()->user()->store_id, 'modules'), true) ?: [];
+        $saved = json_decode((string) $this->get($request->user()->store_id, 'modules'), true) ?: [];
+        $modules = array_merge($this->moduleDefaults(), $saved);
 
-        return view('settings.modules', [
-            'modules' => array_merge($this->moduleDefaults(), $saved),
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'modules' => $modules,
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function updateModules(Request $request)
@@ -108,17 +151,25 @@ class SettingsController extends Controller
         }
         $this->put($request->user()->store_id, 'modules', json_encode($modules));
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Business modules updated.', 'modules' => $modules]);
+        }
+
         return back()->with('status', 'Business modules updated.');
     }
 
-    public function gateway()
+    public function gateway(Request $request)
     {
-        $saved = json_decode((string) $this->get(auth()->user()->store_id, 'gateways'), true) ?: [];
+        $saved = json_decode((string) $this->get($request->user()->store_id, 'gateways'), true) ?: [];
 
-        return view('settings.gateway', [
-            'gateways' => $saved,
-            'names' => ['cash' => 'Cash', 'paystack' => 'Paystack', 'razorpay' => 'Razorpay', 'paypal' => 'PayPal', 'stripe' => 'Stripe'],
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'gateways' => $saved,
+                'names' => ['cash' => 'Cash', 'paystack' => 'Paystack', 'razorpay' => 'Razorpay', 'paypal' => 'PayPal', 'stripe' => 'Stripe'],
+            ]);
+        }
+
+        return view('spa');
     }
 
     public function updateGateway(Request $request)
@@ -131,6 +182,10 @@ class SettingsController extends Controller
             ];
         }
         $this->put($request->user()->store_id, 'gateways', json_encode($payload));
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Payment methods saved. No external payment was processed.', 'gateways' => $payload]);
+        }
 
         return back()->with('status', 'Payment methods saved. No external payment was processed.');
     }

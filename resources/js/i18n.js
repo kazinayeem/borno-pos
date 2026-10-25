@@ -499,3 +499,10 @@ export function useT() {
 
     return (key, vars) => translate(locale, key, vars);
 }
+
+export function useTranslation() {
+    const t = useT();
+
+    return { t };
+}
+

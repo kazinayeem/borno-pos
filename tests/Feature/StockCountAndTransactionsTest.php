@@ -90,21 +90,25 @@ class StockCountAndTransactionsTest extends TestCase
     {
         [$store, $owner] = $this->createShopWithData();
 
-        // 1. Initial page load (page 1)
+        // 1. Initial page load (page 1) returns SPA shell
         $response = $this->actingAs($owner)->get('/stock/count');
-        $response->assertOk()
+        $response->assertOk()->assertSee('id="root"', false);
+
+        // 2. Legacy blade view test
+        $bladeRes = $this->actingAs($owner)->get('/stock/count?view=blade');
+        $bladeRes->assertOk()
             ->assertSee('Physical Stock Count & Reconciliation')
             ->assertSee('Product 1')
             ->assertSee('Enter Physical Count');
 
-        // 2. Search query by generic name
-        $searchRes = $this->actingAs($owner)->get('/stock/count?q=Amoxicillin');
+        // 3. Search query by generic name
+        $searchRes = $this->actingAs($owner)->get('/stock/count?view=blade&q=Amoxicillin');
         $searchRes->assertOk()
             ->assertSee('Product 5 Amoxicillin')
             ->assertDontSee('Product 2');
 
-        // 3. Pagination page 2
-        $page2Res = $this->actingAs($owner)->get('/stock/count?page=2');
+        // 4. Pagination page 2
+        $page2Res = $this->actingAs($owner)->get('/stock/count?view=blade&page=2');
         $page2Res->assertOk();
     }
 
@@ -112,32 +116,36 @@ class StockCountAndTransactionsTest extends TestCase
     {
         [$store, $owner, $warehouse, $account] = $this->createShopWithData();
 
-        // 1. Initial page load
+        // 1. Initial page load returns SPA shell
         $response = $this->actingAs($owner)->get('/account/transactions');
-        $response->assertOk()
+        $response->assertOk()->assertSee('id="root"', false);
+
+        // 2. Legacy blade view test
+        $bladeRes = $this->actingAs($owner)->get('/account/transactions?view=blade');
+        $bladeRes->assertOk()
             ->assertSee('Account Transactions & Ledger')
             ->assertSee('Total Inflow (Debit)')
             ->assertSee('Total Outflow (Credit)')
             ->assertSee('Brac Bank Account');
 
-        // 2. Search query
-        $searchRes = $this->actingAs($owner)->get('/account/transactions?q=Office+Rent');
+        // 3. Search query
+        $searchRes = $this->actingAs($owner)->get('/account/transactions?view=blade&q=Office+Rent');
         $searchRes->assertOk()
             ->assertSee('Office Rent Payment')
             ->assertDontSee('Transaction 1');
 
-        // 3. Direction filter: debit
-        $debitRes = $this->actingAs($owner)->get('/account/transactions?direction=debit');
+        // 4. Direction filter: debit
+        $debitRes = $this->actingAs($owner)->get('/account/transactions?view=blade&direction=debit');
         $debitRes->assertOk()
             ->assertSee('Inflow (Debit)');
 
-        // 4. Direction filter: credit
-        $creditRes = $this->actingAs($owner)->get('/account/transactions?direction=credit');
+        // 5. Direction filter: credit
+        $creditRes = $this->actingAs($owner)->get('/account/transactions?view=blade&direction=credit');
         $creditRes->assertOk()
             ->assertSee('Outflow (Credit)');
 
-        // 5. Account filter
-        $accRes = $this->actingAs($owner)->get('/account/transactions?account_id='.$account->id);
+        // 6. Account filter
+        $accRes = $this->actingAs($owner)->get('/account/transactions?view=blade&account_id='.$account->id);
         $accRes->assertOk();
     }
 }
